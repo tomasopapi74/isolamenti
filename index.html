@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoGuard GPS - Navigazione e Controllo</title>
+    <title>Isolamenti - Navigazione e Controllo</title>
     <!-- Tailwind CSS per lo styling moderno -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS e JS per le mappe interattive -->
@@ -40,6 +40,16 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #2563eb;
+            cursor: pointer;
+            box-shadow: 0 0 2px 0 rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -48,10 +58,10 @@
     <header class="bg-white shadow-md p-4 sticky top-0 z-50 border-b border-slate-100">
         <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center gap-4">
             <div class="flex items-center gap-2 shrink-0">
-                <div class="bg-blue-600 p-2 rounded-lg">
-                    <i data-lucide="map" class="text-white w-5 h-5"></i>
+                <div class="bg-blue-600 p-2 rounded-lg shadow-md shadow-blue-200">
+                    <i data-lucide="shield-check" class="text-white w-5 h-5"></i>
                 </div>
-                <h1 class="text-xl font-bold text-slate-800 tracking-tight">GeoGuard GPS</h1>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight">Isolamenti</h1>
             </div>
             
             <div class="flex-1 flex gap-2">
@@ -71,21 +81,45 @@
         <!-- Area Mappa -->
         <div id="map" class="bg-slate-200"></div>
 
+        <!-- Controlli Rapidi Flottanti -->
+        <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
+            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 transition-all active:scale-90" title="Centra su di me">
+                <i data-lucide="locate-fixed" class="w-5 h-5"></i>
+            </button>
+            <button onclick="clearAllData()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-red-50 text-red-500 transition-all active:scale-90" title="Reset totale">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+            </button>
+        </div>
+
         <!-- Pannello Informativo Floating -->
         <div id="statusPanel" class="absolute bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-5 z-[1000] border border-slate-100 transition-all">
             <div class="flex items-center justify-between mb-4">
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Stato GPS</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Stato Isolamento</span>
                 <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 shadow-sm">
                     <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
                     <span id="statusText">Inattivo</span>
                 </div>
             </div>
+
+            <!-- Controllo Raggio -->
+            <div id="radiusControl" class="mb-4 hidden">
+                <div class="flex justify-between items-center mb-1">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase">Raggio Area</label>
+                    <span id="radiusVal" class="text-xs font-bold text-blue-600">1000m</span>
+                </div>
+                <input type="range" id="radiusSlider" min="100" max="5000" step="100" value="1000" 
+                    class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
+                    oninput="changeRadius(this.value)">
+            </div>
             
             <div id="infoBox" class="text-sm text-slate-600 space-y-3">
-                <p id="instructionText" class="leading-tight">Tocca la mappa per fissare il punto centrale dell'area di controllo.</p>
+                <p id="instructionText" class="leading-tight text-xs">Tocca la mappa per fissare il punto centrale dell'area.</p>
+                <div id="distInfo" class="hidden text-xs font-medium text-slate-500 bg-slate-50 p-2 rounded-lg text-center">
+                    Distanza dal confine: <span id="distVal" class="text-slate-800">--</span>
+                </div>
                 <div class="flex gap-2">
                     <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl hover:bg-black transition-all font-bold active:scale-95 shadow-lg">
-                        <i data-lucide="navigation" class="w-4 h-4"></i> Attiva Tracking
+                        <i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS
                     </button>
                 </div>
             </div>
@@ -93,10 +127,10 @@
             <!-- Lista dei Checkpoint Salvati -->
             <div id="checkpointList" class="mt-5 border-t border-slate-100 pt-4 hidden">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-xs font-black uppercase text-slate-400 tracking-wider">Checkpoint</h3>
+                    <h3 class="text-xs font-black uppercase text-slate-400 tracking-wider">Punti di Controllo</h3>
                     <span id="cpCount" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">0</span>
                 </div>
-                <div id="listItems" class="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                <div id="listItems" class="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                     <!-- Elementi inseriti dinamicamente via JS -->
                 </div>
             </div>
@@ -110,13 +144,13 @@
                 <div class="bg-blue-100 p-2.5 rounded-xl text-blue-600">
                     <i data-lucide="map-pin"></i>
                 </div>
-                <h2 class="text-xl font-bold text-slate-800">Nuovo Checkpoint</h2>
+                <h2 class="text-xl font-bold text-slate-800">Nuovo Punto</h2>
             </div>
             
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Descrizione</label>
-                    <textarea id="noteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm" placeholder="Aggiungi una nota per questo luogo..."></textarea>
+                    <textarea id="noteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm" placeholder="Cosa c'è qui?"></textarea>
                 </div>
                 
                 <div>
@@ -153,10 +187,10 @@
         let watchId = null;
         let checkpoints = [];
         let tempCoords = null;
+        let currentRadius = 1000;
 
         // Inizializzazione della mappa Leaflet
         function initMap() {
-            // Coordinate di default (Italia centrale)
             map = L.map('map', { zoomControl: false }).setView([42.5, 12.5], 6);
             
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -165,26 +199,27 @@
 
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // Gestione clic sulla mappa per il centro o i checkpoint
             map.on('click', function(e) {
                 if (!centerPoint) {
                     setCenterPoint(e.latlng);
                 } else if (isInsideCircle(e.latlng)) {
                     openCheckpointModal(e.latlng);
                 } else {
-                    showNotification("Puoi segnare punti solo all'interno del raggio di 1km!");
+                    showNotification("Fuori raggio d'isolamento!");
                 }
             });
+
+            // Carica dati salvati
+            loadLocalData();
         }
 
-        // Funzione per impostare il punto di origine della navigazione
-        function setCenterPoint(latlng) {
+        function setCenterPoint(latlng, savedRadius = null) {
             if (centerMarker) map.removeLayer(centerMarker);
             if (targetCircle) map.removeLayer(targetCircle);
 
             centerPoint = latlng;
+            if (savedRadius) currentRadius = savedRadius;
             
-            // Marker del centro personalizzato (Bandiera)
             centerMarker = L.marker(latlng, {
                 draggable: true,
                 icon: L.divIcon({
@@ -195,9 +230,8 @@
                 })
             }).addTo(map);
 
-            // Cerchio di controllo (Geofence)
             targetCircle = L.circle(latlng, {
-                radius: 1000,
+                radius: currentRadius,
                 color: '#3b82f6',
                 fillColor: '#3b82f6',
                 fillOpacity: 0.1,
@@ -205,37 +239,51 @@
                 dashArray: '8, 8'
             }).addTo(map);
 
-            // Spostamento del centro tramite trascinamento
             centerMarker.on('dragend', function() {
                 centerPoint = centerMarker.getLatLng();
                 targetCircle.setLatLng(centerPoint);
                 updateGeofenceColor();
+                saveLocalData();
             });
 
             document.getElementById('checkpointList').classList.remove('hidden');
-            document.getElementById('instructionText').innerText = "Area definita. Tocca nel cerchio per aggiungere note o attiva il GPS per il controllo.";
-            showNotification("Punto centrale fissato!");
+            document.getElementById('radiusControl').classList.remove('hidden');
+            document.getElementById('instructionText').innerText = "Tocca nel cerchio per i punti di controllo.";
+            document.getElementById('radiusSlider').value = currentRadius;
+            document.getElementById('radiusVal').innerText = currentRadius + 'm';
+            
+            saveLocalData();
             lucide.createIcons();
         }
 
-        // Funzione per attivare/disattivare la geolocalizzazione in tempo reale
+        function changeRadius(val) {
+            currentRadius = parseInt(val);
+            document.getElementById('radiusVal').innerText = currentRadius + 'm';
+            if (targetCircle) {
+                targetCircle.setRadius(currentRadius);
+                updateGeofenceColor();
+                saveLocalData();
+            }
+        }
+
         function toggleTracking() {
             const btn = document.getElementById('trackBtn');
             if (isTracking) {
                 navigator.geolocation.clearWatch(watchId);
                 isTracking = false;
-                btn.innerHTML = `<i data-lucide="navigation" class="w-4 h-4"></i> Attiva Tracking`;
+                btn.innerHTML = `<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS`;
                 btn.classList.replace('bg-rose-600', 'bg-slate-900');
                 if (userMarker) map.removeLayer(userMarker);
                 userMarker = null;
+                document.getElementById('distInfo').classList.add('hidden');
                 resetStatusUI();
             } else {
                 if (!navigator.geolocation) {
-                    showNotification("Errore: GPS non supportato dal browser.");
+                    showNotification("GPS non supportato.");
                     return;
                 }
                 
-                showNotification("Ricerca della tua posizione...");
+                showNotification("Ricerca posizione...");
                 watchId = navigator.geolocation.watchPosition(
                     (pos) => {
                         const latlng = [pos.coords.latitude, pos.coords.longitude];
@@ -260,7 +308,6 @@
             lucide.createIcons();
         }
 
-        // Logica principale: cambia colore del cerchio in base alla posizione
         function updateGeofenceColor() {
             if (!centerPoint || !userMarker) return;
 
@@ -269,17 +316,22 @@
             const statusText = document.getElementById('statusText');
             const statusDot = document.getElementById('statusDot');
             const statusIndicator = document.getElementById('statusIndicator');
+            
+            // Info distanza
+            const distInfo = document.getElementById('distInfo');
+            const distVal = document.getElementById('distVal');
+            distInfo.classList.remove('hidden');
+            const diff = Math.abs(currentRadius - distance).toFixed(0);
+            distVal.innerText = diff + "m " + (distance <= currentRadius ? "al confine" : "oltre il confine");
 
-            if (distance <= 1000) {
-                // DENTRO IL CERCHIO -> VERDE
+            if (distance <= currentRadius) {
                 targetCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.2, dashArray: '' });
-                statusText.innerText = "Posizione OK";
+                statusText.innerText = "Isolamento OK";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500";
                 statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100";
             } else {
-                // FUORI DAL CERCHIO -> ROSSO
                 targetCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3, dashArray: '' });
-                statusText.innerText = "Fuori area!";
+                statusText.innerText = "Allarme: Fuori!";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse";
                 statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-100";
             }
@@ -294,15 +346,13 @@
 
         function isInsideCircle(latlng) {
             if (!centerPoint) return false;
-            return latlng.distanceTo(centerPoint) <= 1000;
+            return latlng.distanceTo(centerPoint) <= currentRadius;
         }
 
-        // Ricerca località tramite Nominatim API (OpenStreetMap)
         async function searchLocation() {
             const query = document.getElementById('searchInput').value.trim();
             if (!query) return;
 
-            // Controllo se sono coordinate dirette
             const coordRegex = /^([-+]?\d*\.?\d+),\s*([-+]?\d*\.?\d+)$/;
             const match = query.match(coordRegex);
             
@@ -328,7 +378,7 @@
             }
         }
 
-        // Gestione dei Checkpoint (Modal e Salvataggio)
+        // Checkpoint
         function openCheckpointModal(latlng) {
             tempCoords = latlng;
             document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
@@ -356,7 +406,7 @@
         }
 
         function saveCheckpoint() {
-            const note = document.getElementById('noteInput').value || "Senza descrizione";
+            const note = document.getElementById('noteInput').value || "Nota isolamento";
             const photoFile = document.getElementById('photoInput').files[0];
             
             const cp = {
@@ -369,14 +419,29 @@
             checkpoints.push(cp);
             renderCheckpointOnMap(cp);
             updateCheckpointList();
+            saveLocalData();
             closeModal();
-            showNotification("Checkpoint salvato!");
+            showNotification("Punto salvato!");
+        }
+
+        function deleteCheckpoint(id) {
+            checkpoints = checkpoints.filter(c => c.id !== id);
+            // Re-render
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker && layer !== centerMarker && layer !== userMarker) {
+                    map.removeLayer(layer);
+                }
+            });
+            checkpoints.forEach(renderCheckpointOnMap);
+            updateCheckpointList();
+            saveLocalData();
+            showNotification("Punto rimosso");
         }
 
         function renderCheckpointOnMap(cp) {
             const marker = L.marker(cp.coords, {
                 icon: L.divIcon({
-                    html: `<div style="background: white; border: 2px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><div style="background: #3b82f6; width: 8px; height: 8px; border-radius: 50%;"></div></div>`,
+                    html: `<div style="background: white; border: 2px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; shadow: 0 2px 4px rgba(0,0,0,0.2);"><div style="background: #3b82f6; width: 8px; height: 8px; border-radius: 50%;"></div></div>`,
                     className: '',
                     iconSize: [20, 20],
                     iconAnchor: [10, 10]
@@ -385,9 +450,10 @@
 
             const popupHtml = `
                 <div class="custom-popup p-1 max-w-[180px]">
-                    <p class="font-bold text-slate-800 text-xs mb-1 border-b pb-1">Checkpoint</p>
+                    <p class="font-bold text-slate-800 text-xs mb-1 border-b pb-1">Dettaglio Punto</p>
                     <p class="text-[11px] text-slate-600 mb-2">${cp.note}</p>
-                    ${cp.photo ? `<img src="${cp.photo}" class="rounded-lg w-full h-24 object-cover shadow-sm">` : ''}
+                    ${cp.photo ? `<img src="${cp.photo}" class="rounded-lg w-full h-24 object-cover">` : ''}
+                    <button onclick="deleteCheckpoint(${cp.id})" class="mt-2 text-[9px] text-red-500 font-bold uppercase w-full text-right">Elimina</button>
                 </div>
             `;
             marker.bindPopup(popupHtml);
@@ -398,23 +464,33 @@
             document.getElementById('cpCount').innerText = checkpoints.length;
             container.innerHTML = "";
 
-            // Mostra i più recenti in alto
             [...checkpoints].reverse().forEach(cp => {
                 const el = document.createElement('div');
-                el.className = "flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl hover:border-blue-400 cursor-pointer transition-all active:scale-[0.97] group shadow-sm";
+                el.className = "flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl hover:border-blue-400 cursor-pointer transition-all shadow-sm relative group";
                 el.onclick = () => map.flyTo(cp.coords, 17);
                 el.innerHTML = `
-                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                        <i data-lucide="${cp.photo ? 'image' : 'map-pin'}" class="w-4 h-4"></i>
+                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                        <i data-lucide="${cp.photo ? 'camera' : 'map-pin'}" class="w-4 h-4"></i>
                     </div>
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-bold text-slate-800 truncate">${cp.note}</p>
-                        <p class="text-[9px] text-slate-400 font-mono tracking-tighter">${cp.coords.lat.toFixed(4)}, ${cp.coords.lng.toFixed(4)}</p>
                     </div>
+                    <button onclick="event.stopPropagation(); deleteCheckpoint(${cp.id})" class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
                 `;
                 container.appendChild(el);
             });
             lucide.createIcons();
+        }
+
+        // Utils
+        function recenterOnUser() {
+            if (userMarker) {
+                map.flyTo(userMarker.getLatLng(), 17);
+            } else {
+                showNotification("GPS non attivo.");
+            }
         }
 
         function showNotification(text) {
@@ -425,10 +501,41 @@
             setTimeout(() => {
                 el.classList.add('-translate-y-24', 'opacity-0');
                 el.classList.remove('translate-y-0', 'opacity-100');
-            }, 3000);
+            }, 2500);
         }
 
-        // Caricamento iniziale
+        // Salvataggio Locale
+        function saveLocalData() {
+            const data = {
+                center: centerPoint,
+                radius: currentRadius,
+                checkpoints: checkpoints.map(c => ({...c, photo: null})) // Foto non salvate in localStorage per spazio
+            };
+            localStorage.setItem('isolamenti_v1', JSON.stringify(data));
+        }
+
+        function loadLocalData() {
+            const raw = localStorage.getItem('isolamenti_v1');
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (data.center) {
+                setCenterPoint(data.center, data.radius);
+                map.setView(data.center, 14);
+            }
+            if (data.checkpoints) {
+                checkpoints = data.checkpoints;
+                checkpoints.forEach(renderCheckpointOnMap);
+                updateCheckpointList();
+            }
+        }
+
+        function clearAllData() {
+            if (confirm("Vuoi cancellare tutti i dati d'isolamento e ricominciare?")) {
+                localStorage.removeItem('isolamenti_v1');
+                location.reload();
+            }
+        }
+
         window.onload = initMap;
     </script>
 </body>
