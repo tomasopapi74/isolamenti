@@ -83,18 +83,36 @@
 
         <!-- Controlli Rapidi Flottanti -->
         <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
-            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 transition-all active:scale-90" title="Centra su di me">
+            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 transition-all active:scale-90 border border-slate-100" title="Centra su di me">
                 <i data-lucide="locate-fixed" class="w-5 h-5"></i>
             </button>
-            <button onclick="clearAllData()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-red-50 text-red-500 transition-all active:scale-90" title="Reset totale">
+            <button id="audioToggle" onclick="toggleAudio()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 transition-all active:scale-90 border border-slate-100" title="Attiva/Disattiva Audio">
+                <i data-lucide="volume-2" class="w-5 h-5"></i>
+            </button>
+            <button onclick="clearAllData()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-red-50 text-red-500 transition-all active:scale-90 border border-slate-100" title="Reset totale">
                 <i data-lucide="trash-2" class="w-5 h-5"></i>
             </button>
+        </div>
+
+        <!-- Telemetria in alto a destra -->
+        <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden flex flex-col gap-2">
+            <div class="bg-white/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-3">
+                <div class="flex flex-col">
+                    <span class="uppercase text-slate-400">Tempo</span>
+                    <span id="timerVal">00:00:00</span>
+                </div>
+                <div class="h-6 w-px bg-slate-200"></div>
+                <div class="flex flex-col">
+                    <span class="uppercase text-slate-400">Precisione</span>
+                    <span id="accuracyVal">-- m</span>
+                </div>
+            </div>
         </div>
 
         <!-- Pannello Informativo Floating -->
         <div id="statusPanel" class="absolute bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-5 z-[1000] border border-slate-100 transition-all">
             <div class="flex items-center justify-between mb-4">
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Stato Isolamento</span>
+                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Stato Navigazione</span>
                 <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 shadow-sm">
                     <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
                     <span id="statusText">Inattivo</span>
@@ -115,7 +133,7 @@
             <div id="infoBox" class="text-sm text-slate-600 space-y-3">
                 <p id="instructionText" class="leading-tight text-xs">Tocca la mappa per fissare il punto centrale dell'area.</p>
                 <div id="distInfo" class="hidden text-xs font-medium text-slate-500 bg-slate-50 p-2 rounded-lg text-center">
-                    Distanza dal confine: <span id="distVal" class="text-slate-800">--</span>
+                    Confine: <span id="distVal" class="text-slate-800 font-bold">--</span>
                 </div>
                 <div class="flex gap-2">
                     <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl hover:bg-black transition-all font-bold active:scale-95 shadow-lg">
@@ -127,10 +145,10 @@
             <!-- Lista dei Checkpoint Salvati -->
             <div id="checkpointList" class="mt-5 border-t border-slate-100 pt-4 hidden">
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-xs font-black uppercase text-slate-400 tracking-wider">Punti di Controllo</h3>
+                    <h3 class="text-xs font-black uppercase text-slate-400 tracking-wider">Checkpoint</h3>
                     <span id="cpCount" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">0</span>
                 </div>
-                <div id="listItems" class="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                <div id="listItems" class="max-h-32 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                     <!-- Elementi inseriti dinamicamente via JS -->
                 </div>
             </div>
@@ -150,7 +168,7 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Descrizione</label>
-                    <textarea id="noteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm" placeholder="Cosa c'è qui?"></textarea>
+                    <textarea id="noteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm" placeholder="Annota osservazioni..."></textarea>
                 </div>
                 
                 <div>
@@ -158,7 +176,7 @@
                     <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
                         <div class="flex flex-col items-center justify-center pt-2 pb-2">
                             <i data-lucide="camera" class="w-6 h-6 text-slate-400 group-hover:text-blue-500 transition-colors"></i>
-                            <p class="text-[10px] text-slate-500 mt-1">Clicca per allegare immagine</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Scegli o scatta foto</p>
                         </div>
                         <input type="file" id="photoInput" accept="image/*" class="hidden" onchange="previewImage(this)">
                     </label>
@@ -182,14 +200,19 @@
         // Inizializza le icone Lucide
         lucide.createIcons();
 
-        let map, userMarker, centerPoint, centerMarker, targetCircle;
+        let map, userMarker, centerPoint, centerMarker, targetCircle, breadcrumbs;
         let isTracking = false;
         let watchId = null;
         let checkpoints = [];
+        let pathCoords = [];
         let tempCoords = null;
         let currentRadius = 1000;
+        let audioEnabled = true;
+        let lastStatusInside = null;
+        let startTime = null;
+        let timerInterval = null;
 
-        // Inizializzazione della mappa Leaflet
+        // Inizializzazione della mappa
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([42.5, 12.5], 6);
             
@@ -198,6 +221,9 @@
             }).addTo(map);
 
             L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // Inizializza la polilinea per i breadcrumbs
+            breadcrumbs = L.polyline([], { color: '#3b82f6', weight: 3, opacity: 0.6 }).addTo(map);
 
             map.on('click', function(e) {
                 if (!centerPoint) {
@@ -209,7 +235,6 @@
                 }
             });
 
-            // Carica dati salvati
             loadLocalData();
         }
 
@@ -223,7 +248,7 @@
             centerMarker = L.marker(latlng, {
                 draggable: true,
                 icon: L.divIcon({
-                    html: `<div style="background: #0f172a; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"><i data-lucide="flag" style="width: 14px; height: 14px;"></i></div>`,
+                    html: `<div style="background: #0f172a; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"><i data-lucide="flag" style="width: 14px; height: 14px;"></i></div>`,
                     className: '',
                     iconSize: [32, 32],
                     iconAnchor: [16, 16]
@@ -266,8 +291,32 @@
             }
         }
 
+        // Gestione Audio
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            const icon = document.getElementById('audioToggle').querySelector('i');
+            if (audioEnabled) {
+                icon.setAttribute('data-lucide', 'volume-2');
+                showNotification("Audio attivato");
+            } else {
+                icon.setAttribute('data-lucide', 'volume-x');
+                showNotification("Audio disattivato");
+            }
+            lucide.createIcons();
+        }
+
+        function speak(text) {
+            if (!audioEnabled) return;
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'it-IT';
+            utterance.rate = 1.1;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Gestione GPS e Timer
         function toggleTracking() {
             const btn = document.getElementById('trackBtn');
+            const telemetry = document.getElementById('telemetryPanel');
             if (isTracking) {
                 navigator.geolocation.clearWatch(watchId);
                 isTracking = false;
@@ -275,7 +324,9 @@
                 btn.classList.replace('bg-rose-600', 'bg-slate-900');
                 if (userMarker) map.removeLayer(userMarker);
                 userMarker = null;
+                telemetry.classList.add('hidden');
                 document.getElementById('distInfo').classList.add('hidden');
+                stopTimer();
                 resetStatusUI();
             } else {
                 if (!navigator.geolocation) {
@@ -283,18 +334,28 @@
                     return;
                 }
                 
-                showNotification("Ricerca posizione...");
+                showNotification("Aggancio segnale...");
                 watchId = navigator.geolocation.watchPosition(
                     (pos) => {
                         const latlng = [pos.coords.latitude, pos.coords.longitude];
+                        
+                        // Aggiorna precisione
+                        document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + " m";
+
                         if (!userMarker) {
                             userMarker = L.marker(latlng, {
                                 icon: L.divIcon({ className: 'pulse-user', iconSize: [16, 16], iconAnchor: [8, 8] })
                             }).addTo(map);
                             map.flyTo(latlng, 15);
+                            startTimer();
                         } else {
                             userMarker.setLatLng(latlng);
                         }
+                        
+                        // Breadcrumbs
+                        pathCoords.push(latlng);
+                        breadcrumbs.setLatLngs(pathCoords);
+                        
                         updateGeofenceColor();
                     },
                     (err) => showNotification("Errore GPS: " + err.message),
@@ -302,12 +363,14 @@
                 );
                 
                 isTracking = true;
+                telemetry.classList.remove('hidden');
                 btn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS`;
                 btn.classList.replace('bg-slate-900', 'bg-rose-600');
             }
             lucide.createIcons();
         }
 
+        // Logica Geofence e Audio Alert
         function updateGeofenceColor() {
             if (!centerPoint || !userMarker) return;
 
@@ -317,24 +380,47 @@
             const statusDot = document.getElementById('statusDot');
             const statusIndicator = document.getElementById('statusIndicator');
             
-            // Info distanza
             const distInfo = document.getElementById('distInfo');
             const distVal = document.getElementById('distVal');
             distInfo.classList.remove('hidden');
             const diff = Math.abs(currentRadius - distance).toFixed(0);
-            distVal.innerText = diff + "m " + (distance <= currentRadius ? "al confine" : "oltre il confine");
+            
+            const isInside = distance <= currentRadius;
+            distVal.innerText = isInside ? `${diff}m dal bordo` : `${diff}m fuori area`;
 
-            if (distance <= currentRadius) {
+            if (isInside) {
                 targetCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.2, dashArray: '' });
                 statusText.innerText = "Isolamento OK";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500";
-                statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100";
+                statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100 shadow-sm";
+                
+                if (lastStatusInside === false) speak("Bentornato in area.");
             } else {
                 targetCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3, dashArray: '' });
                 statusText.innerText = "Allarme: Fuori!";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse";
-                statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-100";
+                statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-100 shadow-sm";
+                
+                if (lastStatusInside === true || lastStatusInside === null) speak("Allarme. Sei uscito dall'area di isolamento.");
             }
+            lastStatusInside = isInside;
+        }
+
+        // Timer di sessione
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const h = Math.floor(elapsed / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((elapsed % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((elapsed % 60000) / 1000).toString().padStart(2, '0');
+                document.getElementById('timerVal').innerText = `${h}:${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            document.getElementById('timerVal').innerText = "00:00:00";
         }
 
         function resetStatusUI() {
@@ -342,6 +428,9 @@
             document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
             document.getElementById('statusIndicator').className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 shadow-sm";
             if(targetCircle) targetCircle.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, dashArray: '8, 8' });
+            pathCoords = [];
+            breadcrumbs.setLatLngs([]);
+            lastStatusInside = null;
         }
 
         function isInsideCircle(latlng) {
@@ -406,7 +495,7 @@
         }
 
         function saveCheckpoint() {
-            const note = document.getElementById('noteInput').value || "Nota isolamento";
+            const note = document.getElementById('noteInput').value || "Punto isolamento";
             const photoFile = document.getElementById('photoInput').files[0];
             
             const cp = {
@@ -426,7 +515,6 @@
 
         function deleteCheckpoint(id) {
             checkpoints = checkpoints.filter(c => c.id !== id);
-            // Re-render
             map.eachLayer(layer => {
                 if (layer instanceof L.Marker && layer !== centerMarker && layer !== userMarker) {
                     map.removeLayer(layer);
@@ -435,7 +523,6 @@
             checkpoints.forEach(renderCheckpointOnMap);
             updateCheckpointList();
             saveLocalData();
-            showNotification("Punto rimosso");
         }
 
         function renderCheckpointOnMap(cp) {
@@ -450,7 +537,7 @@
 
             const popupHtml = `
                 <div class="custom-popup p-1 max-w-[180px]">
-                    <p class="font-bold text-slate-800 text-xs mb-1 border-b pb-1">Dettaglio Punto</p>
+                    <p class="font-bold text-slate-800 text-xs mb-1 border-b pb-1">Checkpoint</p>
                     <p class="text-[11px] text-slate-600 mb-2">${cp.note}</p>
                     ${cp.photo ? `<img src="${cp.photo}" class="rounded-lg w-full h-24 object-cover">` : ''}
                     <button onclick="deleteCheckpoint(${cp.id})" class="mt-2 text-[9px] text-red-500 font-bold uppercase w-full text-right">Elimina</button>
@@ -484,7 +571,6 @@
             lucide.createIcons();
         }
 
-        // Utils
         function recenterOnUser() {
             if (userMarker) {
                 map.flyTo(userMarker.getLatLng(), 17);
@@ -504,18 +590,17 @@
             }, 2500);
         }
 
-        // Salvataggio Locale
         function saveLocalData() {
             const data = {
                 center: centerPoint,
                 radius: currentRadius,
-                checkpoints: checkpoints.map(c => ({...c, photo: null})) // Foto non salvate in localStorage per spazio
+                checkpoints: checkpoints.map(c => ({...c, photo: null})) 
             };
-            localStorage.setItem('isolamenti_v1', JSON.stringify(data));
+            localStorage.setItem('isolamenti_v2_final', JSON.stringify(data));
         }
 
         function loadLocalData() {
-            const raw = localStorage.getItem('isolamenti_v1');
+            const raw = localStorage.getItem('isolamenti_v2_final');
             if (!raw) return;
             const data = JSON.parse(raw);
             if (data.center) {
@@ -530,8 +615,8 @@
         }
 
         function clearAllData() {
-            if (confirm("Vuoi cancellare tutti i dati d'isolamento e ricominciare?")) {
-                localStorage.removeItem('isolamenti_v1');
+            if (confirm("Cancellare tutti i dati d'isolamento e il percorso?")) {
+                localStorage.removeItem('isolamenti_v2_final');
                 location.reload();
             }
         }
