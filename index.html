@@ -40,14 +40,6 @@
             background-color: #cbd5e1; border-radius: 10px;
             margin: 0 auto 10px auto;
         }
-
-        .category-badge {
-            font-size: 0.65rem;
-            padding: 2px 8px;
-            border-radius: 9999px;
-            font-weight: 800;
-            text-transform: uppercase;
-        }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -90,7 +82,7 @@
         <!-- Telemetria -->
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
             <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
-                <div class="flex flex-col"><span class="text-slate-400 uppercase">GPS Accuracy</span><span id="accuracyVal">--m</span></div>
+                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">Precisione</span><span id="accuracyVal">--m</span></div>
             </div>
         </div>
 
@@ -123,7 +115,6 @@
 
                 <!-- Lista Campi Categorizzata -->
                 <div id="fieldsSection" class="space-y-6">
-                    <!-- Cipolle -->
                     <div id="cat-cipolle" class="hidden">
                         <div class="flex items-center gap-2 mb-3">
                             <div class="w-1 h-4 bg-orange-500 rounded-full"></div>
@@ -132,7 +123,6 @@
                         <div id="list-cipolle" class="space-y-2"></div>
                     </div>
 
-                    <!-- Bunching -->
                     <div id="cat-bunching" class="hidden">
                         <div class="flex items-center gap-2 mb-3">
                             <div class="w-1 h-4 bg-green-500 rounded-full"></div>
@@ -141,7 +131,6 @@
                         <div id="list-bunching" class="space-y-2"></div>
                     </div>
 
-                    <!-- Brassiche -->
                     <div id="cat-brassiche" class="hidden">
                         <div class="flex items-center gap-2 mb-3">
                             <div class="w-1 h-4 bg-purple-500 rounded-full"></div>
@@ -211,11 +200,16 @@
         </div>
     </div>
 
+    <!-- Notifiche -->
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold border border-white/10">
+        <span id="notifText"></span>
+    </div>
+
     <script>
         lucide.createIcons();
 
         let map, userMarker, watchId = null;
-        let fields = []; // { id, name, code, category, latlng, radius, marker, circle, polyline, pathCoords, isInside }
+        let fields = []; 
         let isTracking = false;
         let tempFieldCoords = null;
         
@@ -265,7 +259,6 @@
             content.style.opacity = '1';
         }
 
-        // Inizializzazione Mappa
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
@@ -294,9 +287,7 @@
             document.getElementById('fieldNameInput').focus();
         }
 
-        function openManualCoordModal() {
-            openFieldModal(true);
-        }
+        function openManualCoordModal() { openFieldModal(true); }
 
         function closeFieldModal() {
             document.getElementById('fieldModal').classList.replace('flex', 'hidden');
@@ -338,7 +329,6 @@
         }
 
         function addFieldToMap(fieldData) {
-            // Marker custom per categoria
             const colors = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7' };
             const color = colors[fieldData.category];
 
@@ -349,38 +339,17 @@
                 })
             }).addTo(map);
 
-            marker.bindPopup(`
-                <div class="text-xs">
-                    <div class="font-black text-slate-800 uppercase">${fieldData.name}</div>
-                    <div class="text-slate-500 font-mono text-[10px]">${fieldData.code}</div>
-                    <div class="mt-2 text-slate-400">Raggio: ${fieldData.radius}m</div>
-                </div>
-            `);
+            marker.bindPopup(`<div class="text-xs"><div class="font-black text-slate-800 uppercase">${fieldData.name}</div><div class="text-slate-500 font-mono text-[10px]">${fieldData.code}</div><div class="mt-2 text-slate-400">Raggio: ${fieldData.radius}m</div></div>`);
 
             const circle = L.circle(fieldData.latlng, {
-                radius: fieldData.radius,
-                color: color,
-                fillColor: color,
-                fillOpacity: 0.1,
-                weight: 2,
-                dashArray: '8, 8'
+                radius: fieldData.radius, color: color, fillColor: color, fillOpacity: 0.1, weight: 2, dashArray: '8, 8'
             }).addTo(map);
 
             const polyline = L.polyline(fieldData.pathCoords || [], { 
-                color: '#000000', 
-                weight: 2, 
-                opacity: 0.8, 
-                dashArray: '5, 10' 
+                color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' 
             }).addTo(map);
 
-            const field = {
-                ...fieldData,
-                marker: marker,
-                circle: circle,
-                polyline: polyline,
-                isInside: false
-            };
-
+            const field = { ...fieldData, marker: marker, circle: circle, polyline: polyline, isInside: false };
             fields.push(field);
             updateFieldUI();
             lucide.createIcons();
@@ -389,21 +358,13 @@
         function handleSearch() {
             const query = document.getElementById('searchInput').value.trim().toLowerCase();
             if (!query) return;
-
-            // 1. Cerca tra i campi esistenti per nome o codice
-            const foundField = fields.find(f => 
-                f.name.toLowerCase().includes(query) || 
-                f.code.toLowerCase().includes(query)
-            );
-
+            const foundField = fields.find(f => f.name.toLowerCase().includes(query) || f.code.toLowerCase().includes(query));
             if (foundField) {
                 map.flyTo(foundField.latlng, 15);
                 foundField.marker.openPopup();
                 expandPanel();
                 return;
             }
-
-            // 2. Se non trovato, cerca geograficamente
             searchLocation(query);
         }
 
@@ -411,10 +372,8 @@
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
                 const data = await res.json();
-                if (data.length > 0) {
-                    const latlng = L.latLng(data[0].lat, data[0].lon);
-                    map.flyTo(latlng, 15);
-                } else showNotification("Nessun risultato trovato");
+                if (data.length > 0) map.flyTo(L.latLng(data[0].lat, data[0].lon), 15);
+                else showNotification("Nessun risultato trovato");
             } catch (err) { showNotification("Errore di rete"); }
         }
 
@@ -423,40 +382,45 @@
             const tele = document.getElementById('telemetryPanel');
             
             if (isTracking) {
-                navigator.geolocation.clearWatch(watchId);
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                watchId = null;
                 isTracking = false;
-                btn.innerHTML = `<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS`;
-                btn.classList.replace('bg-rose-600', 'bg-slate-900');
-                if (userMarker) map.removeLayer(userMarker);
-                userMarker = null;
+                btn.innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
+                btn.classList.remove('bg-rose-600');
+                btn.classList.add('bg-slate-900');
                 tele.classList.add('hidden');
                 resetGlobalStatus();
             } else {
                 if (!navigator.geolocation) return showNotification("GPS non supportato");
-                showNotification("Sincronizzazione GPS...");
+                showNotification("Ricerca GPS in corso...");
                 
                 watchId = navigator.geolocation.watchPosition((pos) => {
-                    const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-                    document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
+                    const accuracy = pos.coords.accuracy;
+                    document.getElementById('accuracyVal').innerText = (accuracy ? accuracy.toFixed(0) : "?") + "m";
                     
+                    const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     if (!userMarker) {
-                        userMarker = L.marker(latlng, { 
-                            icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) 
-                        }).addTo(map);
+                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
                         map.flyTo(latlng, 15);
                     } else {
                         userMarker.setLatLng(latlng);
                     }
-                    
                     updateGeofencing(latlng);
-                }, (err) => showNotification("Errore GPS: " + err.message), { enableHighAccuracy: true });
+                }, (err) => {
+                    showNotification("Errore GPS: " + err.message);
+                }, { 
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
                 
                 isTracking = true;
                 tele.classList.remove('hidden');
-                btn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS`;
-                btn.classList.replace('bg-slate-900', 'bg-rose-600');
+                btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS';
+                btn.classList.remove('bg-slate-900');
+                btn.classList.add('bg-rose-600');
             }
-            lucide.createIcons();
+            setTimeout(() => lucide.createIcons(), 50);
         }
 
         function updateGeofencing(userPos) {
@@ -472,10 +436,7 @@
                     currentFieldName = field.name;
                     field.isInside = true;
                     field.circle.setStyle({ fillOpacity: 0.3, dashArray: '' });
-                    
-                    // Registra percorso solo se dentro
-                    const coords = [userPos.lat, userPos.lng];
-                    field.pathCoords.push(coords);
+                    field.pathCoords.push([userPos.lat, userPos.lng]);
                     field.polyline.setLatLngs(field.pathCoords);
                 } else {
                     field.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
@@ -490,20 +451,23 @@
             if (anyInside) {
                 statusText.innerText = `In: ${currentFieldName}`;
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
-                statusInd.classList.replace('bg-slate-100', 'bg-green-50');
+                statusInd.classList.add('bg-green-50');
+                statusInd.classList.remove('bg-slate-100');
             } else {
                 statusText.innerText = "Monitoraggio...";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-slate-400";
-                statusInd.classList.replace('bg-green-50', 'bg-slate-100');
+                statusInd.classList.add('bg-slate-100');
+                statusInd.classList.remove('bg-green-50');
             }
-            
             saveLocalData();
         }
 
         function resetGlobalStatus() {
             document.getElementById('statusText').innerText = "Inattivo";
             document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
-            document.getElementById('statusIndicator').className = "flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600";
+            const statusInd = document.getElementById('statusIndicator');
+            statusInd.classList.add('bg-slate-100');
+            statusInd.classList.remove('bg-green-50');
             fields.forEach(f => {
                 f.circle.setStyle({ fillOpacity: 0.1, dashArray: '8, 8' });
                 f.isInside = false;
@@ -513,41 +477,23 @@
         function updateFieldUI() {
             const categories = ['cipolle', 'bunching', 'brassiche'];
             let total = 0;
-
             categories.forEach(cat => {
                 const section = document.getElementById(`cat-${cat}`);
                 const list = document.getElementById(`list-${cat}`);
                 const catFields = fields.filter(f => f.category === cat);
-                
                 if (catFields.length > 0) {
                     section.classList.remove('hidden');
                     list.innerHTML = "";
                     catFields.forEach(f => {
                         total++;
                         const item = document.createElement('div');
-                        item.className = "flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-green-300 transition-all active:scale-[0.98] group relative overflow-hidden";
+                        item.className = "flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm active:scale-[0.98] group relative overflow-hidden";
                         item.onclick = () => { map.flyTo(f.latlng, 15); f.marker.openPopup(); };
-                        
-                        item.innerHTML = `
-                            <div class="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border border-slate-100">
-                                <i data-lucide="map" class="w-4 h-4 text-slate-400"></i>
-                                <span class="text-[7px] font-bold text-slate-300 mt-1 uppercase">${cat.substring(0,3)}</span>
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-[11px] font-black text-slate-800 uppercase leading-none truncate">${f.name}</p>
-                                <p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p>
-                            </div>
-                            <button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-200 hover:text-red-400 transition-colors">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            </button>
-                        `;
+                        item.innerHTML = `<div class="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border border-slate-100"><i data-lucide="map" class="w-4 h-4 text-slate-400"></i><span class="text-[7px] font-bold text-slate-300 mt-1 uppercase">${cat.substring(0,3)}</span></div><div class="flex-1 min-w-0"><p class="text-[11px] font-black text-slate-800 uppercase leading-none truncate">${f.name}</p><p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p></div><button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-200 hover:text-red-400 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
                         list.appendChild(item);
                     });
-                } else {
-                    section.classList.add('hidden');
-                }
+                } else section.classList.add('hidden');
             });
-
             document.getElementById('emptyMsg').classList.toggle('hidden', total > 0);
             lucide.createIcons();
         }
@@ -555,12 +501,9 @@
         function deleteField(id) {
             const field = fields.find(f => f.id === id);
             if (field && confirm(`Eliminare il campo ${field.name}?`)) {
-                map.removeLayer(field.marker);
-                map.removeLayer(field.circle);
-                map.removeLayer(field.polyline);
+                map.removeLayer(field.marker); map.removeLayer(field.circle); map.removeLayer(field.polyline);
                 fields = fields.filter(f => f.id !== id);
-                updateFieldUI();
-                saveLocalData();
+                updateFieldUI(); saveLocalData();
             }
         }
 
@@ -581,28 +524,18 @@
         }
 
         function saveLocalData() {
-            const dataToSave = fields.map(f => ({
-                id: f.id,
-                name: f.name,
-                code: f.code,
-                category: f.category,
-                latlng: f.latlng,
-                radius: f.radius,
-                pathCoords: f.pathCoords
-            }));
-            localStorage.setItem('isolamenti_agricoli_v4', JSON.stringify(dataToSave));
+            localStorage.setItem('isolamenti_agricoli_v4', JSON.stringify(fields.map(f => ({
+                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords
+            }))));
         }
 
         function loadLocalData() {
             const raw = localStorage.getItem('isolamenti_agricoli_v4');
-            if (raw) {
-                const data = JSON.parse(raw);
-                data.forEach(fData => addFieldToMap(fData));
-            }
+            if (raw) JSON.parse(raw).forEach(fData => addFieldToMap(fData));
         }
 
         function clearAllData() {
-            if (confirm("Attenzione: questa azione eliminerà tutti i campi e i percorsi salvati. Procedere?")) {
+            if (confirm("Attenzione: eliminare tutti i dati?")) {
                 localStorage.removeItem('isolamenti_agricoli_v4');
                 location.reload();
             }
