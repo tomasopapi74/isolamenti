@@ -49,14 +49,15 @@
         #statusPanel {
             transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67);
             touch-action: none; /* Impedisce lo scroll del browser durante il drag */
+            padding-bottom: env(safe-area-inset-bottom); /* Supporto per notch/barre di sistema */
         }
         
         .drag-handle {
             width: 40px;
             height: 5px;
-            background-color: #e2e8f0;
+            background-color: #cbd5e1;
             border-radius: 10px;
-            margin: 0 auto 15px auto;
+            margin: 0 auto 10px auto;
         }
     </style>
 </head>
@@ -107,21 +108,21 @@
         </div>
 
         <!-- BOTTOM SHEET TRASCINABILE -->
-        <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)] rounded-t-[32px] p-5 z-[1000] border-t border-slate-100">
-            <!-- Maniglia per il drag -->
-            <div id="dragArea" class="cursor-grab active:cursor-grabbing pb-2">
+        <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_30px_-5px_rgba(0,0,0,0.2)] rounded-t-[32px] p-5 z-[1000] border-t border-slate-200">
+            <!-- Maniglia per il drag - AREA DI CONTATTO PIÙ GRANDE -->
+            <div id="dragArea" class="cursor-grab active:cursor-grabbing pb-4 -mt-2">
                 <div class="drag-handle"></div>
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Pannello Controllo</span>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Pannello Controllo</span>
                     <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
-                        <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
                         <span id="statusText">Inattivo</span>
                     </div>
                 </div>
             </div>
 
             <!-- Contenuto scorrevole del pannello -->
-            <div id="panelContent" class="mt-4 space-y-4 overflow-hidden transition-opacity duration-200">
+            <div id="panelContent" class="space-y-4 overflow-hidden transition-opacity duration-200">
                 <!-- Controllo Raggio -->
                 <div id="radiusControl" class="hidden">
                     <div class="flex justify-between items-center mb-1">
@@ -200,7 +201,9 @@
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
         let startY, currentTranslateY = 0, isDragging = false;
-        const MIN_HEIGHT = 60; // Altezza visibile quando abbassato
+        
+        // Aumentata l'altezza minima da 60 a 85 per evitare conflitti con le gesture di sistema
+        const MIN_HEIGHT = 85; 
         
         dragArea.addEventListener('touchstart', (e) => {
             startY = e.touches[0].clientY;
@@ -213,10 +216,16 @@
             const currentY = e.touches[0].clientY;
             const deltaY = currentY - startY;
             
-            // Permetti solo di scendere o tornare su
+            // Permetti il trascinamento fluido
             if (deltaY > 0 || currentTranslateY > 0) {
-                const move = Math.max(0, deltaY);
-                panel.style.transform = `translateY(${move}px)`;
+                const move = Math.max(0, deltaY + currentTranslateY);
+                // Non permettere di abbassare più dell'altezza minima
+                const panelHeight = panel.offsetHeight;
+                const maxTranslate = panelHeight - MIN_HEIGHT;
+                
+                if (move <= maxTranslate) {
+                    panel.style.transform = `translateY(${move}px)`;
+                }
             }
         });
 
@@ -228,11 +237,14 @@
             const endY = e.changedTouches[0].clientY;
             const deltaY = endY - startY;
             
-            // Soglia per scattare (Snap)
-            if (deltaY > 100) {
+            // Logica di snap (aggancio)
+            if (deltaY > 50) {
                 minimizePanel();
-            } else {
+            } else if (deltaY < -50) {
                 expandPanel();
+            } else {
+                // Torna alla posizione precedente se il movimento è piccolo
+                panel.style.transform = `translateY(${currentTranslateY}px)`;
             }
         });
 
@@ -240,7 +252,7 @@
             const panelHeight = panel.offsetHeight;
             currentTranslateY = panelHeight - MIN_HEIGHT;
             panel.style.transform = `translateY(${currentTranslateY}px)`;
-            content.style.opacity = '0';
+            content.style.opacity = '0.3'; // Lascia un po' di visibilità per feedback
         }
 
         function expandPanel() {
@@ -383,12 +395,12 @@
             if (isInside) {
                 targetCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.2, dashArray: '' });
                 statusText.innerText = "Isolamento OK";
-                statusDot.className = "w-2 h-2 rounded-full bg-green-500";
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500";
                 if (lastStatusInside === false) speak("Bentornato in area.");
             } else {
                 targetCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3, dashArray: '' });
                 statusText.innerText = "Allarme: Fuori!";
-                statusDot.className = "w-2 h-2 rounded-full bg-red-500 animate-pulse";
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse";
                 if (lastStatusInside === true || lastStatusInside === null) speak("Allarme. Sei uscito dall'area.");
             }
             lastStatusInside = isInside;
@@ -409,7 +421,7 @@
 
         function resetStatusUI() {
             document.getElementById('statusText').innerText = "Inattivo";
-            document.getElementById('statusDot').className = "w-2 h-2 rounded-full bg-slate-400";
+            document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
             if(targetCircle) targetCircle.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, dashArray: '8, 8' });
             pathCoords = []; breadcrumbs.setLatLngs([]); lastStatusInside = null;
         }
