@@ -101,7 +101,7 @@
 
             <div id="panelContent" class="space-y-6 overflow-y-auto custom-scrollbar flex-1 pb-6">
                 <div id="infoBox" class="space-y-3">
-                    <p class="text-xs text-slate-500 leading-tight">Usa la mappa o le coordinate per aggiungere un isolamento.</p>
+                    <p class="text-xs text-slate-500 leading-tight">Usa la mappa o le coordinate per aggiungere un isolamento. Tieni premuto a lungo nel cerchio per aggiungere un punto di controllo.</p>
                     
                     <div class="flex gap-2">
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold active:scale-95 shadow-md">
@@ -208,6 +208,26 @@
         </div>
     </div>
 
+    <!-- Modal Nuovo Checkpoint -->
+    <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
+            <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700">
+                <i data-lucide="clipboard-check"></i> Rilevamento Campo
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Note di Controllo</label>
+                    <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50" placeholder="Inserisci osservazioni sul campo..."></textarea>
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 text-sm">Annulla</button>
+                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-200">Salva Punto</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Notifiche -->
     <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold border border-white/10">
         <span id="notifText"></span>
@@ -220,6 +240,8 @@
         let fields = []; 
         let isTracking = false;
         let tempFieldCoords = null;
+        let tempCheckpointCoords = null;
+        let pressTimer;
         
         // Logica Drag Pannello
         const panel = document.getElementById('statusPanel');
@@ -274,12 +296,37 @@
             }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
+            // Logica per rilevare il Long Press
+            map.on('mousedown touchstart', function(e) {
+                pressTimer = window.setTimeout(function() {
+                    handleLongPress(e.latlng);
+                }, 6000); // 600ms per attivare il long press
+            });
+
+            map.on('mouseup touchend mousemove touchmove', function() {
+                clearTimeout(pressTimer);
+            });
+
             map.on('click', function(e) {
+                // Il click singolo aggiunge un nuovo campo se non siamo in long press
                 tempFieldCoords = e.latlng;
                 openFieldModal(false);
             });
 
             loadLocalData();
+        }
+
+        function handleLongPress(latlng) {
+            // Verifica se il punto è dentro un cerchio esistente
+            let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
+            
+            if (targetField) {
+                tempCheckpointCoords = { latlng, fieldId: targetField.id };
+                document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
+                document.getElementById('checkpointNoteInput').focus();
+            } else {
+                showNotification("Pressione fuori dai cerchi di isolamento.");
+            }
         }
 
         function openFieldModal(isManual = false) {
@@ -302,6 +349,12 @@
             document.getElementById('fieldNameInput').value = "";
             document.getElementById('fieldCodeInput').value = "";
             tempFieldCoords = null;
+        }
+
+        function closeCheckpointModal() {
+            document.getElementById('checkpointModal').classList.replace('flex', 'hidden');
+            document.getElementById('checkpointNoteInput').value = "";
+            tempCheckpointCoords = null;
         }
 
         function confirmAddField() {
@@ -328,12 +381,35 @@
                 category: category,
                 latlng: latlng,
                 radius: radius,
-                pathCoords: []
+                pathCoords: [],
+                checkpoints: []
             });
             
             closeFieldModal();
             saveLocalData();
             showNotification(`Salvato: ${name} (${code})`);
+        }
+
+        function confirmAddCheckpoint() {
+            const note = document.getElementById('checkpointNoteInput').value.trim();
+            if (!note) {
+                showNotification("Inserisci una nota per salvare.");
+                return;
+            }
+
+            const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
+            if (field) {
+                const cpData = {
+                    id: Date.now(),
+                    latlng: tempCheckpointCoords.latlng,
+                    note: note
+                };
+                field.checkpoints.push(cpData);
+                renderCheckpointOnMap(cpData);
+                closeCheckpointModal();
+                saveLocalData();
+                showNotification("Punto di controllo salvato.");
+            }
         }
 
         function addFieldToMap(fieldData) {
@@ -359,7 +435,35 @@
 
             const field = { ...fieldData, marker: marker, circle: circle, polyline: polyline, isInside: false };
             fields.push(field);
+            
+            // Renderizza i checkpoint se presenti
+            if (field.checkpoints) {
+                field.checkpoints.forEach(renderCheckpointOnMap);
+            }
+
             updateFieldUI();
+            lucide.createIcons();
+        }
+
+        function renderCheckpointOnMap(cp) {
+            const cpMarker = L.marker(cp.latlng, {
+                icon: L.divIcon({
+                    html: `<div style="background: #2563eb; color: white; border-radius: 50%; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                    className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+                })
+            }).addTo(map);
+
+            cpMarker.bindPopup(`
+                <div class="text-xs p-1">
+                    <div class="font-bold text-blue-700 mb-1 flex items-center gap-1">
+                        <i data-lucide="clipboard-check" class="w-3 h-3"></i> Rilevamento
+                    </div>
+                    <div class="text-slate-600">${cp.note}</div>
+                </div>
+            `);
+            
+            // Colleghiamo il marker all'oggetto cp per poterlo rimuovere se serve
+            cp.marker = cpMarker;
             lucide.createIcons();
         }
 
@@ -510,53 +614,47 @@
             const field = fields.find(f => f.id === id);
             if (field && confirm(`Eliminare il campo ${field.name}?`)) {
                 map.removeLayer(field.marker); map.removeLayer(field.circle); map.removeLayer(field.polyline);
+                if (field.checkpoints) {
+                    field.checkpoints.forEach(cp => {
+                        if (cp.marker) map.removeLayer(cp.marker);
+                    });
+                }
                 fields = fields.filter(f => f.id !== id);
                 updateFieldUI(); saveLocalData();
             }
         }
 
-        // FUNZIONE ESPORTAZIONE DATI
         function exportData() {
             const dataToExport = fields.map(f => ({
-                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords
+                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords, checkpoints: f.checkpoints
             }));
             const jsonString = JSON.stringify(dataToExport);
-            
-            // Copia negli appunti tramite comando legacy per compatibilità
             const el = document.createElement('textarea');
             el.value = jsonString;
             document.body.appendChild(el);
             el.select();
             document.execCommand('copy');
             document.body.removeChild(el);
-            
             showNotification("Configurazione copiata negli appunti!");
         }
 
-        // FUNZIONE IMPORTAZIONE DATI
         function importData() {
             const jsonInput = prompt("Incolla qui il codice di configurazione ricevuto:");
             if (!jsonInput) return;
-            
             try {
                 const importedFields = JSON.parse(jsonInput);
                 if (!Array.isArray(importedFields)) throw new Error();
-                
                 if (confirm("L'importazione sostituirà i campi attuali. Procedere?")) {
-                    // Pulisci mappa attuale
                     fields.forEach(f => {
                         map.removeLayer(f.marker); map.removeLayer(f.circle); map.removeLayer(f.polyline);
+                        if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                     });
                     fields = [];
-                    
-                    // Aggiungi nuovi campi
                     importedFields.forEach(fData => addFieldToMap(fData));
                     saveLocalData();
                     showNotification("Dati importati con successo!");
                 }
-            } catch (err) {
-                showNotification("Errore: il codice non è valido.");
-            }
+            } catch (err) { showNotification("Errore: il codice non è valido."); }
         }
 
         function recenterOnUser() {
@@ -577,7 +675,7 @@
 
         function saveLocalData() {
             localStorage.setItem('isolamenti_agricoli_v4', JSON.stringify(fields.map(f => ({
-                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords
+                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords, checkpoints: f.checkpoints
             }))));
         }
 
