@@ -48,8 +48,8 @@
         /* Stili per il pannello trascinabile */
         #statusPanel {
             transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67);
-            touch-action: none; /* Impedisce lo scroll del browser durante il drag */
-            padding-bottom: env(safe-area-inset-bottom); /* Supporto per notch/barre di sistema */
+            touch-action: none; 
+            padding-bottom: env(safe-area-inset-bottom);
         }
         
         .drag-handle {
@@ -93,9 +93,6 @@
             <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 border border-slate-100">
                 <i data-lucide="locate-fixed" class="w-5 h-5"></i>
             </button>
-            <button id="audioToggle" onclick="toggleAudio()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 border border-slate-100">
-                <i data-lucide="volume-2" class="w-5 h-5"></i>
-            </button>
         </div>
 
         <!-- Telemetria -->
@@ -109,7 +106,7 @@
 
         <!-- BOTTOM SHEET TRASCINABILE -->
         <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_30px_-5px_rgba(0,0,0,0.2)] rounded-t-[32px] p-5 z-[1000] border-t border-slate-200">
-            <!-- Maniglia per il drag - AREA DI CONTATTO PIÙ GRANDE -->
+            <!-- Maniglia per il drag -->
             <div id="dragArea" class="cursor-grab active:cursor-grabbing pb-4 -mt-2">
                 <div class="drag-handle"></div>
                 <div class="flex items-center justify-between">
@@ -193,7 +190,8 @@
 
         let map, userMarker, centerPoint, centerMarker, targetCircle, breadcrumbs;
         let isTracking = false, watchId = null, checkpoints = [], pathCoords = [];
-        let tempCoords = null, currentRadius = 1000, audioEnabled = true;
+        let currentSegment = null; // Segmento corrente del percorso
+        let tempCoords = null, currentRadius = 1000;
         let lastStatusInside = null, startTime = null, timerInterval = null;
 
         // LOGICA DRAG PANNELLO
@@ -202,7 +200,6 @@
         const content = document.getElementById('panelContent');
         let startY, currentTranslateY = 0, isDragging = false;
         
-        // Aumentata l'altezza minima da 60 a 85 per evitare conflitti con le gesture di sistema
         const MIN_HEIGHT = 85; 
         
         dragArea.addEventListener('touchstart', (e) => {
@@ -216,10 +213,8 @@
             const currentY = e.touches[0].clientY;
             const deltaY = currentY - startY;
             
-            // Permetti il trascinamento fluido
             if (deltaY > 0 || currentTranslateY > 0) {
                 const move = Math.max(0, deltaY + currentTranslateY);
-                // Non permettere di abbassare più dell'altezza minima
                 const panelHeight = panel.offsetHeight;
                 const maxTranslate = panelHeight - MIN_HEIGHT;
                 
@@ -237,13 +232,11 @@
             const endY = e.changedTouches[0].clientY;
             const deltaY = endY - startY;
             
-            // Logica di snap (aggancio)
             if (deltaY > 50) {
                 minimizePanel();
             } else if (deltaY < -50) {
                 expandPanel();
             } else {
-                // Torna alla posizione precedente se il movimento è piccolo
                 panel.style.transform = `translateY(${currentTranslateY}px)`;
             }
         });
@@ -252,7 +245,7 @@
             const panelHeight = panel.offsetHeight;
             currentTranslateY = panelHeight - MIN_HEIGHT;
             panel.style.transform = `translateY(${currentTranslateY}px)`;
-            content.style.opacity = '0.3'; // Lascia un po' di visibilità per feedback
+            content.style.opacity = '0.3';
         }
 
         function expandPanel() {
@@ -267,7 +260,13 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            breadcrumbs = L.polyline([], { color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
+            // Inizializza la polilinea per i breadcrumbs
+            breadcrumbs = L.polyline([], { 
+                color: '#000000', 
+                weight: 2, 
+                opacity: 0.8, 
+                dashArray: '5, 10' 
+            }).addTo(map);
 
             map.on('click', function(e) {
                 if (!centerPoint) {
@@ -325,21 +324,6 @@
             }
         }
 
-        function toggleAudio() {
-            audioEnabled = !audioEnabled;
-            const icon = document.getElementById('audioToggle').querySelector('i');
-            icon.setAttribute('data-lucide', audioEnabled ? 'volume-2' : 'volume-x');
-            showNotification(audioEnabled ? "Audio attivato" : "Audio disattivato");
-            lucide.createIcons();
-        }
-
-        function speak(text) {
-            if (!audioEnabled) return;
-            const ut = new SpeechSynthesisUtterance(text);
-            ut.lang = 'it-IT';
-            window.speechSynthesis.speak(ut);
-        }
-
         function toggleTracking() {
             const btn = document.getElementById('trackBtn');
             const tele = document.getElementById('telemetryPanel');
@@ -359,14 +343,28 @@
                 showNotification("Aggancio segnale...");
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const latlng = [pos.coords.latitude, pos.coords.longitude];
+                    const latlngObj = L.latLng(pos.coords.latitude, pos.coords.longitude);
+                    
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
+                    
                     if (!userMarker) {
                         userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(map);
                         map.flyTo(latlng, 15);
                         startTimer();
                     } else { userMarker.setLatLng(latlng); }
-                    pathCoords.push(latlng);
-                    breadcrumbs.setLatLngs(pathCoords);
+                    
+                    // Gestione percorso solo all'interno del raggio
+                    if (isInsideCircle(latlngObj)) {
+                        if (!currentSegment) {
+                            currentSegment = [];
+                            pathCoords.push(currentSegment);
+                        }
+                        currentSegment.push(latlng);
+                        breadcrumbs.setLatLngs(pathCoords);
+                    } else {
+                        currentSegment = null; // Interrompe la linea se esce
+                    }
+                    
                     updateGeofenceColor();
                 }, (err) => showNotification("Errore: " + err.message), { enableHighAccuracy: true });
                 isTracking = true;
@@ -396,12 +394,10 @@
                 targetCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.2, dashArray: '' });
                 statusText.innerText = "Isolamento OK";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500";
-                if (lastStatusInside === false) speak("Bentornato in area.");
             } else {
                 targetCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3, dashArray: '' });
                 statusText.innerText = "Allarme: Fuori!";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse";
-                if (lastStatusInside === true || lastStatusInside === null) speak("Allarme. Sei uscito dall'area.");
             }
             lastStatusInside = isInside;
         }
@@ -423,7 +419,10 @@
             document.getElementById('statusText').innerText = "Inattivo";
             document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
             if(targetCircle) targetCircle.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, dashArray: '8, 8' });
-            pathCoords = []; breadcrumbs.setLatLngs([]); lastStatusInside = null;
+            pathCoords = []; 
+            currentSegment = null;
+            breadcrumbs.setLatLngs([]); 
+            lastStatusInside = null;
         }
 
         function isInsideCircle(latlng) { return centerPoint ? latlng.distanceTo(centerPoint) <= currentRadius : false; }
