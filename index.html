@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Isolamenti - Navigazione e Controllo</title>
     <!-- Tailwind CSS per lo styling moderno -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,13 +12,10 @@
     <!-- Lucide Icons per le icone dell'interfaccia -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* Dimensioni della mappa: occupa tutto lo spazio tranne l'header */
-        #map { height: calc(100vh - 180px); width: 100%; z-index: 1; }
+        #map { height: calc(100vh - 80px); width: 100%; z-index: 1; }
         
-        /* Stile personalizzato per i popup della mappa */
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         
-        /* Animazione pulsante per la posizione dell'utente */
         .pulse-user {
             width: 16px;
             height: 16px;
@@ -35,11 +32,9 @@
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
 
-        /* Scrollbar personalizzata per la lista dei checkpoint */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -48,182 +43,219 @@
             border-radius: 50%;
             background: #2563eb;
             cursor: pointer;
-            box-shadow: 0 0 2px 0 rgba(0,0,0,0.5);
+        }
+
+        /* Stili per il pannello trascinabile */
+        #statusPanel {
+            transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67);
+            touch-action: none; /* Impedisce lo scroll del browser durante il drag */
+        }
+        
+        .drag-handle {
+            width: 40px;
+            height: 5px;
+            background-color: #e2e8f0;
+            border-radius: 10px;
+            margin: 0 auto 15px auto;
         }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
 
-    <!-- Header e Barra di Ricerca -->
-    <header class="bg-white shadow-md p-4 sticky top-0 z-50 border-b border-slate-100">
-        <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center gap-4">
+    <header class="bg-white shadow-md p-4 sticky top-0 z-50 border-b border-slate-100 h-[80px]">
+        <div class="max-w-6xl mx-auto flex items-center gap-4">
             <div class="flex items-center gap-2 shrink-0">
-                <div class="bg-blue-600 p-2 rounded-lg shadow-md shadow-blue-200">
+                <div class="bg-blue-600 p-2 rounded-lg shadow-md">
                     <i data-lucide="shield-check" class="text-white w-5 h-5"></i>
                 </div>
-                <h1 class="text-xl font-bold text-slate-800 tracking-tight">Isolamenti</h1>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight hidden sm:block">Isolamenti</h1>
             </div>
             
             <div class="flex-1 flex gap-2">
                 <div class="relative flex-1">
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
-                    <input type="text" id="searchInput" placeholder="Cerca indirizzo o 'lat, lon'..." 
-                        class="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm text-sm">
+                    <input type="text" id="searchInput" placeholder="Indirizzo o coordinate..." 
+                        class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm">
                 </div>
-                <button onclick="searchLocation()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-100 flex items-center gap-2">
-                    <span>Cerca</span>
+                <button onclick="searchLocation()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 active:scale-95 shadow-lg shadow-blue-100 transition-all">
+                    Cerca
                 </button>
             </div>
         </div>
     </header>
 
     <main class="relative">
-        <!-- Area Mappa -->
-        <div id="map" class="bg-slate-200"></div>
+        <div id="map"></div>
 
-        <!-- Controlli Rapidi Flottanti -->
+        <!-- Controlli Rapidi -->
         <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
-            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 transition-all active:scale-90 border border-slate-100" title="Centra su di me">
+            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 border border-slate-100">
                 <i data-lucide="locate-fixed" class="w-5 h-5"></i>
             </button>
-            <button id="audioToggle" onclick="toggleAudio()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 transition-all active:scale-90 border border-slate-100" title="Attiva/Disattiva Audio">
+            <button id="audioToggle" onclick="toggleAudio()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-slate-50 text-slate-700 border border-slate-100">
                 <i data-lucide="volume-2" class="w-5 h-5"></i>
             </button>
-            <button onclick="clearAllData()" class="bg-white p-3 rounded-xl shadow-lg hover:bg-red-50 text-red-500 transition-all active:scale-90 border border-slate-100" title="Reset totale">
-                <i data-lucide="trash-2" class="w-5 h-5"></i>
-            </button>
         </div>
 
-        <!-- Telemetria in alto a destra -->
-        <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden flex flex-col gap-2">
-            <div class="bg-white/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-3">
-                <div class="flex flex-col">
-                    <span class="uppercase text-slate-400">Tempo</span>
-                    <span id="timerVal">00:00:00</span>
-                </div>
-                <div class="h-6 w-px bg-slate-200"></div>
-                <div class="flex flex-col">
-                    <span class="uppercase text-slate-400">Precisione</span>
-                    <span id="accuracyVal">-- m</span>
-                </div>
+        <!-- Telemetria -->
+        <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
+            <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
+                <div class="flex flex-col"><span class="text-slate-400">Tempo</span><span id="timerVal">00:00:00</span></div>
+                <div class="h-4 w-px bg-slate-200"></div>
+                <div class="flex flex-col"><span class="text-slate-400">Acc.</span><span id="accuracyVal">--m</span></div>
             </div>
         </div>
 
-        <!-- Pannello Informativo Floating -->
-        <div id="statusPanel" class="absolute bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-80 bg-white/95 backdrop-blur-md shadow-2xl rounded-2xl p-5 z-[1000] border border-slate-100 transition-all">
-            <div class="flex items-center justify-between mb-4">
-                <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Stato Navigazione</span>
-                <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 shadow-sm">
-                    <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                    <span id="statusText">Inattivo</span>
+        <!-- BOTTOM SHEET TRASCINABILE -->
+        <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_25px_-5px_rgba(0,0,0,0.1)] rounded-t-[32px] p-5 z-[1000] border-t border-slate-100">
+            <!-- Maniglia per il drag -->
+            <div id="dragArea" class="cursor-grab active:cursor-grabbing pb-2">
+                <div class="drag-handle"></div>
+                <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Pannello Controllo</span>
+                    <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+                        <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+                        <span id="statusText">Inattivo</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Controllo Raggio -->
-            <div id="radiusControl" class="mb-4 hidden">
-                <div class="flex justify-between items-center mb-1">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase">Raggio Area</label>
-                    <span id="radiusVal" class="text-xs font-bold text-blue-600">1000m</span>
+            <!-- Contenuto scorrevole del pannello -->
+            <div id="panelContent" class="mt-4 space-y-4 overflow-hidden transition-opacity duration-200">
+                <!-- Controllo Raggio -->
+                <div id="radiusControl" class="hidden">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-[10px] font-bold text-slate-500 uppercase">Raggio Area</label>
+                        <span id="radiusVal" class="text-xs font-bold text-blue-600">1000m</span>
+                    </div>
+                    <input type="range" id="radiusSlider" min="100" max="5000" step="100" value="1000" 
+                        class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
+                        oninput="changeRadius(this.value)">
                 </div>
-                <input type="range" id="radiusSlider" min="100" max="5000" step="100" value="1000" 
-                    class="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600" 
-                    oninput="changeRadius(this.value)">
-            </div>
-            
-            <div id="infoBox" class="text-sm text-slate-600 space-y-3">
-                <p id="instructionText" class="leading-tight text-xs">Tocca la mappa per fissare il punto centrale dell'area.</p>
-                <div id="distInfo" class="hidden text-xs font-medium text-slate-500 bg-slate-50 p-2 rounded-lg text-center">
-                    Confine: <span id="distVal" class="text-slate-800 font-bold">--</span>
+                
+                <div id="infoBox" class="space-y-3">
+                    <p id="instructionText" class="text-xs text-slate-500 leading-tight">Fissa il centro sulla mappa per iniziare.</p>
+                    <div id="distInfo" class="hidden text-xs font-bold text-slate-700 bg-slate-50 p-2 rounded-lg text-center border border-slate-100">
+                        Confine: <span id="distVal">--</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold active:scale-95 shadow-md">
+                            <i data-lucide="navigation" class="w-4 h-4"></i> GPS
+                        </button>
+                        <button onclick="clearAllData()" class="bg-slate-100 text-red-500 p-3 rounded-xl hover:bg-red-50 transition-colors">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="flex gap-2">
-                    <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl hover:bg-black transition-all font-bold active:scale-95 shadow-lg">
-                        <i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS
-                    </button>
-                </div>
-            </div>
 
-            <!-- Lista dei Checkpoint Salvati -->
-            <div id="checkpointList" class="mt-5 border-t border-slate-100 pt-4 hidden">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-xs font-black uppercase text-slate-400 tracking-wider">Checkpoint</h3>
-                    <span id="cpCount" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">0</span>
-                </div>
-                <div id="listItems" class="max-h-32 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                    <!-- Elementi inseriti dinamicamente via JS -->
+                <!-- Lista Checkpoint -->
+                <div id="checkpointList" class="border-t border-slate-50 pt-4 hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Punti salvati</h3>
+                        <span id="cpCount" class="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold">0</span>
+                    </div>
+                    <div id="listItems" class="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar"></div>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Modal per creazione Checkpoint -->
+    <!-- Modal Checkpoint -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
-            <div class="flex items-center gap-3 mb-6">
-                <div class="bg-blue-100 p-2.5 rounded-xl text-blue-600">
-                    <i data-lucide="map-pin"></i>
-                </div>
-                <h2 class="text-xl font-bold text-slate-800">Nuovo Punto</h2>
-            </div>
-            
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
+            <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <i data-lucide="map-pin" class="text-blue-600"></i> Nuovo Punto
+            </h2>
             <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Descrizione</label>
-                    <textarea id="noteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm" placeholder="Annota osservazioni..."></textarea>
-                </div>
-                
-                <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">Foto</label>
-                    <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50 transition-all group">
-                        <div class="flex flex-col items-center justify-center pt-2 pb-2">
-                            <i data-lucide="camera" class="w-6 h-6 text-slate-400 group-hover:text-blue-500 transition-colors"></i>
-                            <p class="text-[10px] text-slate-500 mt-1">Scegli o scatta foto</p>
-                        </div>
-                        <input type="file" id="photoInput" accept="image/*" class="hidden" onchange="previewImage(this)">
-                    </label>
-                    <div id="imagePreview" class="hidden mt-2 rounded-xl overflow-hidden h-24 bg-slate-100 border border-slate-200"></div>
-                </div>
-
-                <div class="flex gap-3 pt-4">
-                    <button onclick="closeModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-95 text-sm">Annulla</button>
-                    <button onclick="saveCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-200 text-sm">Salva</button>
+                <textarea id="noteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm" placeholder="Note..."></textarea>
+                <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-slate-200 border-dashed rounded-xl cursor-pointer hover:bg-slate-50">
+                    <i data-lucide="camera" class="w-6 h-6 text-slate-400"></i>
+                    <span class="text-[10px] text-slate-500 mt-1">Foto opzionale</span>
+                    <input type="file" id="photoInput" accept="image/*" class="hidden" onchange="previewImage(this)">
+                </label>
+                <div id="imagePreview" class="hidden mt-2 rounded-xl overflow-hidden h-24 border border-slate-200"></div>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 text-sm">Annulla</button>
+                    <button onclick="saveCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Salva</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Feedback visivo (Notifiche) -->
-    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl pointer-events-none flex items-center gap-3 border border-white/10">
-        <span id="notifText" class="text-xs font-bold tracking-wide"></span>
+    <!-- Notifiche -->
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold border border-white/10">
+        <span id="notifText"></span>
     </div>
 
     <script>
-        // Inizializza le icone Lucide
         lucide.createIcons();
 
         let map, userMarker, centerPoint, centerMarker, targetCircle, breadcrumbs;
-        let isTracking = false;
-        let watchId = null;
-        let checkpoints = [];
-        let pathCoords = [];
-        let tempCoords = null;
-        let currentRadius = 1000;
-        let audioEnabled = true;
-        let lastStatusInside = null;
-        let startTime = null;
-        let timerInterval = null;
+        let isTracking = false, watchId = null, checkpoints = [], pathCoords = [];
+        let tempCoords = null, currentRadius = 1000, audioEnabled = true;
+        let lastStatusInside = null, startTime = null, timerInterval = null;
 
-        // Inizializzazione della mappa
+        // LOGICA DRAG PANNELLO
+        const panel = document.getElementById('statusPanel');
+        const dragArea = document.getElementById('dragArea');
+        const content = document.getElementById('panelContent');
+        let startY, currentTranslateY = 0, isDragging = false;
+        const MIN_HEIGHT = 60; // Altezza visibile quando abbassato
+        
+        dragArea.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+            isDragging = true;
+            panel.style.transition = 'none';
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const currentY = e.touches[0].clientY;
+            const deltaY = currentY - startY;
+            
+            // Permetti solo di scendere o tornare su
+            if (deltaY > 0 || currentTranslateY > 0) {
+                const move = Math.max(0, deltaY);
+                panel.style.transform = `translateY(${move}px)`;
+            }
+        });
+
+        window.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            panel.style.transition = 'transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67)';
+            
+            const endY = e.changedTouches[0].clientY;
+            const deltaY = endY - startY;
+            
+            // Soglia per scattare (Snap)
+            if (deltaY > 100) {
+                minimizePanel();
+            } else {
+                expandPanel();
+            }
+        });
+
+        function minimizePanel() {
+            const panelHeight = panel.offsetHeight;
+            currentTranslateY = panelHeight - MIN_HEIGHT;
+            panel.style.transform = `translateY(${currentTranslateY}px)`;
+            content.style.opacity = '0';
+        }
+
+        function expandPanel() {
+            currentTranslateY = 0;
+            panel.style.transform = `translateY(0px)`;
+            content.style.opacity = '1';
+        }
+
+        // MAPPA E LOGICA
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([42.5, 12.5], 6);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap'
-            }).addTo(map);
-
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // Inizializza la polilinea per i breadcrumbs
-            breadcrumbs = L.polyline([], { color: '#3b82f6', weight: 3, opacity: 0.6 }).addTo(map);
+            breadcrumbs = L.polyline([], { color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
 
             map.on('click', function(e) {
                 if (!centerPoint) {
@@ -231,17 +263,15 @@
                 } else if (isInsideCircle(e.latlng)) {
                     openCheckpointModal(e.latlng);
                 } else {
-                    showNotification("Fuori raggio d'isolamento!");
+                    showNotification("Fuori raggio!");
                 }
             });
-
             loadLocalData();
         }
 
         function setCenterPoint(latlng, savedRadius = null) {
             if (centerMarker) map.removeLayer(centerMarker);
             if (targetCircle) map.removeLayer(targetCircle);
-
             centerPoint = latlng;
             if (savedRadius) currentRadius = savedRadius;
             
@@ -249,19 +279,12 @@
                 draggable: true,
                 icon: L.divIcon({
                     html: `<div style="background: #0f172a; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"><i data-lucide="flag" style="width: 14px; height: 14px;"></i></div>`,
-                    className: '',
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
+                    className: '', iconSize: [32, 32], iconAnchor: [16, 16]
                 })
             }).addTo(map);
 
             targetCircle = L.circle(latlng, {
-                radius: currentRadius,
-                color: '#3b82f6',
-                fillColor: '#3b82f6',
-                fillOpacity: 0.1,
-                weight: 2,
-                dashArray: '8, 8'
+                radius: currentRadius, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 2, dashArray: '8, 8'
             }).addTo(map);
 
             centerMarker.on('dragend', function() {
@@ -273,10 +296,9 @@
 
             document.getElementById('checkpointList').classList.remove('hidden');
             document.getElementById('radiusControl').classList.remove('hidden');
-            document.getElementById('instructionText').innerText = "Tocca nel cerchio per i punti di controllo.";
+            document.getElementById('instructionText').innerText = "Tocca nel cerchio per aggiungere checkpoint.";
             document.getElementById('radiusSlider').value = currentRadius;
             document.getElementById('radiusVal').innerText = currentRadius + 'm';
-            
             saveLocalData();
             lucide.createIcons();
         }
@@ -291,122 +313,87 @@
             }
         }
 
-        // Gestione Audio
         function toggleAudio() {
             audioEnabled = !audioEnabled;
             const icon = document.getElementById('audioToggle').querySelector('i');
-            if (audioEnabled) {
-                icon.setAttribute('data-lucide', 'volume-2');
-                showNotification("Audio attivato");
-            } else {
-                icon.setAttribute('data-lucide', 'volume-x');
-                showNotification("Audio disattivato");
-            }
+            icon.setAttribute('data-lucide', audioEnabled ? 'volume-2' : 'volume-x');
+            showNotification(audioEnabled ? "Audio attivato" : "Audio disattivato");
             lucide.createIcons();
         }
 
         function speak(text) {
             if (!audioEnabled) return;
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'it-IT';
-            utterance.rate = 1.1;
-            window.speechSynthesis.speak(utterance);
+            const ut = new SpeechSynthesisUtterance(text);
+            ut.lang = 'it-IT';
+            window.speechSynthesis.speak(ut);
         }
 
-        // Gestione GPS e Timer
         function toggleTracking() {
             const btn = document.getElementById('trackBtn');
-            const telemetry = document.getElementById('telemetryPanel');
+            const tele = document.getElementById('telemetryPanel');
             if (isTracking) {
                 navigator.geolocation.clearWatch(watchId);
                 isTracking = false;
-                btn.innerHTML = `<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS`;
+                btn.innerHTML = `<i data-lucide="navigation" class="w-4 h-4"></i> GPS`;
                 btn.classList.replace('bg-rose-600', 'bg-slate-900');
                 if (userMarker) map.removeLayer(userMarker);
                 userMarker = null;
-                telemetry.classList.add('hidden');
+                tele.classList.add('hidden');
                 document.getElementById('distInfo').classList.add('hidden');
                 stopTimer();
                 resetStatusUI();
             } else {
-                if (!navigator.geolocation) {
-                    showNotification("GPS non supportato.");
-                    return;
-                }
-                
+                if (!navigator.geolocation) return showNotification("GPS non supportato");
                 showNotification("Aggancio segnale...");
-                watchId = navigator.geolocation.watchPosition(
-                    (pos) => {
-                        const latlng = [pos.coords.latitude, pos.coords.longitude];
-                        
-                        // Aggiorna precisione
-                        document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + " m";
-
-                        if (!userMarker) {
-                            userMarker = L.marker(latlng, {
-                                icon: L.divIcon({ className: 'pulse-user', iconSize: [16, 16], iconAnchor: [8, 8] })
-                            }).addTo(map);
-                            map.flyTo(latlng, 15);
-                            startTimer();
-                        } else {
-                            userMarker.setLatLng(latlng);
-                        }
-                        
-                        // Breadcrumbs
-                        pathCoords.push(latlng);
-                        breadcrumbs.setLatLngs(pathCoords);
-                        
-                        updateGeofenceColor();
-                    },
-                    (err) => showNotification("Errore GPS: " + err.message),
-                    { enableHighAccuracy: true }
-                );
-                
+                watchId = navigator.geolocation.watchPosition((pos) => {
+                    const latlng = [pos.coords.latitude, pos.coords.longitude];
+                    document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
+                    if (!userMarker) {
+                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(map);
+                        map.flyTo(latlng, 15);
+                        startTimer();
+                    } else { userMarker.setLatLng(latlng); }
+                    pathCoords.push(latlng);
+                    breadcrumbs.setLatLngs(pathCoords);
+                    updateGeofenceColor();
+                }, (err) => showNotification("Errore: " + err.message), { enableHighAccuracy: true });
                 isTracking = true;
-                telemetry.classList.remove('hidden');
-                btn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS`;
+                tele.classList.remove('hidden');
+                btn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i> Stop`;
                 btn.classList.replace('bg-slate-900', 'bg-rose-600');
             }
             lucide.createIcons();
         }
 
-        // Logica Geofence e Audio Alert
         function updateGeofenceColor() {
             if (!centerPoint || !userMarker) return;
-
             const userPos = userMarker.getLatLng();
             const distance = userPos.distanceTo(centerPoint);
+            const isInside = distance <= currentRadius;
+            
+            const distInfo = document.getElementById('distInfo');
+            distInfo.classList.remove('hidden');
+            const diff = Math.abs(currentRadius - distance).toFixed(0);
+            document.getElementById('distVal').innerText = isInside ? `${diff}m dal bordo` : `${diff}m fuori`;
+
             const statusText = document.getElementById('statusText');
             const statusDot = document.getElementById('statusDot');
             const statusIndicator = document.getElementById('statusIndicator');
-            
-            const distInfo = document.getElementById('distInfo');
-            const distVal = document.getElementById('distVal');
-            distInfo.classList.remove('hidden');
-            const diff = Math.abs(currentRadius - distance).toFixed(0);
-            
-            const isInside = distance <= currentRadius;
-            distVal.innerText = isInside ? `${diff}m dal bordo` : `${diff}m fuori area`;
 
             if (isInside) {
                 targetCircle.setStyle({ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.2, dashArray: '' });
                 statusText.innerText = "Isolamento OK";
-                statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500";
-                statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-100 shadow-sm";
-                
+                statusDot.className = "w-2 h-2 rounded-full bg-green-500";
                 if (lastStatusInside === false) speak("Bentornato in area.");
             } else {
                 targetCircle.setStyle({ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3, dashArray: '' });
                 statusText.innerText = "Allarme: Fuori!";
-                statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse";
-                statusIndicator.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-100 shadow-sm";
-                
-                if (lastStatusInside === true || lastStatusInside === null) speak("Allarme. Sei uscito dall'area di isolamento.");
+                statusDot.className = "w-2 h-2 rounded-full bg-red-500 animate-pulse";
+                if (lastStatusInside === true || lastStatusInside === null) speak("Allarme. Sei uscito dall'area.");
             }
             lastStatusInside = isInside;
         }
 
-        // Timer di sessione
         function startTimer() {
             startTime = Date.now();
             timerInterval = setInterval(() => {
@@ -418,40 +405,20 @@
             }, 1000);
         }
 
-        function stopTimer() {
-            clearInterval(timerInterval);
-            document.getElementById('timerVal').innerText = "00:00:00";
-        }
+        function stopTimer() { clearInterval(timerInterval); document.getElementById('timerVal').innerText = "00:00:00"; }
 
         function resetStatusUI() {
             document.getElementById('statusText').innerText = "Inattivo";
-            document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
-            document.getElementById('statusIndicator').className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 shadow-sm";
+            document.getElementById('statusDot').className = "w-2 h-2 rounded-full bg-slate-400";
             if(targetCircle) targetCircle.setStyle({ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, dashArray: '8, 8' });
-            pathCoords = [];
-            breadcrumbs.setLatLngs([]);
-            lastStatusInside = null;
+            pathCoords = []; breadcrumbs.setLatLngs([]); lastStatusInside = null;
         }
 
-        function isInsideCircle(latlng) {
-            if (!centerPoint) return false;
-            return latlng.distanceTo(centerPoint) <= currentRadius;
-        }
+        function isInsideCircle(latlng) { return centerPoint ? latlng.distanceTo(centerPoint) <= currentRadius : false; }
 
         async function searchLocation() {
             const query = document.getElementById('searchInput').value.trim();
             if (!query) return;
-
-            const coordRegex = /^([-+]?\d*\.?\d+),\s*([-+]?\d*\.?\d+)$/;
-            const match = query.match(coordRegex);
-            
-            if (match) {
-                const latlng = L.latLng(parseFloat(match[1]), parseFloat(match[2]));
-                map.flyTo(latlng, 16);
-                setCenterPoint(latlng);
-                return;
-            }
-
             try {
                 const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
                 const data = await res.json();
@@ -459,27 +426,15 @@
                     const latlng = L.latLng(data[0].lat, data[0].lon);
                     map.flyTo(latlng, 16);
                     setCenterPoint(latlng);
-                } else {
-                    showNotification("Località non trovata.");
-                }
-            } catch (err) {
-                showNotification("Errore di connessione.");
-            }
+                } else showNotification("Non trovato");
+            } catch (err) { showNotification("Errore ricerca"); }
         }
 
-        // Checkpoint
-        function openCheckpointModal(latlng) {
-            tempCoords = latlng;
-            document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
-        }
-
+        function openCheckpointModal(latlng) { tempCoords = latlng; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); }
         function closeModal() {
             document.getElementById('checkpointModal').classList.replace('flex', 'hidden');
-            document.getElementById('noteInput').value = "";
-            document.getElementById('photoInput').value = "";
-            document.getElementById('imagePreview').innerHTML = "";
-            document.getElementById('imagePreview').classList.add('hidden');
-            tempCoords = null;
+            document.getElementById('noteInput').value = ""; document.getElementById('photoInput').value = "";
+            document.getElementById('imagePreview').innerHTML = ""; document.getElementById('imagePreview').classList.add('hidden');
         }
 
         function previewImage(input) {
@@ -495,130 +450,62 @@
         }
 
         function saveCheckpoint() {
-            const note = document.getElementById('noteInput').value || "Punto isolamento";
-            const photoFile = document.getElementById('photoInput').files[0];
-            
-            const cp = {
-                id: Date.now(),
-                coords: tempCoords,
-                note: note,
-                photo: photoFile ? URL.createObjectURL(photoFile) : null
-            };
-
-            checkpoints.push(cp);
-            renderCheckpointOnMap(cp);
-            updateCheckpointList();
-            saveLocalData();
-            closeModal();
-            showNotification("Punto salvato!");
-        }
-
-        function deleteCheckpoint(id) {
-            checkpoints = checkpoints.filter(c => c.id !== id);
-            map.eachLayer(layer => {
-                if (layer instanceof L.Marker && layer !== centerMarker && layer !== userMarker) {
-                    map.removeLayer(layer);
-                }
-            });
-            checkpoints.forEach(renderCheckpointOnMap);
-            updateCheckpointList();
-            saveLocalData();
+            const cp = { id: Date.now(), coords: tempCoords, note: document.getElementById('noteInput').value || "Nota" };
+            checkpoints.push(cp); renderCheckpointOnMap(cp); updateCheckpointList();
+            saveLocalData(); closeModal(); showNotification("Salvato!");
         }
 
         function renderCheckpointOnMap(cp) {
             const marker = L.marker(cp.coords, {
                 icon: L.divIcon({
-                    html: `<div style="background: white; border: 2px solid #3b82f6; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; shadow: 0 2px 4px rgba(0,0,0,0.2);"><div style="background: #3b82f6; width: 8px; height: 8px; border-radius: 50%;"></div></div>`,
-                    className: '',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
+                    html: `<div style="background: white; border: 2px solid #3b82f6; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><div style="background: #3b82f6; width: 6px; height: 6px; border-radius: 50%;"></div></div>`,
+                    className: '', iconSize: [16, 16], iconAnchor: [8, 8]
                 })
             }).addTo(map);
-
-            const popupHtml = `
-                <div class="custom-popup p-1 max-w-[180px]">
-                    <p class="font-bold text-slate-800 text-xs mb-1 border-b pb-1">Checkpoint</p>
-                    <p class="text-[11px] text-slate-600 mb-2">${cp.note}</p>
-                    ${cp.photo ? `<img src="${cp.photo}" class="rounded-lg w-full h-24 object-cover">` : ''}
-                    <button onclick="deleteCheckpoint(${cp.id})" class="mt-2 text-[9px] text-red-500 font-bold uppercase w-full text-right">Elimina</button>
-                </div>
-            `;
-            marker.bindPopup(popupHtml);
+            marker.bindPopup(`<div class="text-xs font-bold">${cp.note}</div>`);
         }
 
         function updateCheckpointList() {
             const container = document.getElementById('listItems');
             document.getElementById('cpCount').innerText = checkpoints.length;
             container.innerHTML = "";
-
             [...checkpoints].reverse().forEach(cp => {
                 const el = document.createElement('div');
-                el.className = "flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl hover:border-blue-400 cursor-pointer transition-all shadow-sm relative group";
-                el.onclick = () => map.flyTo(cp.coords, 17);
-                el.innerHTML = `
-                    <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                        <i data-lucide="${cp.photo ? 'camera' : 'map-pin'}" class="w-4 h-4"></i>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-bold text-slate-800 truncate">${cp.note}</p>
-                    </div>
-                    <button onclick="event.stopPropagation(); deleteCheckpoint(${cp.id})" class="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 transition-all">
-                        <i data-lucide="x" class="w-4 h-4"></i>
-                    </button>
-                `;
+                el.className = "flex items-center gap-3 p-2 bg-white border border-slate-100 rounded-xl text-xs";
+                el.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 text-blue-500"></i><span class="truncate font-bold">${cp.note}</span>`;
                 container.appendChild(el);
             });
             lucide.createIcons();
         }
 
-        function recenterOnUser() {
-            if (userMarker) {
-                map.flyTo(userMarker.getLatLng(), 17);
-            } else {
-                showNotification("GPS non attivo.");
-            }
-        }
+        function recenterOnUser() { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("GPS non attivo"); }
 
         function showNotification(text) {
             const el = document.getElementById('notification');
             document.getElementById('notifText').innerText = text;
-            el.classList.remove('-translate-y-24', 'opacity-0');
-            el.classList.add('translate-y-0', 'opacity-100');
+            el.classList.replace('opacity-0', 'opacity-100');
+            el.classList.replace('-translate-y-24', 'translate-y-0');
             setTimeout(() => {
-                el.classList.add('-translate-y-24', 'opacity-0');
-                el.classList.remove('translate-y-0', 'opacity-100');
+                el.classList.replace('opacity-100', 'opacity-0');
+                el.classList.replace('translate-y-0', '-translate-y-24');
             }, 2500);
         }
 
         function saveLocalData() {
-            const data = {
-                center: centerPoint,
-                radius: currentRadius,
-                checkpoints: checkpoints.map(c => ({...c, photo: null})) 
-            };
-            localStorage.setItem('isolamenti_v2_final', JSON.stringify(data));
+            const data = { center: centerPoint, radius: currentRadius, checkpoints: checkpoints };
+            localStorage.setItem('isolamenti_v3', JSON.stringify(data));
         }
 
         function loadLocalData() {
-            const raw = localStorage.getItem('isolamenti_v2_final');
+            const raw = localStorage.getItem('isolamenti_v3');
             if (!raw) return;
             const data = JSON.parse(raw);
-            if (data.center) {
-                setCenterPoint(data.center, data.radius);
-                map.setView(data.center, 14);
-            }
-            if (data.checkpoints) {
-                checkpoints = data.checkpoints;
-                checkpoints.forEach(renderCheckpointOnMap);
-                updateCheckpointList();
-            }
+            if (data.center) { setCenterPoint(data.center, data.radius); map.setView(data.center, 14); }
+            if (data.checkpoints) { checkpoints = data.checkpoints; checkpoints.forEach(renderCheckpointOnMap); updateCheckpointList(); }
         }
 
         function clearAllData() {
-            if (confirm("Cancellare tutti i dati d'isolamento e il percorso?")) {
-                localStorage.removeItem('isolamenti_v2_final');
-                location.reload();
-            }
+            if (confirm("Reset totale?")) { localStorage.removeItem('isolamenti_v3'); location.reload(); }
         }
 
         window.onload = initMap;
