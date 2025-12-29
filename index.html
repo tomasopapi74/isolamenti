@@ -101,7 +101,7 @@
 
             <div id="panelContent" class="space-y-6 overflow-y-auto custom-scrollbar flex-1 pb-6">
                 <div id="infoBox" class="space-y-3">
-                    <p class="text-xs text-slate-500 leading-tight">Usa la mappa o le coordinate per aggiungere un isolamento. Tieni premuto a lungo nel cerchio per aggiungere un punto di controllo.</p>
+                    <p class="text-xs text-slate-500 leading-tight">Tocca la mappa per aggiungere un nuovo isolamento o una nota di controllo se sei dentro un cerchio.</p>
                     
                     <div class="flex gap-2">
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold active:scale-95 shadow-md">
@@ -154,6 +154,30 @@
             </div>
         </div>
     </main>
+
+    <!-- Modal Scelta Azione -->
+    <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in duration-200">
+            <h2 class="text-lg font-bold text-slate-800 mb-6 text-center">Cosa vuoi fare?</h2>
+            <div class="flex flex-col gap-4">
+                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 hover:bg-green-100 text-green-700 p-4 rounded-2xl border border-green-200 transition-colors group">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="plus-circle" class="w-6 h-6"></i>
+                        <span class="font-bold">Nuovo Isolamento</span>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-green-400 group-hover:translate-x-1 transition-transform"></i>
+                </button>
+                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 hover:bg-blue-100 text-blue-700 p-4 rounded-2xl border border-blue-200 transition-colors group">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="clipboard-check" class="w-6 h-6"></i>
+                        <span class="font-bold">Aggiungi Nota</span>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform"></i>
+                </button>
+                <button onclick="closeActionChoiceModal()" class="mt-2 text-slate-400 text-sm font-bold py-2">Annulla</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal Nuovo Campo -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
@@ -241,9 +265,6 @@
         let isTracking = false;
         let tempFieldCoords = null;
         let tempCheckpointCoords = null;
-        let pressTimer;
-        let startPoint = null;
-        let isLongPressActive = false; // Flag cruciale per distinguere click e longpress
         
         // Logica Drag Pannello
         const panel = document.getElementById('statusPanel');
@@ -298,62 +319,46 @@
             }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // Disabilita il menu contestuale nativo per non interferire con il longpress
-            map.getContainer().addEventListener('contextmenu', e => e.preventDefault());
-
-            // GESTIONE AVANZATA TOUCH E LONG PRESS
-            map.on('touchstart mousedown', function(e) {
-                isLongPressActive = false;
-                startPoint = e.containerPoint;
-                clearTimeout(pressTimer);
-                
-                pressTimer = setTimeout(() => {
-                    handleLongPress(e.latlng);
-                    isLongPressActive = true; // Segna che abbiamo appena fatto un long press
-                }, 600); // 0.6 secondi
-            });
-
-            map.on('touchmove mousemove', function(e) {
-                // Se l'utente muove il dito sensibilmente, annulla il timer del long press
-                if (startPoint && startPoint.distanceTo(e.containerPoint) > 15) {
-                    clearTimeout(pressTimer);
-                }
-            });
-
-            map.on('touchend mouseup', function() {
-                clearTimeout(pressTimer);
-            });
-
+            // GESTIONE CLICK SEMPLIFICATA
             map.on('click', function(e) {
-                // Se è appena avvenuto un long press, ignora il click per non aprire il modal campi
-                if (isLongPressActive) {
-                    isLongPressActive = false;
-                    return;
-                }
+                const latlng = e.latlng;
                 
-                tempFieldCoords = e.latlng;
-                openFieldModal(false);
+                // Controlla se il tocco è dentro un campo
+                let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
+                
+                if (targetField) {
+                    // Se siamo dentro, mostriamo il menu di scelta
+                    tempFieldCoords = latlng;
+                    tempCheckpointCoords = { latlng, fieldId: targetField.id };
+                    openActionChoiceModal();
+                } else {
+                    // Se siamo fuori, andiamo direttamente a creare un nuovo campo
+                    tempFieldCoords = latlng;
+                    openFieldModal(false);
+                }
             });
 
             loadLocalData();
         }
 
-        function handleLongPress(latlng) {
-            // Vibrazione tattile di feedback immediata
-            if (window.navigator && window.navigator.vibrate) {
-                window.navigator.vibrate(60);
-            }
+        // FUNZIONI MODAL SCELTA
+        function openActionChoiceModal() {
+            document.getElementById('actionChoiceModal').classList.replace('hidden', 'flex');
+        }
 
-            // Verifica se il punto è dentro un cerchio esistente
-            let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
-            
-            if (targetField) {
-                tempCheckpointCoords = { latlng, fieldId: targetField.id };
-                document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
-                document.getElementById('checkpointNoteInput').focus();
-            } else {
-                showNotification("Tieni premuto dentro un cerchio per aggiungere note.");
-            }
+        function closeActionChoiceModal() {
+            document.getElementById('actionChoiceModal').classList.replace('flex', 'hidden');
+        }
+
+        function selectNewField() {
+            closeActionChoiceModal();
+            openFieldModal(false);
+        }
+
+        function selectNewCheckpoint() {
+            closeActionChoiceModal();
+            document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
+            document.getElementById('checkpointNoteInput').focus();
         }
 
         function openFieldModal(isManual = false) {
