@@ -20,7 +20,7 @@
         }
         
         @keyframes pulse {
-            0 { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
@@ -243,6 +243,7 @@
         let tempCheckpointCoords = null;
         let pressTimer;
         let startPoint = null;
+        let isLongPressActive = false; // Flag cruciale per distinguere click e longpress
         
         // Logica Drag Pannello
         const panel = document.getElementById('statusPanel');
@@ -255,7 +256,7 @@
             startY = e.touches[0].clientY;
             isDragging = true;
             panel.style.transition = 'none';
-        });
+        }, {passive: true});
 
         window.addEventListener('touchmove', (e) => {
             if (!isDragging) return;
@@ -266,7 +267,7 @@
                 const maxTranslate = panel.offsetHeight - MIN_HEIGHT;
                 if (move <= maxTranslate) panel.style.transform = `translateY(${move}px)`;
             }
-        });
+        }, {passive: true});
 
         window.addEventListener('touchend', (e) => {
             if (!isDragging) return;
@@ -297,29 +298,39 @@
             }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // Impedisce l'apertura del menu contestuale di sistema su mobile per non interferire col long press
+            // Disabilita il menu contestuale nativo per non interferire con il longpress
             map.getContainer().addEventListener('contextmenu', e => e.preventDefault());
 
-            // Logica per rilevare il Long Press corretta
-            map.on('mousedown touchstart', function(e) {
+            // GESTIONE AVANZATA TOUCH E LONG PRESS
+            map.on('touchstart mousedown', function(e) {
+                isLongPressActive = false;
                 startPoint = e.containerPoint;
                 clearTimeout(pressTimer);
-                pressTimer = window.setTimeout(function() {
+                
+                pressTimer = setTimeout(() => {
                     handleLongPress(e.latlng);
-                }, 600); 
+                    isLongPressActive = true; // Segna che abbiamo appena fatto un long press
+                }, 600); // 0.6 secondi
             });
 
-            map.on('mousemove touchmove', function(e) {
-                if (startPoint && startPoint.distanceTo(e.containerPoint) > 10) {
+            map.on('touchmove mousemove', function(e) {
+                // Se l'utente muove il dito sensibilmente, annulla il timer del long press
+                if (startPoint && startPoint.distanceTo(e.containerPoint) > 15) {
                     clearTimeout(pressTimer);
                 }
             });
 
-            map.on('mouseup touchend', function() {
+            map.on('touchend mouseup', function() {
                 clearTimeout(pressTimer);
             });
 
             map.on('click', function(e) {
+                // Se è appena avvenuto un long press, ignora il click per non aprire il modal campi
+                if (isLongPressActive) {
+                    isLongPressActive = false;
+                    return;
+                }
+                
                 tempFieldCoords = e.latlng;
                 openFieldModal(false);
             });
@@ -328,12 +339,18 @@
         }
 
         function handleLongPress(latlng) {
+            // Vibrazione tattile di feedback immediata
+            if (window.navigator && window.navigator.vibrate) {
+                window.navigator.vibrate(60);
+            }
+
+            // Verifica se il punto è dentro un cerchio esistente
             let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
+            
             if (targetField) {
                 tempCheckpointCoords = { latlng, fieldId: targetField.id };
                 document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
                 document.getElementById('checkpointNoteInput').focus();
-                if (window.navigator.vibrate) window.navigator.vibrate(50);
             } else {
                 showNotification("Tieni premuto dentro un cerchio per aggiungere note.");
             }
