@@ -20,7 +20,7 @@
         }
         
         @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            0 { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
             100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
@@ -242,6 +242,7 @@
         let tempFieldCoords = null;
         let tempCheckpointCoords = null;
         let pressTimer;
+        let startPoint = null;
         
         // Logica Drag Pannello
         const panel = document.getElementById('statusPanel');
@@ -296,19 +297,29 @@
             }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // Logica per rilevare il Long Press
+            // Impedisce l'apertura del menu contestuale di sistema su mobile per non interferire col long press
+            map.getContainer().addEventListener('contextmenu', e => e.preventDefault());
+
+            // Logica per rilevare il Long Press corretta
             map.on('mousedown touchstart', function(e) {
+                startPoint = e.containerPoint;
+                clearTimeout(pressTimer);
                 pressTimer = window.setTimeout(function() {
                     handleLongPress(e.latlng);
-                }, 6000); // 600ms per attivare il long press
+                }, 600); 
             });
 
-            map.on('mouseup touchend mousemove touchmove', function() {
+            map.on('mousemove touchmove', function(e) {
+                if (startPoint && startPoint.distanceTo(e.containerPoint) > 10) {
+                    clearTimeout(pressTimer);
+                }
+            });
+
+            map.on('mouseup touchend', function() {
                 clearTimeout(pressTimer);
             });
 
             map.on('click', function(e) {
-                // Il click singolo aggiunge un nuovo campo se non siamo in long press
                 tempFieldCoords = e.latlng;
                 openFieldModal(false);
             });
@@ -317,15 +328,14 @@
         }
 
         function handleLongPress(latlng) {
-            // Verifica se il punto è dentro un cerchio esistente
             let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
-            
             if (targetField) {
                 tempCheckpointCoords = { latlng, fieldId: targetField.id };
                 document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
                 document.getElementById('checkpointNoteInput').focus();
+                if (window.navigator.vibrate) window.navigator.vibrate(50);
             } else {
-                showNotification("Pressione fuori dai cerchi di isolamento.");
+                showNotification("Tieni premuto dentro un cerchio per aggiungere note.");
             }
         }
 
@@ -436,7 +446,6 @@
             const field = { ...fieldData, marker: marker, circle: circle, polyline: polyline, isInside: false };
             fields.push(field);
             
-            // Renderizza i checkpoint se presenti
             if (field.checkpoints) {
                 field.checkpoints.forEach(renderCheckpointOnMap);
             }
@@ -462,7 +471,6 @@
                 </div>
             `);
             
-            // Colleghiamo il marker all'oggetto cp per poterlo rimuovere se serve
             cp.marker = cpMarker;
             lucide.createIcons();
         }
@@ -492,7 +500,6 @@
         function toggleTracking() {
             const btn = document.getElementById('trackBtn');
             const tele = document.getElementById('telemetryPanel');
-            
             if (isTracking) {
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
                 watchId = null;
@@ -505,11 +512,9 @@
             } else {
                 if (!navigator.geolocation) return showNotification("GPS non supportato");
                 showNotification("Ricerca GPS in corso...");
-                
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const accuracy = pos.coords.accuracy;
                     document.getElementById('accuracyVal').innerText = (accuracy ? accuracy.toFixed(0) : "?") + "m";
-                    
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     if (!userMarker) {
                         userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
@@ -525,7 +530,6 @@
                     timeout: 10000,
                     maximumAge: 0
                 });
-                
                 isTracking = true;
                 tele.classList.remove('hidden');
                 btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS';
@@ -538,11 +542,9 @@
         function updateGeofencing(userPos) {
             let anyInside = false;
             let currentFieldName = "";
-
             fields.forEach(field => {
                 const distance = userPos.distanceTo(field.latlng);
                 const isInside = distance <= field.radius;
-
                 if (isInside) {
                     anyInside = true;
                     currentFieldName = field.name;
@@ -555,11 +557,9 @@
                     field.isInside = false;
                 }
             });
-
             const statusText = document.getElementById('statusText');
             const statusDot = document.getElementById('statusDot');
             const statusInd = document.getElementById('statusIndicator');
-
             if (anyInside) {
                 statusText.innerText = `In: ${currentFieldName}`;
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
