@@ -445,12 +445,12 @@
                     id: Date.now(),
                     latlng: tempCheckpointCoords.latlng,
                     note: note,
-                    date: timestamp // Salviamo la data separatamente
+                    date: timestamp
                 };
                 field.checkpoints.push(cpData);
                 renderCheckpointOnMap(cpData);
                 closeCheckpointModal();
-                saveLocalData();
+                saveLocalData(); // Questo ora funzionerà correttamente
                 showNotification("Rilevamento salvato.");
                 tempCheckpointCoords = null;
             } else {
@@ -499,7 +499,6 @@
         }
 
         function renderCheckpointOnMap(cp) {
-            // Icona Triangolo Rosso con bordo Bianco
             const triangleSVG = `
                 <svg viewBox="0 0 24 24" width="20" height="20" style="filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));">
                     <path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>
@@ -509,7 +508,7 @@
             const cpMarker = L.marker(cp.latlng, {
                 icon: L.divIcon({
                     html: triangleSVG,
-                    className: '', iconSize: [20, 20], iconAnchor: [10, 20] // Ancorato alla punta inferiore
+                    className: '', iconSize: [20, 20], iconAnchor: [10, 20]
                 })
             }).addTo(map);
 
@@ -678,7 +677,10 @@
 
         function exportData() {
             const dataToExport = fields.map(f => ({
-                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords, checkpoints: f.checkpoints
+                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords, 
+                checkpoints: (f.checkpoints || []).map(cp => ({
+                    id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date
+                }))
             }));
             const jsonString = JSON.stringify(dataToExport);
             const el = document.createElement('textarea');
@@ -726,14 +728,31 @@
         }
 
         function saveLocalData() {
-            localStorage.setItem('isolamenti_agricoli_v4', JSON.stringify(fields.map(f => ({
-                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords, checkpoints: f.checkpoints
-            }))));
+            // PULIZIA DATI: Filtriamo solo le proprietà salvabili ed evitiamo gli oggetti circolari della mappa (marker)
+            const cleanFields = fields.map(f => ({
+                id: f.id,
+                name: f.name,
+                code: f.code,
+                category: f.category,
+                latlng: f.latlng,
+                radius: f.radius,
+                pathCoords: f.pathCoords,
+                checkpoints: (f.checkpoints || []).map(cp => ({
+                    id: cp.id,
+                    latlng: cp.latlng,
+                    note: cp.note,
+                    date: cp.date
+                }))
+            }));
+            localStorage.setItem('isolamenti_agricoli_v4', JSON.stringify(cleanFields));
         }
 
         function loadLocalData() {
             const raw = localStorage.getItem('isolamenti_agricoli_v4');
-            if (raw) JSON.parse(raw).forEach(fData => addFieldToMap(fData));
+            if (raw) {
+                const data = JSON.parse(raw);
+                data.forEach(fData => addFieldToMap(fData));
+            }
         }
 
         function clearAllData() {
