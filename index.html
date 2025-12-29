@@ -101,15 +101,23 @@
 
             <div id="panelContent" class="space-y-6 overflow-y-auto custom-scrollbar flex-1 pb-6">
                 <div id="infoBox" class="space-y-3">
-                    <p class="text-xs text-slate-500 leading-tight">Seleziona un punto sulla mappa o usa le coordinate per aggiungere un isolamento.</p>
+                    <p class="text-xs text-slate-500 leading-tight">Usa la mappa o le coordinate per aggiungere un isolamento.</p>
                     
                     <div class="flex gap-2">
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold active:scale-95 shadow-md">
                             <i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS
                         </button>
-                        <button onclick="clearAllData()" class="bg-slate-100 text-red-500 p-3 rounded-xl hover:bg-red-50 transition-colors">
-                            <i data-lucide="trash-2" class="w-5 h-5"></i>
-                        </button>
+                        <div class="flex gap-1">
+                            <button onclick="exportData()" class="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors" title="Esporta dati">
+                                <i data-lucide="share-2" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="importData()" class="bg-slate-100 text-slate-600 p-3 rounded-xl hover:bg-slate-200 transition-colors" title="Importa dati">
+                                <i data-lucide="download" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="clearAllData()" class="bg-slate-100 text-red-500 p-3 rounded-xl hover:bg-red-50 transition-colors">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -504,6 +512,50 @@
                 map.removeLayer(field.marker); map.removeLayer(field.circle); map.removeLayer(field.polyline);
                 fields = fields.filter(f => f.id !== id);
                 updateFieldUI(); saveLocalData();
+            }
+        }
+
+        // FUNZIONE ESPORTAZIONE DATI
+        function exportData() {
+            const dataToExport = fields.map(f => ({
+                id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords
+            }));
+            const jsonString = JSON.stringify(dataToExport);
+            
+            // Copia negli appunti tramite comando legacy per compatibilità
+            const el = document.createElement('textarea');
+            el.value = jsonString;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            
+            showNotification("Configurazione copiata negli appunti!");
+        }
+
+        // FUNZIONE IMPORTAZIONE DATI
+        function importData() {
+            const jsonInput = prompt("Incolla qui il codice di configurazione ricevuto:");
+            if (!jsonInput) return;
+            
+            try {
+                const importedFields = JSON.parse(jsonInput);
+                if (!Array.isArray(importedFields)) throw new Error();
+                
+                if (confirm("L'importazione sostituirà i campi attuali. Procedere?")) {
+                    // Pulisci mappa attuale
+                    fields.forEach(f => {
+                        map.removeLayer(f.marker); map.removeLayer(f.circle); map.removeLayer(f.polyline);
+                    });
+                    fields = [];
+                    
+                    // Aggiungi nuovi campi
+                    importedFields.forEach(fData => addFieldToMap(fData));
+                    saveLocalData();
+                    showNotification("Dati importati con successo!");
+                }
+            } catch (err) {
+                showNotification("Errore: il codice non è valido.");
             }
         }
 
