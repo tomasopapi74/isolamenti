@@ -327,12 +327,10 @@
                 let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
                 
                 if (targetField) {
-                    // Se siamo dentro, mostriamo il menu di scelta
                     tempFieldCoords = latlng;
-                    tempCheckpointCoords = { latlng, fieldId: targetField.id };
+                    tempCheckpointCoords = { latlng: latlng, fieldId: targetField.id };
                     openActionChoiceModal();
                 } else {
-                    // Se siamo fuori, andiamo direttamente a creare un nuovo campo
                     tempFieldCoords = latlng;
                     openFieldModal(false);
                 }
@@ -341,7 +339,6 @@
             loadLocalData();
         }
 
-        // FUNZIONI MODAL SCELTA
         function openActionChoiceModal() {
             document.getElementById('actionChoiceModal').classList.replace('hidden', 'flex');
         }
@@ -386,7 +383,6 @@
         function closeCheckpointModal() {
             document.getElementById('checkpointModal').classList.replace('flex', 'hidden');
             document.getElementById('checkpointNoteInput').value = "";
-            tempCheckpointCoords = null;
         }
 
         function confirmAddField() {
@@ -429,8 +425,16 @@
                 return;
             }
 
+            if (!tempCheckpointCoords) {
+                showNotification("Errore di riferimento coordinate.");
+                return;
+            }
+
             const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             if (field) {
+                // Migrazione dati: se checkpoints non esiste (vecchia versione), inizializzalo
+                if (!field.checkpoints) field.checkpoints = [];
+                
                 const cpData = {
                     id: Date.now(),
                     latlng: tempCheckpointCoords.latlng,
@@ -440,7 +444,10 @@
                 renderCheckpointOnMap(cpData);
                 closeCheckpointModal();
                 saveLocalData();
-                showNotification("Punto di controllo salvato.");
+                showNotification("Nota salvata correttamente.");
+                tempCheckpointCoords = null; // Pulisci dopo il salvataggio
+            } else {
+                showNotification("Errore: Campo non trovato.");
             }
         }
 
@@ -465,10 +472,18 @@
                 color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' 
             }).addTo(map);
 
-            const field = { ...fieldData, marker: marker, circle: circle, polyline: polyline, isInside: false };
+            const field = { 
+                ...fieldData, 
+                checkpoints: fieldData.checkpoints || [], // Assicurati che sia sempre un array
+                marker: marker, 
+                circle: circle, 
+                polyline: polyline, 
+                isInside: false 
+            };
+            
             fields.push(field);
             
-            if (field.checkpoints) {
+            if (field.checkpoints && field.checkpoints.length > 0) {
                 field.checkpoints.forEach(renderCheckpointOnMap);
             }
 
