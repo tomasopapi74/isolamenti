@@ -176,11 +176,11 @@
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl text-center">
             <h2 class="text-lg font-bold text-slate-800 mb-6">Cosa vuoi fare?</h2>
             <div class="flex flex-col gap-4">
-                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200 active:scale-95">
+                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200 active:scale-95 transition-all">
                     <div class="flex items-center gap-3"><i data-lucide="plus-circle" class="w-6 h-6"></i><span class="font-bold">Nuovo Isolamento</span></div>
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
-                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-4 rounded-2xl border border-blue-200 active:scale-95">
+                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-4 rounded-2xl border border-blue-200 active:scale-95 transition-all">
                     <div class="flex items-center gap-3"><i data-lucide="clipboard-check" class="w-6 h-6"></i><span class="font-bold">Aggiungi Nota</span></div>
                     <i data-lucide="chevron-right" class="w-4 h-4"></i>
                 </button>
@@ -245,20 +245,35 @@
         let isLocalMode = false;
         let mapReady = false;
 
-        // --- FILTRO JSON INTELLIGENTE ---
+        // --- FILTRO JSON INTELLIGENTE POTENZIATO ---
         function cleanFirebaseConfig(input) {
             if (!input) return null;
-            let clean = input.trim();
-            // Rimuove variabili javascript se incollate per sbaglio
-            clean = clean.replace(/const\s+\w+\s*=\s*/g, '').replace(/let\s+\w+\s*=\s*/g, '').replace(/var\s+\w+\s*=\s*/g, '');
-            clean = clean.replace(/firebaseConfig\s*=\s*/g, '').replace(/;/g, '');
-            // Aggiunge virgolette alle chiavi se mancano (trasforma JS in JSON)
-            clean = clean.replace(/([a-zA-Z0-9]+):/g, '"$1":');
-            // Sistema virgolette singole in doppie
-            clean = clean.replace(/'/g, '"');
-            // Rimuove virgole finali prima della chiusura graffa
-            clean = clean.replace(/,\s*}/g, '}');
-            try { return JSON.parse(clean); } catch(e) { return null; }
+            let str = input.trim();
+            
+            // 1. Trova l'oggetto tra le graffe { ... } ignorando variabili esterne
+            const start = str.indexOf('{');
+            const end = str.lastIndexOf('}');
+            if (start === -1 || end === -1) return null;
+            str = str.substring(start, end + 1);
+
+            // 2. Pulizia: rimuove commenti, converte apici singoli, rimuove virgole finali
+            str = str
+                .replace(/\/\/.*/g, '')                      // Rimuove commenti a riga singola //
+                .replace(/\/\*[\s\S]*?\*\//g, '')            // Rimuove commenti multi-riga /* */
+                .replace(/'/g, '"')                          // Converte apici singoli in doppi
+                .replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":')    // Mette le virgolette ai nomi delle chiavi
+                .replace(/,\s*}/g, '}')                      // Rimuove virgola prima della chiusura }
+                .replace(/,\s*]/g, ']');                     // Rimuove virgola prima della chiusura ]
+
+            try { 
+                const parsed = JSON.parse(str);
+                // Verifica minima che sia un config Firebase (presenza apiKey)
+                if (!parsed.apiKey) return null;
+                return parsed;
+            } catch(e) { 
+                console.error("JSON Clean/Parse Error:", e);
+                return null; 
+            }
         }
 
         async function initFirebaseCore(manualInput = null) {
@@ -266,7 +281,7 @@
                 let config = null;
                 if(manualInput) {
                     config = cleanFirebaseConfig(manualInput);
-                    if(!config) throw new Error("Chiavi Cloud non valide. Controlla il codice incollato.");
+                    if(!config) throw new Error("Chiavi Cloud non valide. Verifica di aver copiato tutto il blocco tra { e }.");
                 } else {
                     const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
                     if (configStr) config = JSON.parse(configStr);
@@ -278,9 +293,9 @@
                 fb.db = getFirestore(app);
                 fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
                 
-                // Funzioni di Auth dirette per evitare errori di riferimento
-                fb.doSignInAnon = () => signInAnonymously(fb.auth);
-                fb.doSignInToken = (t) => signInWithCustomToken(fb.auth, t);
+                // Binding funzioni di autenticazione per sicurezza
+                fb.loginAnon = () => signInAnonymously(fb.auth);
+                fb.loginToken = (t) => signInWithCustomToken(fb.auth, t);
                 
                 window.fbReady = true;
                 return true;
@@ -294,8 +309,14 @@
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
             
-            if (!nameRaw || !pass) { errorEl.innerText = "Dati mancanti."; errorEl.classList.remove('hidden'); return; }
-            loginBtn.disabled = true; document.getElementById('btnLabel').innerHTML = '<span class="loader"></span> CONNESSIONE...';
+            if (!nameRaw || !pass) { 
+                errorEl.innerText = "Inserisci nome gruppo e password."; 
+                errorEl.classList.remove('hidden'); 
+                return; 
+            }
+            
+            loginBtn.disabled = true; 
+            document.getElementById('btnLabel').innerHTML = '<span class="loader"></span> CONNESSIONE...';
             errorEl.classList.add('hidden');
             
             try {
@@ -304,8 +325,8 @@
 
                 // Autenticazione (REGOLA 3)
                 const customToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (customToken) await fb.doSignInToken(customToken);
-                else await fb.doSignInAnon();
+                if (customToken) await fb.loginToken(customToken);
+                else await fb.loginAnon();
 
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
                 const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
@@ -323,8 +344,10 @@
                 checkAndMigrateLegacyData();
             } catch (err) { 
                 console.error(err);
-                errorEl.innerText = err.message || "Errore Cloud."; errorEl.classList.remove('hidden'); 
-                loginBtn.disabled = false; document.getElementById('btnLabel').innerText = "ACCEDI AL CLOUD";
+                errorEl.innerText = err.message || "Errore Cloud."; 
+                errorEl.classList.remove('hidden'); 
+                loginBtn.disabled = false; 
+                document.getElementById('btnLabel').innerText = "ACCEDI AL CLOUD";
             }
         };
 
@@ -351,7 +374,7 @@
             if (legacy) {
                 try {
                     const data = JSON.parse(legacy);
-                    if (data && data.length > 0 && confirm(`Caricare i punti locali nel Cloud?`)) {
+                    if (data && data.length > 0 && confirm(`Caricare i punti salvati sul telefono nel Cloud?`)) {
                         fields = [...fields, ...data]; saveData();
                         localStorage.removeItem('isolamenti_agricoli_v4');
                     }
