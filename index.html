@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Isolamenti Agricoli - Cloud Sync</title>
+    <title>Isolamenti Agricoli - Cloud Sync & Recovery</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,17 +12,16 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurazione Firebase fornita dall'ambiente
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
 
-        window.fb = { auth, db, appId, doc, setDoc, onSnapshot, getDoc, signInAnonymously };
+        window.fb = { auth, db, appId, doc, setDoc, onSnapshot, getDoc, signInAnonymously, signInWithCustomToken };
     </script>
 
     <style>
@@ -36,13 +35,12 @@
         @keyframes pulse {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
         }
 
         #statusPanel { transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67); touch-action: none; padding-bottom: env(safe-area-inset-bottom); }
         .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 10px auto; }
         
-        /* Overlay per il Login */
         #loginOverlay {
             position: fixed; inset: 0; background: #f8fafc; z-index: 9999;
             display: flex; align-items: center; justify-content: center; padding: 20px;
@@ -51,32 +49,31 @@
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
 
-    <!-- Schermata di Login / Accesso Progetto -->
     <div id="loginOverlay">
         <div class="bg-white p-8 rounded-[32px] shadow-2xl w-full max-w-md space-y-6">
             <div class="text-center space-y-2">
                 <div class="bg-green-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <i data-lucide="folder-plus" class="text-green-600 w-8 h-8"></i>
+                    <i data-lucide="cloud-lightning" class="text-green-600 w-8 h-8"></i>
                 </div>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Gestione Progetti</h1>
-                <p class="text-slate-500 text-sm italic">Accedi a un progetto esistente o creane uno nuovo inserendo un nome unico.</p>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Accesso Progetto</h1>
+                <p class="text-slate-500 text-sm italic">Sincronizza i dati con i tuoi colleghi nel Cloud.</p>
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">ID Progetto</label>
-                    <input type="text" id="projectInput" placeholder="es: Campagna_2024" 
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Gruppo</label>
+                    <input type="text" id="projectInput" placeholder="es: Squadra_Nord" 
                         class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Password Progetto</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Password</label>
                     <input type="password" id="passwordInput" placeholder="Password" 
                         class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
                 </div>
                 <button onclick="handleLogin()" id="loginBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-green-100 active:scale-95 transition-all">
-                    ACCEDI O CREA
+                    ACCEDI E SINCRONIZZA
                 </button>
             </div>
-            <p id="loginError" class="text-red-500 text-xs text-center font-bold hidden"></p>
+            <p id="loginError" class="text-red-500 text-xs text-center font-bold hidden px-4"></p>
         </div>
     </div>
 
@@ -86,9 +83,9 @@
                 <div class="bg-green-600 p-2 rounded-lg shadow-md">
                     <i data-lucide="leaf" class="text-white w-5 h-5"></i>
                 </div>
-                <div class="hidden sm:block">
+                <div class="hidden sm:block text-green-700">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">Isolamenti</h1>
-                    <span class="text-[10px] text-green-600 font-bold uppercase tracking-widest">Sincronizzazione Cloud</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Sincronizzazione Attiva</span>
                 </div>
             </div>
             
@@ -132,7 +129,7 @@
                     <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Pannello Campi</span>
                     <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 transition-colors">
                         <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                        <span id="statusText">GPS Spento</span>
+                        <span id="statusText">GPS Off</span>
                     </div>
                 </div>
             </div>
@@ -143,7 +140,7 @@
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold active:scale-95 shadow-md">
                             <i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS
                         </button>
-                        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3 rounded-xl hover:bg-slate-200 transition-colors" title="Cambia Progetto">
+                        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3 rounded-xl hover:bg-slate-200 transition-colors">
                             <i data-lucide="log-out" class="w-5 h-5"></i>
                         </button>
                     </div>
@@ -162,7 +159,7 @@
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-purple-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Brassiche</h3></div>
                         <div id="list-brassiche" class="space-y-2"></div>
                     </div>
-                    <div id="emptyMsg" class="text-center py-8 text-slate-400 text-xs italic">Nessun campo in questo progetto.</div>
+                    <div id="emptyMsg" class="text-center py-8 text-slate-400 text-xs italic">Nessun campo nel progetto Cloud.</div>
                 </div>
             </div>
         </div>
@@ -173,11 +170,11 @@
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
             <h2 class="text-lg font-bold text-slate-800 mb-6 text-center">Cosa vuoi fare?</h2>
             <div class="flex flex-col gap-4">
-                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200 active:scale-95 transition-all">
+                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200 active:scale-95">
                     <div class="flex items-center gap-3"><i data-lucide="plus-circle" class="w-6 h-6"></i><span class="font-bold">Nuovo Isolamento</span></div>
                     <i data-lucide="chevron-right" class="w-4 h-4 text-green-400"></i>
                 </button>
-                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-4 rounded-2xl border border-blue-200 active:scale-95 transition-all">
+                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-4 rounded-2xl border border-blue-200 active:scale-95">
                     <div class="flex items-center gap-3"><i data-lucide="clipboard-check" class="w-6 h-6"></i><span class="font-bold">Aggiungi Nota</span></div>
                     <i data-lucide="chevron-right" class="w-4 h-4 text-blue-400"></i>
                 </button>
@@ -186,56 +183,41 @@
         </div>
     </div>
 
-    <!-- Modal Nuovo Campo -->
+    <!-- Modals (Field/Checkpoint) - Struttura Standard -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-green-700"><i data-lucide="plus-circle"></i> Nuovo Isolamento</h2>
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Nome</label>
-                        <input type="text" id="fieldNameInput" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Codice</label>
-                        <input type="text" id="fieldCodeInput" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50">
-                    </div>
+                    <input type="text" id="fieldNameInput" placeholder="Nome" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                    <input type="text" id="fieldCodeInput" placeholder="Codice" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Categoria</label>
-                    <select id="fieldCategoryInput" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50">
-                        <option value="cipolle">Cipolle</option>
-                        <option value="bunching">Bunching</option>
-                        <option value="brassiche">Brassiche</option>
-                    </select>
+                <select id="fieldCategoryInput" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                    <option value="cipolle">Cipolle</option>
+                    <option value="bunching">Bunching</option>
+                    <option value="brassiche">Brassiche</option>
+                </select>
+                <div id="coordsInputs" class="hidden grid grid-cols-2 gap-3">
+                    <input type="number" id="fieldLatInput" step="any" placeholder="Lat" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                    <input type="number" id="fieldLonInput" step="any" placeholder="Lon" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
                 </div>
-                <div id="coordsInputs" class="hidden space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <input type="number" id="fieldLatInput" step="any" placeholder="Lat" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                        <input type="number" id="fieldLonInput" step="any" placeholder="Lon" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Raggio (m)</label>
-                    <input type="number" id="fieldRadiusInput" value="1000" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                </div>
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeFieldModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 text-sm">Annulla</button>
-                    <button onclick="confirmAddField()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm">Registra</button>
+                <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (m)" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                <div class="flex gap-3">
+                    <button onclick="closeFieldModal()" class="flex-1 py-3 border rounded-xl font-bold text-slate-400">Annulla</button>
+                    <button onclick="confirmAddField()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold">Registra</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal Checkpoint -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Rilevamento</h2>
             <div class="space-y-4">
-                <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50" placeholder="Inserisci note..."></textarea>
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 text-sm">Annulla</button>
-                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Salva</button>
+                <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50" placeholder="Inserisci note..."></textarea>
+                <div class="flex gap-3">
+                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border rounded-xl font-bold text-slate-400">Annulla</button>
+                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Salva</button>
                 </div>
             </div>
         </div>
@@ -246,69 +228,72 @@
     </div>
 
     <script>
-        // GLOBALS
-        let map, userMarker, watchId = null;
-        let fields = []; 
-        let isTracking = false;
-        let tempFieldCoords = null;
-        let tempCheckpointCoords = null;
-        let currentProjectName = null;
-        let currentPassword = null;
-        let isSyncing = false;
+        let map, userMarker, watchId = null, fields = []; 
+        let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null;
+        let currentProjectName = null, currentPassword = null, isSyncing = false;
 
-        // LOGIN E CLOUD LOGIC
+        async function authenticate() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
+                } else { await window.fb.signInAnonymously(window.fb.auth); }
+                return window.fb.auth.currentUser;
+            } catch (err) { return null; }
+        }
+
         async function handleLogin() {
-            const nameInput = document.getElementById('projectInput').value.trim();
-            const name = nameInput.toLowerCase().replace(/\s+/g, '_'); // Pulizia nome
+            const nameRaw = document.getElementById('projectInput').value.trim();
+            const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
             const pass = document.getElementById('passwordInput').value.trim();
             const errorEl = document.getElementById('loginError');
-
-            if (!name || !pass) {
-                errorEl.innerText = "Inserisci nome progetto e password.";
-                errorEl.classList.remove('hidden');
-                return;
-            }
-
-            document.getElementById('loginBtn').innerText = "SINCRONIZZAZIONE...";
+            if (!name || !pass) { errorEl.innerText = "Dati mancanti."; errorEl.classList.remove('hidden'); return; }
+            document.getElementById('loginBtn').innerText = "ACCESSO...";
             
             try {
-                // 1. Auth anonimo
-                await window.fb.signInAnonymously(window.fb.auth);
-                
-                // 2. Controllo esistenza progetto
+                const user = await authenticate();
+                if (!user) throw new Error("Auth fallita");
                 const projRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await window.fb.getDoc(projRef);
 
                 if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.password !== pass) {
-                        errorEl.innerText = "Password errata per questo progetto.";
-                        errorEl.classList.remove('hidden');
-                        document.getElementById('loginBtn').innerText = "ACCEDI O CREA";
-                        return;
+                    if (docSnap.data().password !== pass) {
+                        errorEl.innerText = "Password errata."; errorEl.classList.remove('hidden');
+                        document.getElementById('loginBtn').innerText = "ACCEDI"; return;
                     }
                 } else {
-                    // CONFERMA CREAZIONE NUOVO PROGETTO
-                    if (!confirm(`Il progetto "${nameInput}" non esiste. Vuoi crearne uno nuovo con la password inserita?`)) {
-                        document.getElementById('loginBtn').innerText = "ACCEDI O CREA";
-                        return;
-                    }
+                    if (!confirm(`Creare nuovo progetto "${nameRaw}"?`)) { document.getElementById('loginBtn').innerText = "ACCEDI"; return; }
                     await window.fb.setDoc(projRef, { password: pass, fields: [] });
                 }
 
-                currentProjectName = name;
-                currentPassword = pass;
+                currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_project', JSON.stringify({ name, pass }));
-                
                 startCloudSync();
-                
                 document.getElementById('displayProjName').innerText = name.toUpperCase();
                 document.getElementById('loginOverlay').classList.add('hidden');
-                showNotification(`Progetto: ${name}`);
-            } catch (err) {
-                errorEl.innerText = "Errore Cloud: controlla la connessione.";
-                errorEl.classList.remove('hidden');
-                document.getElementById('loginBtn').innerText = "ACCEDI O CREA";
+                
+                // --- RECUPERO DATI DI IERI ---
+                checkAndMigrateLocalData();
+                
+            } catch (err) { 
+                errorEl.innerText = "Errore: " + err.message; 
+                errorEl.classList.remove('hidden'); 
+                document.getElementById('loginBtn').innerText = "ACCEDI";
+            }
+        }
+
+        function checkAndMigrateLocalData() {
+            const localRaw = localStorage.getItem('isolamenti_agricoli_v4');
+            if (localRaw) {
+                const localData = JSON.parse(localRaw);
+                if (localData.length > 0) {
+                    if (confirm(`Ho trovato ${localData.length} campi salvati ieri su questo telefono. Vuoi caricarli nel progetto Cloud "${currentProjectName}"?`)) {
+                        fields = [...fields, ...localData];
+                        saveToCloud().then(() => {
+                            localStorage.removeItem('isolamenti_agricoli_v4');
+                            showNotification("Dati di ieri sincronizzati con successo!");
+                        });
+                    }
+                }
             }
         }
 
@@ -317,21 +302,16 @@
             window.fb.onSnapshot(projRef, (doc) => {
                 if (doc.exists()) {
                     const cloudFields = doc.data().fields || [];
-                    // Aggiorna solo se i dati sono diversi per evitare loop
-                    if (JSON.stringify(cloudFields) !== JSON.stringify(fields.map(f => ({
-                        id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords,
-                        checkpoints: (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date }))
-                    })))) {
-                        mergeCloudData(cloudFields);
-                    }
+                    const localHash = JSON.stringify(fields.map(f => f.id));
+                    const cloudHash = JSON.stringify(cloudFields.map(f => f.id));
+                    if (localHash !== cloudHash) mergeCloudData(cloudFields);
                 }
-            }, (err) => showNotification("Errore sincronizzazione"));
+            }, (err) => showNotification("Errore Sync Cloud"));
         }
 
         function mergeCloudData(cloudData) {
             fields.forEach(f => {
-                if(f.marker) map.removeLayer(f.marker);
-                if(f.circle) map.removeLayer(f.circle);
+                if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle);
                 if(f.polyline) map.removeLayer(f.polyline);
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
@@ -344,133 +324,84 @@
             if (!currentProjectName || isSyncing) return;
             isSyncing = true;
             document.getElementById('syncIndicator').classList.add('animate-pulse');
-            
             const cleanFields = fields.map(f => ({
                 id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords,
                 checkpoints: (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date }))
             }));
-
             try {
                 const projRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'projects', currentProjectName);
                 await window.fb.setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
                 document.getElementById('syncIndicator').className = "text-green-500";
-            } catch (err) {
-                document.getElementById('syncIndicator').className = "text-red-500";
-            } finally {
-                isSyncing = false;
-                document.getElementById('syncIndicator').classList.remove('animate-pulse');
-            }
+            } catch (err) { document.getElementById('syncIndicator').className = "text-red-500"; }
+            finally { isSyncing = false; document.getElementById('syncIndicator').classList.remove('animate-pulse'); }
         }
 
-        function logoutProject() {
-            if (confirm("Vuoi uscire da questo progetto?")) {
-                localStorage.removeItem('isolamenti_last_project');
-                location.reload();
-            }
-        }
-
-        // MAP E UI LOGIC
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
-
             map.on('click', function(e) {
                 if (!currentProjectName) return;
-                const latlng = e.latlng;
-                let targetField = fields.find(f => latlng.distanceTo(f.latlng) <= f.radius);
-                if (targetField) {
-                    tempFieldCoords = latlng;
-                    tempCheckpointCoords = { latlng: latlng, fieldId: targetField.id };
-                    openActionChoiceModal();
-                } else {
-                    tempFieldCoords = latlng;
-                    openFieldModal(false);
-                }
+                let targetField = fields.find(f => e.latlng.distanceTo(f.latlng) <= f.radius);
+                if (targetField) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; openActionChoiceModal(); }
+                else { tempFieldCoords = e.latlng; openFieldModal(false); }
             });
-
             const saved = localStorage.getItem('isolamenti_last_project');
-            if (saved) {
-                const { name, pass } = JSON.parse(saved);
-                document.getElementById('projectInput').value = name;
-                document.getElementById('passwordInput').value = pass;
-                handleLogin();
-            }
+            if (saved) { try { const { name, pass } = JSON.parse(saved); document.getElementById('projectInput').value = name; document.getElementById('passwordInput').value = pass; handleLogin(); } catch(e) {} }
             lucide.createIcons();
         }
 
+        // --- GESTIONE BOTTOM SHEET ---
         const panel = document.getElementById('statusPanel');
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
         let startY, currentTranslateY = 0, isDragging = false;
 
-        dragArea.addEventListener('touchstart', (e) => {
-            startY = e.touches[0].clientY; isDragging = true; panel.style.transition = 'none';
-        }, {passive: true});
-        window.addEventListener('touchmove', (e) => {
-            if (!isDragging) return;
-            const move = Math.max(0, e.touches[0].clientY - startY + currentTranslateY);
-            if (move <= panel.offsetHeight - 85) panel.style.transform = `translateY(${move}px)`;
-        }, {passive: true});
-        window.addEventListener('touchend', (e) => {
-            if (!isDragging) return; isDragging = false; panel.style.transition = 'transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67)';
-            const deltaY = e.changedTouches[0].clientY - startY;
-            if (deltaY > 50) minimizePanel(); else if (deltaY < -50) expandPanel(); else panel.style.transform = `translateY(${currentTranslateY}px)`;
-        });
-
+        dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; isDragging = true; panel.style.transition = 'none'; }, {passive: true});
+        window.addEventListener('touchmove', (e) => { if (!isDragging) return; const move = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (move <= panel.offsetHeight - 85) panel.style.transform = `translateY(${move}px)`; }, {passive: true});
+        window.addEventListener('touchend', (e) => { if (!isDragging) return; isDragging = false; panel.style.transition = 'transform 0.3s'; const deltaY = e.changedTouches[0].clientY - startY; if (deltaY > 50) minimizePanel(); else if (deltaY < -50) expandPanel(); else panel.style.transform = `translateY(${currentTranslateY}px)`; });
         function minimizePanel() { currentTranslateY = panel.offsetHeight - 85; panel.style.transform = `translateY(${currentTranslateY}px)`; content.style.opacity = '0.4'; }
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
 
+        // --- LOGICA MODALS E AZIONI ---
         function openActionChoiceModal() { document.getElementById('actionChoiceModal').classList.replace('hidden', 'flex'); }
-        function closeActionChoiceModal() { document.getElementById('actionChoiceModal').classList.replace('hidden', 'flex'); }
+        function closeActionChoiceModal() { document.getElementById('actionChoiceModal').classList.replace('flex', 'hidden'); }
         function selectNewField() { closeActionChoiceModal(); openFieldModal(false); }
         function selectNewCheckpoint() { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); }
         function openFieldModal(isManual = false) { document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('coordsInputs').classList.toggle('hidden', !isManual); document.getElementById('fieldNameInput').focus(); }
-        function openManualCoordModal() { openFieldModal(true); }
         function closeFieldModal() { document.getElementById('fieldModal').classList.replace('flex', 'hidden'); }
+        function openManualCoordModal() { openFieldModal(true); }
         function closeCheckpointModal() { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointNoteInput').value = ""; }
 
         function confirmAddField() {
-            const name = document.getElementById('fieldNameInput').value.trim() || `Campo ${fields.length + 1}`;
-            const code = document.getElementById('fieldCodeInput').value.trim() || `COD-${Math.floor(Math.random()*1000)}`;
+            const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
+            const code = document.getElementById('fieldCodeInput').value.trim() || "COD";
             const category = document.getElementById('fieldCategoryInput').value;
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             let latlng = tempFieldCoords;
-            if(!latlng) {
-                const lat = parseFloat(document.getElementById('fieldLatInput').value);
-                const lon = parseFloat(document.getElementById('fieldLonInput').value);
-                if(isNaN(lat) || isNaN(lon)) return showNotification("Coord non valide");
-                latlng = L.latLng(lat, lon);
-            }
+            if(!latlng) { const lat = parseFloat(document.getElementById('fieldLatInput').value); const lon = parseFloat(document.getElementById('fieldLonInput').value); if(isNaN(lat)) return; latlng = L.latLng(lat, lon); }
             addFieldToMap({ id: Date.now(), name, code, category, latlng, radius, pathCoords: [], checkpoints: [] });
-            closeFieldModal(); saveToCloud(); showNotification(`Creato: ${name}`);
+            closeFieldModal(); saveToCloud();
         }
 
         function confirmAddCheckpoint() {
-            const note = document.getElementById('checkpointNoteInput').value.trim();
-            if (!note) return;
+            const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
             const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             if (field) {
-                const cpData = { id: Date.now(), latlng: tempCheckpointCoords.latlng, note: note, date: new Date().toLocaleString('it-IT') };
-                field.checkpoints.push(cpData);
-                renderCheckpointOnMap(cpData);
-                closeCheckpointModal(); saveToCloud(); showNotification("Rilevamento salvato.");
+                const cpData = { id: Date.now(), latlng: tempCheckpointCoords.latlng, note, date: new Date().toLocaleString('it-IT') };
+                if (!field.checkpoints) field.checkpoints = [];
+                field.checkpoints.push(cpData); renderCheckpointOnMap(cpData);
+                closeCheckpointModal(); saveToCloud();
             }
         }
 
         function addFieldToMap(fData) {
             const colors = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7' };
             const color = colors[fData.category];
-            const marker = L.marker(fData.latlng, {
-                icon: L.divIcon({
-                    html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`,
-                    className: '', iconSize: [32, 32], iconAnchor: [16, 16]
-                })
-            }).addTo(map);
-            marker.bindPopup(`<div class="text-xs"><b>${fData.name}</b><br>${fData.code}</div>`);
+            const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             const circle = L.circle(fData.latlng, { radius: fData.radius, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
             const polyline = L.polyline(fData.pathCoords || [], { color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
-            const field = { ...fData, marker, circle, polyline, isInside: false };
+            const field = { ...fData, marker, circle, polyline };
             fields.push(field);
             if (field.checkpoints) field.checkpoints.forEach(renderCheckpointOnMap);
             lucide.createIcons();
@@ -489,110 +420,74 @@
             if (isTracking) {
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
                 watchId = null; isTracking = false;
-                btn.innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
-                btn.classList.replace('bg-rose-600', 'bg-slate-900');
-                tele.classList.add('hidden');
-                if(userMarker) map.removeLayer(userMarker);
+                btn.innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS'; btn.classList.replace('bg-rose-600', 'bg-slate-900');
+                tele.classList.add('hidden'); if(userMarker) map.removeLayer(userMarker);
                 resetGlobalStatus();
             } else {
                 showNotification("Aggancio GPS...");
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-                    if (!userMarker) {
-                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
-                        map.flyTo(latlng, 15);
-                    } else userMarker.setLatLng(latlng);
+                    if (!userMarker) { userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map); map.flyTo(latlng, 15); } else userMarker.setLatLng(latlng);
                     updateGeofencing(latlng);
                 }, (err) => showNotification("Errore GPS"), { enableHighAccuracy: true });
-                isTracking = true;
-                tele.classList.remove('hidden');
-                btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS';
-                btn.classList.replace('bg-slate-900', 'bg-rose-600');
+                isTracking = true; tele.classList.remove('hidden');
+                btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS'; btn.classList.replace('bg-slate-900', 'bg-rose-600');
             }
             lucide.createIcons();
         }
 
         function updateGeofencing(userPos) {
-            let anyInside = false; let currentFieldName = ""; let updated = false;
+            let anyInside = false; let updated = false;
             fields.forEach(field => {
-                const distance = userPos.distanceTo(field.latlng);
-                const isInside = distance <= field.radius;
+                const isInside = userPos.distanceTo(field.latlng) <= field.radius;
                 if (isInside) {
-                    anyInside = true; currentFieldName = field.name; field.isInside = true;
-                    field.circle.setStyle({ fillOpacity: 0.3, dashArray: '' });
-                    field.pathCoords.push([userPos.lat, userPos.lng]);
-                    field.polyline.setLatLngs(field.pathCoords);
+                    anyInside = true; field.circle.setStyle({ fillOpacity: 0.3, dashArray: '' });
+                    field.pathCoords.push([userPos.lat, userPos.lng]); field.polyline.setLatLngs(field.pathCoords);
                     updated = true;
-                } else {
-                    field.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
-                    field.isInside = false;
-                }
+                } else field.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
             });
-            const statusText = document.getElementById('statusText');
             const statusDot = document.getElementById('statusDot');
-            if (anyInside) {
-                statusText.innerText = `In: ${currentFieldName}`;
-                statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
-            } else {
-                statusText.innerText = "Monitoraggio...";
-                statusDot.className = "w-2.5 h-2.5 rounded-full bg-slate-400";
-            }
+            statusDot.className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-slate-400";
+            document.getElementById('statusText').innerText = anyInside ? "In Area" : "Monitoraggio...";
             if (updated) saveToCloud();
         }
 
-        function resetGlobalStatus() {
-            document.getElementById('statusText').innerText = "GPS Spento";
-            document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
-            fields.forEach(f => f.circle.setStyle({ fillOpacity: 0.1, dashArray: '8, 8' }));
-        }
+        function resetGlobalStatus() { document.getElementById('statusText').innerText = "GPS Off"; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; fields.forEach(f => f.circle.setStyle({ fillOpacity: 0.1, dashArray: '8, 8' })); }
 
         function updateFieldUI() {
-            const categories = ['cipolle', 'bunching', 'brassiche'];
-            let total = 0;
+            const categories = ['cipolle', 'bunching', 'brassiche']; let total = 0;
             categories.forEach(cat => {
-                const section = document.getElementById(`cat-${cat}`);
-                const list = document.getElementById(`list-${cat}`);
+                const section = document.getElementById(`cat-${cat}`); const list = document.getElementById(`list-${cat}`);
                 const catFields = fields.filter(f => f.category === cat);
                 if (catFields.length > 0) {
                     section.classList.remove('hidden'); list.innerHTML = "";
                     catFields.forEach(f => {
-                        total++;
-                        const item = document.createElement('div');
-                        item.className = "flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm active:scale-[0.98]";
+                        total++; const item = document.createElement('div');
+                        item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm active:scale-[0.98]";
                         item.onclick = () => { map.flyTo(f.latlng, 15); f.marker.openPopup(); };
-                        item.innerHTML = `<div class="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border border-slate-100"><i data-lucide="map" class="w-4 h-4 text-slate-400"></i><span class="text-[7px] font-bold text-slate-300 mt-1 uppercase">${cat.substring(0,3)}</span></div><div class="flex-1 min-w-0"><p class="text-[11px] font-black text-slate-800 uppercase leading-none truncate">${f.name}</p><p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p></div><button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-200 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+                        item.innerHTML = `<div class="w-10 h-10 rounded-xl bg-slate-50 flex flex-col items-center justify-center shrink-0 border"><i data-lucide="map" class="w-4 h-4 text-slate-400"></i><span class="text-[7px] font-bold text-slate-300 mt-1 uppercase">${cat.substring(0,3)}</span></div><div class="flex-1 min-w-0"><p class="text-[11px] font-black text-slate-800 uppercase leading-none truncate">${f.name}</p><p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p></div><button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-200 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
                         list.appendChild(item);
                     });
                 } else section.classList.add('hidden');
             });
-            document.getElementById('emptyMsg').classList.toggle('hidden', total > 0);
-            lucide.createIcons();
+            document.getElementById('emptyMsg').classList.toggle('hidden', total > 0); lucide.createIcons();
         }
 
-        function deleteField(id) {
-            if (confirm(`Eliminare il campo?`)) {
-                fields = fields.filter(f => f.id !== id);
-                saveToCloud();
-            }
-        }
+        function deleteField(id) { if (confirm(`Eliminare il campo?`)) { fields = fields.filter(f => f.id !== id); saveToCloud(); } }
 
         function handleSearch() {
             const query = document.getElementById('searchInput').value.trim().toLowerCase();
-            if (!query) return;
-            const f = fields.find(f => f.name.toLowerCase().includes(query) || f.code.toLowerCase().includes(query));
+            if (!query) return; const f = fields.find(f => f.name.toLowerCase().includes(query) || f.code.toLowerCase().includes(query));
             if (f) { map.flyTo(f.latlng, 15); f.marker.openPopup(); expandPanel(); }
         }
 
+        function logoutProject() { if (confirm("Uscire dal progetto?")) { localStorage.removeItem('isolamenti_last_project'); location.reload(); } }
+
         function showNotification(text) {
-            const el = document.getElementById('notification');
-            document.getElementById('notifText').innerText = text;
-            el.classList.replace('opacity-0', 'opacity-100');
-            el.classList.replace('-translate-y-24', 'translate-y-0');
-            setTimeout(() => {
-                el.classList.replace('opacity-100', 'opacity-0');
-                el.classList.replace('translate-y-0', '-translate-y-24');
-            }, 3000);
+            const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text;
+            el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0');
+            setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000);
         }
 
         window.onload = initMap;
