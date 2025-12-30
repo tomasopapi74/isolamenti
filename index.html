@@ -232,6 +232,10 @@
         </div>
     </div>
 
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold text-center">
+        <span id="notifText"></span>
+    </div>
+
     <!-- Script Applicazione -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -351,7 +355,7 @@
             if (recovered.length > 0) {
                 mergeData(recovered);
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(recovered));
-                showNotification(`Punto Zero: Recuperati ${recovered.length} punti.`);
+                showNotification(`Dati Recuperati: ${recovered.length} punti.`);
                 const bounds = recovered.map(f => f.latlng);
                 if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
             }
@@ -375,7 +379,12 @@
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
             fields = []; 
-            newData.forEach(fData => addFieldToMap(fData)); 
+            newData.forEach(fData => {
+                if (fData.latlng && typeof fData.latlng === 'object' && !Array.isArray(fData.latlng)) {
+                    fData.latlng = [fData.latlng.lat, fData.latlng.lng];
+                }
+                addFieldToMap(fData);
+            }); 
             updateFieldUI();
             map.invalidateSize();
         }
@@ -402,7 +411,7 @@
         }
 
         // --- GPS E UI ---
-        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("In attesa del segnale GPS..."); };
+        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("GPS non pronto."); };
         window.logoutProject = () => { if (confirm("Vuoi cambiare gruppo o modalità?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         
         window.handleSearch = () => {
@@ -456,6 +465,7 @@
         window.closeFieldModal = () => document.getElementById('fieldModal').classList.replace('flex', 'hidden');
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointNoteInput').value = ""; };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.replace('flex', 'hidden');
+        
         window.selectNewField = () => { closeActionChoiceModal(); openFieldModal(false); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); };
 
@@ -485,7 +495,10 @@
             if (field) { 
                 const cpData = { id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT') }; 
                 if (!field.checkpoints) field.checkpoints = []; 
-                field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); closeCheckpointModal(); saveData(); 
+                field.checkpoints.push(cpData); 
+                renderCheckpointOnMap(cpData); 
+                closeCheckpointModal(); 
+                saveData(); 
             }
         };
 
@@ -495,17 +508,35 @@
             const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             const circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
             const polyline = L.polyline(fData.pathCoords || [], { color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
+            
             const idx = fields.findIndex(f => f.id === fData.id);
-            if (idx !== -1) { fields[idx].marker = marker; fields[idx].circle = circle; fields[idx].polyline = polyline; }
-            else { fields.push({ ...fData, marker, circle, polyline }); }
+            if (idx !== -1) { 
+                fields[idx].marker = marker; 
+                fields[idx].circle = circle; 
+                fields[idx].polyline = polyline; 
+            } else { 
+                fields.push({ ...fData, marker, circle, polyline }); 
+            }
+
+            // Renderizza i triangolini delle note
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
+            
             lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp) {
             const triangleSVG = `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2"/></svg>`;
-            const cpMarker = L.marker(cp.latlng, { icon: L.divIcon({ html: triangleSVG, className: '', iconSize: [22, 22], iconAnchor: [11, 22] }) }).addTo(map);
-            cpMarker.bindPopup(`<div class="text-[10px]"><b>RILEVAMENTO</b><br>${cp.date}<br><br>${cp.note}</div>`); cp.marker = cpMarker;
+            const cpMarker = L.marker(cp.latlng, { 
+                icon: L.divIcon({ 
+                    html: triangleSVG, 
+                    className: '', 
+                    iconSize: [22, 22], 
+                    iconAnchor: [11, 22] 
+                }) 
+            }).addTo(map);
+            
+            cpMarker.bindPopup(`<div class="text-[10px] custom-popup"><b>RILEVAMENTO</b><br>${cp.date}<br><br>${cp.note}</div>`); 
+            cp.marker = cpMarker;
         }
 
         function updateGeofencing(userPos) {
@@ -516,7 +547,11 @@
                     anyInside = true; field.circle.setStyle({ fillOpacity: 0.3, dashArray: '' }); 
                     if (!field.pathCoords) field.pathCoords = [];
                     const last = field.pathCoords[field.pathCoords.length - 1];
-                    if (!last || Math.abs(last[0] - userPos.lat) > 0.0001) { field.pathCoords.push([userPos.lat, userPos.lng]); field.polyline.setLatLngs(field.pathCoords); saveData(); }
+                    if (!last || Math.abs(last[0] - userPos.lat) > 0.0001) { 
+                        field.pathCoords.push([userPos.lat, userPos.lng]); 
+                        field.polyline.setLatLngs(field.pathCoords); 
+                        saveData(); 
+                    }
                 } else field.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
             });
             document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-slate-400";
@@ -538,7 +573,7 @@
         }
 
         window.deleteField = function(id) { 
-            if (confirm("Vuoi eliminare definitivamente questo punto?")) { 
+            if (confirm("Eliminare definitivamente questo punto?")) { 
                 const f = fields.find(f => f.id === id);
                 if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); updateFieldUI(); }
             } 
@@ -548,6 +583,7 @@
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
+            
             map.on('click', (e) => { 
                 if (!currentProjectName && !isLocalMode) return; 
                 let target = fields.find(f => e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
@@ -560,6 +596,7 @@
                     openFieldModal(false); 
                 } 
             });
+            
             mapReady = true;
             const saved = localStorage.getItem('isolamenti_last_session');
             if (saved) { try { const s = JSON.parse(saved); enterApp(s.name, s.pass, s.mode === 'local'); } catch(e) {} }
