@@ -258,42 +258,22 @@
         async function initFirebaseCore() {
             try {
                 let configStr = "";
-                // Polling breve per config
                 for(let i=0; i<5; i++) {
                     configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
                     if (configStr) break;
                     await new Promise(r => setTimeout(r, 200));
                 }
-                
                 if (!configStr || configStr.trim() === "") return false;
-                
                 const firebaseConfig = JSON.parse(configStr);
                 const app = initializeApp(firebaseConfig);
                 fb.auth = getAuth(app);
                 fb.db = getFirestore(app);
                 fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
-                
                 fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; fb.getDoc = getDoc;
                 fb.signInAnonymously = signInAnonymously; fb.signInWithCustomToken = signInWithCustomToken;
-                
                 window.fbReady = true;
                 return true;
             } catch (e) { return false; }
-        }
-
-        // --- AUTENTICAZIONE ---
-        async function runAuth() {
-            if (!window.fbReady) await initFirebaseCore();
-            if (!window.fbReady) return null;
-
-            try {
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) await fb.signInWithCustomToken(fb.auth, token);
-                else await fb.signInAnonymously(fb.auth);
-                return fb.auth.currentUser;
-            } catch (err) {
-                try { await fb.signInAnonymously(fb.auth); return fb.auth.currentUser; } catch(e) { return null; }
-            }
         }
 
         // --- GESTIONE LOGIN CLOUD ---
@@ -305,13 +285,16 @@
             const pass = document.getElementById('passwordInput').value.trim();
             
             if (!name || !pass) { errorEl.innerText = "Dati mancanti."; errorEl.classList.remove('hidden'); return; }
-
             loginBtn.disabled = true; loginBtn.innerText = "CONNESSIONE...";
             
             try {
-                const user = await runAuth();
-                if (!user) throw new Error("Cloud non disponibile. Usa Modalità Locale.");
-                
+                if (!window.fbReady) await initFirebaseCore();
+                if (!window.fbReady) throw new Error("Cloud non disponibile. Usa Modalità Locale.");
+
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) await fb.signInWithCustomToken(fb.auth, token);
+                else await fb.signInAnonymously(fb.auth);
+
                 const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await fb.getDoc(projRef);
 
@@ -329,33 +312,66 @@
                 isLocalMode = false;
                 currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'cloud', name, pass }));
-                
                 document.getElementById('syncStatusLabel').innerText = "Cloud Attivo";
                 document.getElementById('displayProjName').innerText = name.toUpperCase();
                 document.getElementById('loginOverlay').classList.add('hidden');
-                
                 startCloudSync();
-                checkAndMigrateLocalData();
+                checkAndMigrateLegacyData(); // Controlla dati di ieri per migrare al cloud
             } catch (err) { 
                 errorEl.innerText = err.message; errorEl.classList.remove('hidden'); 
                 loginBtn.disabled = false; loginBtn.innerText = "ACCEDI AL CLOUD";
             }
         };
 
-        // --- GESTIONE MODALITÀ LOCALE (POTENZIATA) ---
+        // --- GESTIONE MODALITÀ LOCALE ---
         window.handleLocalMode = function() {
-            console.log("Forzatura Modalità Locale...");
             isLocalMode = true;
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'local' }));
-            
-            // UI Update immediato
             document.getElementById('syncStatusLabel').innerText = "Modalità Locale";
             document.getElementById('displayProjName').innerText = "LOCALE";
-            document.getElementById('loginOverlay').style.display = 'none'; // Forza chiusura overlay
-            
-            loadLocalModeData();
-            showNotification("Avviato in Locale");
+            document.getElementById('loginOverlay').style.display = 'none';
+            if (mapReady) {
+                loadLocalModeData();
+                showNotification("Avviato in Locale");
+            }
         };
+
+        // --- RECUPERO DATI DI IERI (LOGICA CORRETTA) ---
+        function loadLocalModeData() {
+            // Controlla il nuovo database locale
+            let db = localStorage.getItem('isolamenti_local_db');
+            
+            if (!db) {
+                // Se vuoto, cerca nella chiave usata nelle versioni precedenti (ieri)
+                db = localStorage.getItem('isolamenti_agricoli_v4');
+                if (db) {
+                    console.log("Recupero dati da chiave legacy...");
+                    localStorage.setItem('isolamenti_local_db', db);
+                    // Non rimuoviamo ancora isolamenti_agricoli_v4 per sicurezza finché non salviamo con successo
+                }
+            }
+            
+            if (db) mergeData(JSON.parse(db));
+        }
+
+        // Funzione per chi sceglie il cloud ma vuole portare i dati di ieri
+        function checkAndMigrateLegacyData() {
+            const legacy = localStorage.getItem('isolamenti_agricoli_v4') || localStorage.getItem('isolamenti_local_db');
+            if (legacy) {
+                try {
+                    const data = JSON.parse(legacy);
+                    if (data && data.length > 0) {
+                        if (confirm(`Trovati ${data.length} campi salvati in precedenza su questo telefono. Vuoi caricarli nel progetto Cloud?`)) {
+                            fields = [...fields, ...data];
+                            saveData().then(() => {
+                                localStorage.removeItem('isolamenti_agricoli_v4');
+                                localStorage.removeItem('isolamenti_local_db');
+                            });
+                        }
+                    }
+                } catch(e){}
+            }
+        }
 
         function startCloudSync() {
             const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
@@ -400,27 +416,9 @@
             }
         }
 
-        function loadLocalModeData() {
-            const db = localStorage.getItem('isolamenti_local_db');
-            if (db) mergeData(JSON.parse(db));
-        }
-
-        function checkAndMigrateLocalData() {
-            const old = localStorage.getItem('isolamenti_local_db');
-            if (old) {
-                try {
-                    const data = JSON.parse(old);
-                    if (data.length > 0 && confirm(`Caricare i ${data.length} campi locali nel Cloud?`)) {
-                        fields = [...fields, ...data]; saveData();
-                        localStorage.removeItem('isolamenti_local_db');
-                    }
-                } catch(e){}
-            }
-        }
-
         // --- UI & LOGICA MAPPA ---
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.logoutProject = () => { if (confirm("Uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o uscire dal progetto?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
             const f = fields.find(f => (f.name && f.name.toLowerCase().includes(q)) || (f.code && f.code.toLowerCase().includes(q)));
@@ -555,28 +553,17 @@
 
         window.deleteField = function(id) { if (confirm(`Eliminare il campo?`)) { fields = fields.filter(f => f.id !== id); saveData(); } };
 
-        // --- INIZIALIZZAZIONE MAPPA IMMEDIATA ---
         function initMap() {
-            console.log("Mappa in fase di avvio...");
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
-            
             map.on('click', function(e) {
                 if (!currentProjectName && !isLocalMode) return;
                 let targetField = fields.find(f => e.latlng.distanceTo(f.latlng) <= f.radius);
-                if (targetField) { 
-                    tempFieldCoords = e.latlng; 
-                    tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; 
-                    openActionChoiceModal(); 
-                } else { 
-                    tempFieldCoords = e.latlng; openFieldModal(false); 
-                }
+                if (targetField) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; openActionChoiceModal(); }
+                else { tempFieldCoords = e.latlng; openFieldModal(false); }
             });
-
             mapReady = true;
-
-            // Ripristino sessione
             const saved = localStorage.getItem('isolamenti_last_session');
             if (saved) { 
                 try { 
@@ -592,7 +579,6 @@
             lucide.createIcons();
         }
 
-        // --- UI PANNELLO ---
         const panel = document.getElementById('statusPanel');
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
@@ -604,7 +590,6 @@
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
         function showNotification(text) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
 
-        // AVVIO (Map first, then Cloud)
         initMap();
         initFirebaseCore();
     </script>
