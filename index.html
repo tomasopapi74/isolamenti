@@ -120,7 +120,7 @@
 
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
             <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
-                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">GPS</span><span id="accuracyVal">--m</span></div>
+                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">GPS Accurancy</span><span id="accuracyVal">--m</span></div>
                 <div id="syncIndicator" class="text-slate-400"><i data-lucide="cloud" class="w-4 h-4"></i></div>
             </div>
         </div>
@@ -257,9 +257,8 @@
                 const app = initializeApp(myFirebaseConfig);
                 fb.auth = getAuth(app);
                 fb.db = getFirestore(app);
-                fb.appId = 'isolamenti-923d0'; // Usiamo l'ID del tuo progetto come identificativo univoco
+                fb.appId = 'isolamenti-923d0';
                 
-                // Binding funzioni esplicite
                 fb.doSignInAnon = () => signInAnonymously(fb.auth);
                 fb.doSignInToken = (t) => signInWithCustomToken(fb.auth, t);
                 
@@ -271,7 +270,7 @@
             }
         }
 
-        // --- LOGIN CLOUD (TEAM) ---
+        // --- GESTIONE LOGIN CLOUD (TEAM) ---
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
             const btnLabel = document.getElementById('btnLabel');
@@ -290,10 +289,9 @@
             errorEl.classList.add('hidden');
             
             try {
-                // Inizializza Firebase
                 if (!window.fbReady) await initFirebase();
                 
-                // Autenticazione con TIMEOUT (15 secondi)
+                // 1. Timeout Autenticazione (12 secondi)
                 const authPromise = (async () => {
                     const customToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                     if (customToken) await fb.doSignInToken(customToken);
@@ -301,19 +299,29 @@
                     return fb.auth.currentUser;
                 })();
 
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error("Timeout: Il Cloud Google non risponde. Controlla internet o se hai attivato l'accesso Anonimo su Firebase.")), 15000)
+                const authTimeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Timeout: Google Cloud non risponde all'autenticazione.")), 12000)
                 );
 
-                const user = await Promise.race([authPromise, timeoutPromise]);
-                if (!user) throw new Error("Utente non autenticato.");
+                const user = await Promise.race([authPromise, authTimeout]);
+                if (!user) throw new Error("Utente non riconosciuto.");
 
                 btnLabel.innerHTML = '<span class="loader"></span> DATABASE...';
                 
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
-                // Percorso REGOLA 1: artifacts/{appId}/public/data/projects/{name}
-                const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
-                const docSnap = await getDoc(projRef);
+                
+                // 2. Timeout Database (10 secondi)
+                const dbPromise = (async () => {
+                    const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
+                    const docSnap = await getDoc(projRef);
+                    return { projRef, docSnap };
+                })();
+
+                const dbTimeout = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Timeout: Database Firestore bloccato. Verifica i permessi (Punto 4 della guida).")), 10000)
+                );
+
+                const { projRef, docSnap } = await Promise.race([dbPromise, dbTimeout]);
 
                 if (docSnap.exists() && docSnap.data().password !== pass) {
                     throw new Error("Password errata per questo gruppo.");
@@ -323,20 +331,20 @@
                     await setDoc(projRef, { password: pass, fields: [] });
                 }
 
+                // SUCCESSO: Entriamo nell'app
                 isLocalMode = false; currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'cloud', name, pass }));
                 
                 document.getElementById('syncStatusLabel').innerText = "Cloud Attivo";
                 document.getElementById('displayProjName').innerText = name.toUpperCase();
-                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('loginOverlay').style.display = 'none'; // Scomparsa forzata
                 
                 startCloudSync();
                 checkAndMigrateLegacyData();
+
             } catch (err) { 
-                console.error("Connection Error:", err);
-                let msg = err.message;
-                if (msg.includes("permission-denied")) msg = "Permessi negati: verifica che Firestore sia in 'Modalità Test' nella console Google.";
-                errorEl.innerText = msg;
+                console.error("Login Error:", err);
+                errorEl.innerText = err.message;
                 errorEl.classList.remove('hidden'); 
                 loginBtn.disabled = false; 
                 btnLabel.innerText = "ACCEDI AL PROGETTO CLOUD";
@@ -364,8 +372,8 @@
                     if (JSON.stringify(fields.map(f => f.id)) !== JSON.stringify(cloudFields.map(f => f.id))) mergeData(cloudFields);
                 }
             }, (err) => {
-                console.error("Snapshot error:", err);
-                showNotification("Connessione Cloud instabile.");
+                console.warn("Sync interrupted:", err);
+                showNotification("Sincronizzazione in pausa...");
             });
         }
 
@@ -406,7 +414,7 @@
             if (legacy) {
                 try {
                     const data = JSON.parse(legacy);
-                    if (data && data.length > 0 && confirm(`Caricare i punti salvati in precedenza nel Cloud del gruppo "${currentProjectName}"?`)) {
+                    if (data && data.length > 0 && confirm(`Trovati ${data.length} punti in precedenza. Caricarli ora nel Cloud?`)) {
                         fields = [...fields, ...data]; saveData();
                     }
                 } catch(e){}
@@ -415,7 +423,7 @@
 
         // --- MAPPA E GPS ---
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
             const f = fields.find(f => (f.name && f.name.toLowerCase().includes(q)) || (f.code && f.code.toLowerCase().includes(q)));
