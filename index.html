@@ -15,6 +15,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Configurazione Firebase fornita dall'ambiente
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -56,24 +57,24 @@
                     <i data-lucide="cloud-lightning" class="text-green-600 w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">Accesso Progetto</h1>
-                <p class="text-slate-500 text-sm italic">Sincronizza i dati con i tuoi colleghi nel Cloud.</p>
+                <p class="text-slate-500 text-sm italic">Inserisci un nome e una password per il tuo gruppo di lavoro. Se il progetto non esiste, verrà creato ora.</p>
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Gruppo</label>
-                    <input type="text" id="projectInput" placeholder="es: Squadra_Nord" 
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Gruppo (es: Squadra_Nord)</label>
+                    <input type="text" id="projectInput" placeholder="Scegli un nome" 
                         class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Password</label>
-                    <input type="password" id="passwordInput" placeholder="Password" 
+                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Password Progetto</label>
+                    <input type="password" id="passwordInput" placeholder="Scegli una password" 
                         class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
                 </div>
                 <button onclick="handleLogin()" id="loginBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-green-100 active:scale-95 transition-all">
-                    ACCEDI E SINCRONIZZA
+                    ACCEDI O CREA PROGETTO
                 </button>
             </div>
-            <p id="loginError" class="text-red-500 text-xs text-center font-bold hidden px-4"></p>
+            <p id="loginError" class="text-red-500 text-xs text-center font-bold hidden px-4 leading-relaxed"></p>
         </div>
     </div>
 
@@ -183,7 +184,7 @@
         </div>
     </div>
 
-    <!-- Modals (Field/Checkpoint) - Struttura Standard -->
+    <!-- Modals Standard -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-green-700"><i data-lucide="plus-circle"></i> Nuovo Isolamento</h2>
@@ -234,11 +235,21 @@
 
         async function authenticate() {
             try {
+                // Tentativo con token ambiente
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await window.fb.signInWithCustomToken(window.fb.auth, __initial_auth_token);
-                } else { await window.fb.signInAnonymously(window.fb.auth); }
+                } else { 
+                    // Fallback anonimo se il token non c'è o fallisce
+                    await window.fb.signInAnonymously(window.fb.auth); 
+                }
                 return window.fb.auth.currentUser;
-            } catch (err) { return null; }
+            } catch (err) { 
+                // Ultimo tentativo anonimo diretto
+                try {
+                    await window.fb.signInAnonymously(window.fb.auth);
+                    return window.fb.auth.currentUser;
+                } catch(e) { return null; }
+            }
         }
 
         async function handleLogin() {
@@ -246,22 +257,35 @@
             const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
             const pass = document.getElementById('passwordInput').value.trim();
             const errorEl = document.getElementById('loginError');
-            if (!name || !pass) { errorEl.innerText = "Dati mancanti."; errorEl.classList.remove('hidden'); return; }
-            document.getElementById('loginBtn').innerText = "ACCESSO...";
+            
+            if (!name || !pass) { 
+                errorEl.innerText = "Inserisci nome gruppo e password per procedere."; 
+                errorEl.classList.remove('hidden'); 
+                return; 
+            }
+
+            document.getElementById('loginBtn').innerText = "CONNESSIONE AL CLOUD...";
+            errorEl.classList.add('hidden');
             
             try {
                 const user = await authenticate();
-                if (!user) throw new Error("Auth fallita");
+                if (!user) throw new Error("Impossibile stabilire una connessione sicura. Controlla internet.");
+                
                 const projRef = window.fb.doc(window.fb.db, 'artifacts', window.fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await window.fb.getDoc(projRef);
 
                 if (docSnap.exists()) {
                     if (docSnap.data().password !== pass) {
-                        errorEl.innerText = "Password errata."; errorEl.classList.remove('hidden');
-                        document.getElementById('loginBtn').innerText = "ACCEDI"; return;
+                        errorEl.innerText = "Password errata per questo gruppo."; 
+                        errorEl.classList.remove('hidden');
+                        document.getElementById('loginBtn').innerText = "ACCEDI O CREA PROGETTO"; 
+                        return;
                     }
                 } else {
-                    if (!confirm(`Creare nuovo progetto "${nameRaw}"?`)) { document.getElementById('loginBtn').innerText = "ACCEDI"; return; }
+                    if (!confirm(`Il gruppo "${nameRaw}" non esiste. Vuoi crearlo ora con la password inserita?`)) { 
+                        document.getElementById('loginBtn').innerText = "ACCEDI O CREA PROGETTO"; 
+                        return; 
+                    }
                     await window.fb.setDoc(projRef, { password: pass, fields: [] });
                 }
 
@@ -271,29 +295,30 @@
                 document.getElementById('displayProjName').innerText = name.toUpperCase();
                 document.getElementById('loginOverlay').classList.add('hidden');
                 
-                // --- RECUPERO DATI DI IERI ---
                 checkAndMigrateLocalData();
                 
             } catch (err) { 
                 errorEl.innerText = "Errore: " + err.message; 
                 errorEl.classList.remove('hidden'); 
-                document.getElementById('loginBtn').innerText = "ACCEDI";
+                document.getElementById('loginBtn').innerText = "ACCEDI O CREA PROGETTO";
             }
         }
 
         function checkAndMigrateLocalData() {
             const localRaw = localStorage.getItem('isolamenti_agricoli_v4');
             if (localRaw) {
-                const localData = JSON.parse(localRaw);
-                if (localData.length > 0) {
-                    if (confirm(`Ho trovato ${localData.length} campi salvati ieri su questo telefono. Vuoi caricarli nel progetto Cloud "${currentProjectName}"?`)) {
-                        fields = [...fields, ...localData];
-                        saveToCloud().then(() => {
-                            localStorage.removeItem('isolamenti_agricoli_v4');
-                            showNotification("Dati di ieri sincronizzati con successo!");
-                        });
+                try {
+                    const localData = JSON.parse(localRaw);
+                    if (localData && localData.length > 0) {
+                        if (confirm(`Ho trovato ${localData.length} campi salvati in precedenza su questo telefono. Vuoi caricarli nel progetto Cloud "${currentProjectName}"?`)) {
+                            fields = [...fields, ...localData];
+                            saveToCloud().then(() => {
+                                localStorage.removeItem('isolamenti_agricoli_v4');
+                                showNotification("Dati recuperati e sincronizzati!");
+                            });
+                        }
                     }
-                }
+                } catch(e) {}
             }
         }
 
@@ -306,7 +331,7 @@
                     const cloudHash = JSON.stringify(cloudFields.map(f => f.id));
                     if (localHash !== cloudHash) mergeCloudData(cloudFields);
                 }
-            }, (err) => showNotification("Errore Sync Cloud"));
+            }, (err) => showNotification("Sincronizzazione interrotta"));
         }
 
         function mergeCloudData(cloudData) {
@@ -351,7 +376,6 @@
             lucide.createIcons();
         }
 
-        // --- GESTIONE BOTTOM SHEET ---
         const panel = document.getElementById('statusPanel');
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
@@ -363,15 +387,14 @@
         function minimizePanel() { currentTranslateY = panel.offsetHeight - 85; panel.style.transform = `translateY(${currentTranslateY}px)`; content.style.opacity = '0.4'; }
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
 
-        // --- LOGICA MODALS E AZIONI ---
         function openActionChoiceModal() { document.getElementById('actionChoiceModal').classList.replace('hidden', 'flex'); }
-        function closeActionChoiceModal() { document.getElementById('actionChoiceModal').classList.replace('flex', 'hidden'); }
+        function closeActionChoiceModal() { document.getElementById('actionChoiceModal').classList.replace('hidden', 'flex'); }
         function selectNewField() { closeActionChoiceModal(); openFieldModal(false); }
         function selectNewCheckpoint() { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); }
         function openFieldModal(isManual = false) { document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('coordsInputs').classList.toggle('hidden', !isManual); document.getElementById('fieldNameInput').focus(); }
         function closeFieldModal() { document.getElementById('fieldModal').classList.replace('flex', 'hidden'); }
         function openManualCoordModal() { openFieldModal(true); }
-        function closeCheckpointModal() { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointNoteInput').value = ""; }
+        function closeCheckpointModal() { document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').value = ""; }
 
         function confirmAddField() {
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
