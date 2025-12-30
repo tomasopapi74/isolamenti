@@ -241,30 +241,44 @@
         let currentProjectName = null, currentPassword = null, isSyncing = false;
 
         // Inizializzazione sicura Firebase
-        try {
-            const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-            const firebaseConfig = JSON.parse(firebaseConfigStr);
-            const app = initializeApp(firebaseConfig);
-            fb.auth = getAuth(app);
-            fb.db = getFirestore(app);
-            fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
-            
-            // Metodi Firebase necessari
-            fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; 
-            fb.getDoc = getDoc; fb.signInAnonymously = signInAnonymously; 
-            fb.signInWithCustomToken = signInWithCustomToken;
-            
-            window.fbReady = true;
-            console.log("Firebase Unificato Pronto - AppId:", fb.appId);
-        } catch (e) {
-            console.error("Firebase Init Error:", e);
+        function initFirebase() {
+            try {
+                const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
+                if (!firebaseConfigStr || firebaseConfigStr.trim() === "") {
+                    console.warn("Configurazione Firebase mancante o non pronta.");
+                    return false;
+                }
+
+                const firebaseConfig = JSON.parse(firebaseConfigStr);
+                const app = initializeApp(firebaseConfig);
+                fb.auth = getAuth(app);
+                fb.db = getFirestore(app);
+                fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
+                
+                // Metodi Firebase necessari
+                fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; 
+                fb.getDoc = getDoc; fb.signInAnonymously = signInAnonymously; 
+                fb.signInWithCustomToken = signInWithCustomToken;
+                
+                window.fbReady = true;
+                console.log("Firebase Unificato Pronto - AppId:", fb.appId);
+                return true;
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                return false;
+            }
         }
+
+        // Prova inizializzazione immediata
+        initFirebase();
 
         // Funzione di autenticazione resiliente
         async function authenticate() {
-            if (!fb.auth) return null;
+            if (!fb.auth) {
+                // Riprova inizializzazione se mancava
+                if (!initFirebase()) return null;
+            }
             
-            // Proviamo fino a 3 volte con intervallo crescente
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -283,17 +297,20 @@
 
         // LOGIN E CLOUD LOGIC
         window.handleLogin = async function() {
+            const errorEl = document.getElementById('loginError');
+            
+            // Tentativo di inizializzazione dell'ultimo secondo se window.fbReady è ancora false
             if (!window.fbReady) {
-                const errorEl = document.getElementById('loginError');
-                errorEl.innerText = "Configurazione Cloud non pronta. Ricarica la pagina."; 
-                errorEl.classList.remove('hidden');
-                return;
+                if (!initFirebase()) {
+                    errorEl.innerText = "Configurazione Cloud non rilevata. Assicurati di essere connesso a internet e ricarica la pagina."; 
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
             }
 
             const nameRaw = document.getElementById('projectInput').value.trim();
             const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
             const pass = document.getElementById('passwordInput').value.trim();
-            const errorEl = document.getElementById('loginError');
             
             if (!name || !pass) { 
                 errorEl.innerText = "Inserisci nome gruppo e password."; 
@@ -307,11 +324,9 @@
             errorEl.classList.add('hidden');
             
             try {
-                // Autenticazione prima di ogni query
                 const user = await authenticate();
-                if (!user) throw new Error("Errore di rete Cloud: Impossibile autenticare la sessione.");
+                if (!user) throw new Error("Errore di rete Cloud: Impossibile autenticare la sessione sicura.");
                 
-                // Percorso obbligatorio: /artifacts/{appId}/public/data/projects/{name}
                 const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await fb.getDoc(projRef);
 
@@ -344,7 +359,7 @@
                 checkAndMigrateLocalData();
             } catch (err) { 
                 console.error("Login process error:", err);
-                errorEl.innerText = err.message || "Errore di connessione cloud."; 
+                errorEl.innerText = err.message || "Errore critico di connessione."; 
                 errorEl.classList.remove('hidden'); 
                 loginBtn.innerText = "ACCEDI O CREA PROGETTO";
                 loginBtn.disabled = false;
@@ -379,7 +394,7 @@
         }
 
         async function saveToCloud() {
-            if (!currentProjectName || isSyncing || !fb.auth.currentUser) return;
+            if (!currentProjectName || isSyncing || !fb.auth || !fb.auth.currentUser) return;
             isSyncing = true;
             document.getElementById('syncIndicator').classList.add('animate-pulse');
             
@@ -596,14 +611,19 @@
                     const { name, pass } = JSON.parse(saved); 
                     document.getElementById('projectInput').value = name; 
                     document.getElementById('passwordInput').value = pass; 
-                    // Attendiamo che window.fbReady sia true prima del login automatico
+                    
+                    // Ciclo di controllo resiliente per l'auto-login
+                    let loginAttempts = 0;
                     const checkFb = setInterval(() => {
+                        loginAttempts++;
                         if (window.fbReady) {
                             window.handleLogin();
                             clearInterval(checkFb);
+                        } else if (loginAttempts > 10) {
+                            clearInterval(checkFb);
+                            console.warn("Auto-login interrotto: Cloud non pronto dopo 5 secondi.");
                         }
                     }, 500);
-                    setTimeout(() => clearInterval(checkFb), 5000); // Timeout sicurezza
                 } catch(e) {} 
             }
             lucide.createIcons();
