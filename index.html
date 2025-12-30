@@ -70,7 +70,7 @@
                 </div>
 
                 <!-- Opzione Locale -->
-                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+                <button onclick="handleLocalMode()" id="localBtn" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
                     <i data-lucide="smartphone" class="w-4 h-4"></i>
                     USA SENZA CLOUD (MODALITÀ LOCALE)
                 </button>
@@ -88,7 +88,7 @@
                 </div>
                 <div class="hidden sm:block text-green-700">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">Isolamenti</h1>
-                    <span class="text-[10px] font-bold uppercase tracking-widest" id="syncStatusLabel">Inizializzazione...</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest" id="syncStatusLabel">Modalità Locale</span>
                 </div>
             </div>
             
@@ -240,7 +240,7 @@
         <span id="notifText"></span>
     </div>
 
-    <!-- Firebase SDK & App Logic -->
+    <!-- Script Unificato -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -252,8 +252,9 @@
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null;
         let currentProjectName = null, currentPassword = null, isSyncing = false;
         let isLocalMode = false;
+        let mapReady = false;
 
-        // --- INIZIALIZZAZIONE FIREBASE ---
+        // --- INIZIALIZZAZIONE FIREBASE (BACKGROUND) ---
         async function initFirebaseCore() {
             try {
                 const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
@@ -269,24 +270,9 @@
                 fb.signInAnonymously = signInAnonymously; fb.signInWithCustomToken = signInWithCustomToken;
                 
                 window.fbReady = true;
+                console.log("Servizi Cloud inizializzati in background.");
                 return true;
             } catch (e) { return false; }
-        }
-
-        // --- AUTENTICAZIONE ---
-        async function runAuth() {
-            if (!window.fbReady) {
-                const ok = await initFirebaseCore();
-                if (!ok) return null;
-            }
-            try {
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) await fb.signInWithCustomToken(fb.auth, token);
-                else await fb.signInAnonymously(fb.auth);
-                return fb.auth.currentUser;
-            } catch (err) {
-                try { await fb.signInAnonymously(fb.auth); return fb.auth.currentUser; } catch(e) { return null; }
-            }
         }
 
         // --- GESTIONE LOGIN CLOUD ---
@@ -302,9 +288,14 @@
             loginBtn.disabled = true; loginBtn.innerText = "CONNESSIONE...";
             
             try {
-                const user = await runAuth();
-                if (!user) throw new Error("Configurazione Cloud non disponibile. Usa la Modalità Locale.");
-                
+                // Autenticazione
+                if (!window.fbReady) await initFirebaseCore();
+                if (!window.fbReady) throw new Error("Configurazione Cloud non rilevata. Usa la Modalità Locale.");
+
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) await fb.signInWithCustomToken(fb.auth, token);
+                else await fb.signInAnonymously(fb.auth);
+
                 const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await fb.getDoc(projRef);
 
@@ -335,8 +326,9 @@
             }
         };
 
-        // --- GESTIONE MODALITÀ LOCALE ---
+        // --- GESTIONE MODALITÀ LOCALE (RISOLTO) ---
         window.handleLocalMode = function() {
+            console.log("Attivazione Modalità Locale...");
             isLocalMode = true;
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'local' }));
             
@@ -344,8 +336,10 @@
             document.getElementById('displayProjName').innerText = "LOCALE";
             document.getElementById('loginOverlay').classList.add('hidden');
             
-            loadLocalModeData();
-            showNotification("Avviato in Modalità Locale");
+            if (mapReady) {
+                loadLocalModeData();
+                showNotification("Avviato in Modalità Locale");
+            }
         };
 
         function startCloudSync() {
@@ -361,6 +355,7 @@
         }
 
         function mergeData(newData) {
+            if (!mapReady) return;
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle);
                 if(f.polyline) map.removeLayer(f.polyline);
@@ -400,16 +395,19 @@
         function checkAndMigrateLocalData() {
             const old = localStorage.getItem('isolamenti_local_db');
             if (old) {
-                const data = JSON.parse(old);
-                if (data.length > 0 && confirm(`Trovati ${data.length} campi salvati in locale. Vuoi caricarli nel progetto Cloud?`)) {
-                    fields = [...fields, ...data]; saveData();
-                }
+                try {
+                    const data = JSON.parse(old);
+                    if (data.length > 0 && confirm(`Trovati ${data.length} campi salvati in locale. Vuoi caricarli nel progetto Cloud?`)) {
+                        fields = [...fields, ...data]; saveData();
+                        localStorage.removeItem('isolamenti_local_db');
+                    }
+                } catch(e){}
             }
         }
 
         // --- UI & LOGICA MAPPA ---
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o progetto?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o uscire dal progetto?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
             const f = fields.find(f => (f.name && f.name.toLowerCase().includes(q)) || (f.code && f.code.toLowerCase().includes(q)));
@@ -544,33 +542,43 @@
 
         window.deleteField = function(id) { if (confirm(`Eliminare il campo?`)) { fields = fields.filter(f => f.id !== id); saveData(); } };
 
+        // --- INIZIALIZZAZIONE MAPPA IMMEDIATA ---
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
+            
             map.on('click', function(e) {
                 if (!currentProjectName && !isLocalMode) return;
                 let targetField = fields.find(f => e.latlng.distanceTo(f.latlng) <= f.radius);
-                if (targetField) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; openActionChoiceModal(); }
-                else { tempFieldCoords = e.latlng; openFieldModal(false); }
+                if (targetField) { 
+                    tempFieldCoords = e.latlng; 
+                    tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; 
+                    openActionChoiceModal(); 
+                } else { 
+                    tempFieldCoords = e.latlng; openFieldModal(false); 
+                }
             });
 
+            mapReady = true;
+
+            // Ripristino sessione
             const saved = localStorage.getItem('isolamenti_last_session');
             if (saved) { 
                 try { 
                     const session = JSON.parse(saved);
-                    if (session.mode === 'local') handleLocalMode();
+                    if (session.mode === 'local') window.handleLocalMode();
                     else if (session.mode === 'cloud') {
                         document.getElementById('projectInput').value = session.name;
                         document.getElementById('passwordInput').value = session.pass;
-                        setTimeout(handleLogin, 1000);
+                        window.handleLogin();
                     }
                 } catch(e) {} 
             }
             lucide.createIcons();
         }
 
-        // --- UI PANNELLO ---
+        // --- UI PANNELLO TRASCINABILE ---
         const panel = document.getElementById('statusPanel');
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
@@ -582,7 +590,11 @@
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
         function showNotification(text) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
 
-        window.addEventListener('load', initMap);
+        // AVVIO
+        window.addEventListener('load', () => {
+            initMap();
+            initFirebaseCore(); // In background
+        });
     </script>
 </body>
 </html>
