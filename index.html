@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Isolamenti Agricoli - Cloud Sync & Recovery</title>
+    <title>Isolamenti Agricoli - Gestione Campi</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -46,38 +46,36 @@
         <div class="bg-white p-8 rounded-[32px] shadow-2xl w-full max-w-md space-y-6">
             <div class="text-center space-y-2">
                 <div class="bg-green-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <i data-lucide="cloud-lightning" class="text-green-600 w-8 h-8"></i>
+                    <i data-lucide="map" class="text-green-600 w-8 h-8"></i>
                 </div>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Accesso Progetto</h1>
-                <p class="text-slate-500 text-sm italic">Sincronizzazione Cloud sicura per il tuo gruppo di lavoro.</p>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">Benvenuto</h1>
+                <p class="text-slate-500 text-sm italic">Scegli come vuoi utilizzare l'applicazione.</p>
             </div>
-            <div class="space-y-4">
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Gruppo</label>
-                    <input type="text" id="projectInput" placeholder="es: Squadra_Nord" 
-                        class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
-                </div>
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Password Progetto</label>
-                    <input type="password" id="passwordInput" placeholder="Scegli una password" 
-                        class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
-                </div>
-                
-                <div class="space-y-2">
-                    <button onclick="handleLogin()" id="loginBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-green-100 active:scale-95 transition-all flex items-center justify-center">
-                        <span id="btnText">ACCEDI O CREA PROGETTO</span>
-                    </button>
-                    
-                    <button onclick="toggleManualConfig()" id="manualConfigBtn" class="w-full text-slate-400 text-[10px] font-bold uppercase tracking-widest hover:text-green-600 transition-colors py-2">
-                        Configurazione Cloud Manuale?
+            
+            <div class="space-y-3">
+                <!-- Opzione Cloud -->
+                <div class="p-4 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-3">
+                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sincronizzazione Cloud (Team)</span>
+                    <input type="text" id="projectInput" placeholder="Nome Gruppo" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-green-500">
+                    <input type="password" id="passwordInput" placeholder="Password" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-green-500">
+                    <button onclick="handleLogin()" id="loginBtn" class="w-full bg-green-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-green-100 active:scale-95 transition-all">
+                        ACCEDI AL CLOUD
                     </button>
                 </div>
 
-                <div id="manualConfigArea" class="hidden space-y-2 animate-in slide-in-from-top duration-300">
-                    <p class="text-[9px] text-slate-400">Incolla qui la tua configurazione JSON di Google Firebase se quella automatica non viene rilevata.</p>
-                    <textarea id="manualConfigInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 text-[10px] font-mono bg-slate-50 outline-none focus:ring-1 focus:ring-green-500" placeholder='{"apiKey": "...", "authDomain": "...", ...}'></textarea>
+                <div class="relative flex items-center py-2">
+                    <div class="flex-grow border-t border-slate-200"></div>
+                    <span class="flex-shrink mx-4 text-slate-400 text-[10px] font-bold uppercase">Oppure</span>
+                    <div class="flex-grow border-t border-slate-200"></div>
                 </div>
+
+                <!-- Opzione Locale -->
+                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
+                    <i data-lucide="smartphone" class="w-4 h-4"></i>
+                    USA SENZA CLOUD (MODALITÀ LOCALE)
+                </button>
             </div>
+
             <p id="loginError" class="text-red-500 text-xs text-center font-bold hidden px-4 leading-relaxed"></p>
         </div>
     </div>
@@ -90,7 +88,7 @@
                 </div>
                 <div class="hidden sm:block text-green-700">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">Isolamenti</h1>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Sincronizzazione Cloud</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest" id="syncStatusLabel">Inizializzazione...</span>
                 </div>
             </div>
             
@@ -122,7 +120,7 @@
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
             <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
                 <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">GPS</span><span id="accuracyVal">--m</span></div>
-                <div id="syncIndicator" class="text-green-500"><i data-lucide="cloud-check" class="w-4 h-4"></i></div>
+                <div id="syncIndicator" class="text-slate-400"><i data-lucide="save" class="w-4 h-4"></i></div>
             </div>
         </div>
 
@@ -134,7 +132,7 @@
                     <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Pannello Campi</span>
                     <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 transition-colors">
                         <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                        <span id="statusText">GPS Off</span>
+                        <span id="statusText">GPS Spento</span>
                     </div>
                 </div>
             </div>
@@ -145,7 +143,7 @@
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold active:scale-95 shadow-md">
                             <i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS
                         </button>
-                        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3 rounded-xl hover:bg-slate-200 transition-colors">
+                        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3 rounded-xl hover:bg-slate-200 transition-colors" title="Esci">
                             <i data-lucide="log-out" class="w-5 h-5"></i>
                         </button>
                     </div>
@@ -164,7 +162,7 @@
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-purple-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Brassiche</h3></div>
                         <div id="list-brassiche" class="space-y-2"></div>
                     </div>
-                    <div id="emptyMsg" class="text-center py-8 text-slate-400 text-xs italic">Nessun campo nel progetto Cloud.</div>
+                    <div id="emptyMsg" class="text-center py-8 text-slate-400 text-xs italic">Nessun campo registrato.</div>
                 </div>
             </div>
         </div>
@@ -216,9 +214,9 @@
                     <input type="number" id="fieldLonInput" step="any" placeholder="Longitudine" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
                 </div>
                 <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                <div class="flex gap-3">
-                    <button onclick="closeFieldModal()" class="flex-1 py-3 border rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddField()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold">Registra</button>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeFieldModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-400 text-sm">Annulla</button>
+                    <button onclick="confirmAddField()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm">Registra</button>
                 </div>
             </div>
         </div>
@@ -226,13 +224,13 @@
 
     <!-- Modal Checkpoint -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Rilevamento</h2>
             <div class="space-y-4">
-                <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50" placeholder="Inserisci note rilevamento..."></textarea>
-                <div class="flex gap-3">
-                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Salva Nota</button>
+                <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50" placeholder="Inserisci note rilevamento..."></textarea>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-400 text-sm">Annulla</button>
+                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Salva</button>
                 </div>
             </div>
         </div>
@@ -242,240 +240,190 @@
         <span id="notifText"></span>
     </div>
 
-    <!-- Script Unificato in Modulo -->
+    <!-- Firebase SDK & App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- STATO APPLICAZIONE ---
+        // STATO GLOBALE
         let fb = {};
         let map, userMarker, watchId = null, fields = []; 
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null;
         let currentProjectName = null, currentPassword = null, isSyncing = false;
+        let isLocalMode = false;
 
-        // --- INIZIALIZZAZIONE FIREBASE ROBUSTA ---
-        async function initFirebaseCore(manualConfig = null) {
+        // --- INIZIALIZZAZIONE FIREBASE ---
+        async function initFirebaseCore() {
             try {
-                let config = manualConfig;
+                const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
+                if (!configStr || configStr.trim() === "") return false;
                 
-                // Se non c'è config manuale, prova a leggere quella di sistema
-                if (!config) {
-                    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                        config = JSON.parse(__firebase_config);
-                    }
-                }
-
-                if (!config) return false;
-
-                const app = initializeApp(config);
+                const firebaseConfig = JSON.parse(configStr);
+                const app = initializeApp(firebaseConfig);
                 fb.auth = getAuth(app);
                 fb.db = getFirestore(app);
                 fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
                 
-                // Binding funzioni
-                fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; 
-                fb.getDoc = getDoc; fb.signInAnonymously = signInAnonymously; 
-                fb.signInWithCustomToken = signInWithCustomToken;
+                fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; fb.getDoc = getDoc;
+                fb.signInAnonymously = signInAnonymously; fb.signInWithCustomToken = signInWithCustomToken;
                 
                 window.fbReady = true;
                 return true;
-            } catch (e) {
-                console.error("Firebase Error:", e);
-                return false;
-            }
+            } catch (e) { return false; }
         }
 
-        // --- AUTENTICAZIONE (REGOLA 3) ---
+        // --- AUTENTICAZIONE ---
         async function runAuth() {
             if (!window.fbReady) {
-                const manualVal = document.getElementById('manualConfigInput').value.trim();
-                let config = null;
-                if(manualVal) {
-                    try { config = JSON.parse(manualVal); } catch(e) { throw new Error("Configurazione manuale non valida (JSON errato)"); }
-                }
-                const ok = await initFirebaseCore(config);
+                const ok = await initFirebaseCore();
                 if (!ok) return null;
             }
-            
             try {
-                const customToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (customToken) {
-                    await fb.signInWithCustomToken(fb.auth, customToken);
-                } else {
-                    await fb.signInAnonymously(fb.auth);
-                }
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) await fb.signInWithCustomToken(fb.auth, token);
+                else await fb.signInAnonymously(fb.auth);
                 return fb.auth.currentUser;
             } catch (err) {
-                console.warn("Retrying anonymous auth...");
-                await fb.signInAnonymously(fb.auth);
-                return fb.auth.currentUser;
+                try { await fb.signInAnonymously(fb.auth); return fb.auth.currentUser; } catch(e) { return null; }
             }
         }
 
-        // --- GESTIONE LOGIN ---
+        // --- GESTIONE LOGIN CLOUD ---
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
-            const btnText = document.getElementById('btnText');
             const errorEl = document.getElementById('loginError');
-            
             const nameRaw = document.getElementById('projectInput').value.trim();
             const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
             const pass = document.getElementById('passwordInput').value.trim();
             
-            if (!name || !pass) { 
-                errorEl.innerText = "Inserisci nome gruppo e password."; 
-                errorEl.classList.remove('hidden'); 
-                return; 
-            }
+            if (!name || !pass) { errorEl.innerText = "Inserisci nome gruppo e password."; errorEl.classList.remove('hidden'); return; }
 
-            loginBtn.disabled = true;
-            btnText.innerHTML = '<span class="loader"></span> CONNESSIONE...';
-            errorEl.classList.add('hidden');
+            loginBtn.disabled = true; loginBtn.innerText = "CONNESSIONE...";
             
             try {
                 const user = await runAuth();
-                if (!user) throw new Error("Cloud non rilevato. Incolla la tua configurazione o riprova tra poco.");
+                if (!user) throw new Error("Configurazione Cloud non disponibile. Usa la Modalità Locale.");
                 
-                // REGOLA 1: Percorso obbligatorio
                 const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await fb.getDoc(projRef);
 
                 if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.password && data.password !== pass) {
-                        errorEl.innerText = "Password errata per questo gruppo."; 
-                        errorEl.classList.remove('hidden');
-                        loginBtn.disabled = false;
-                        btnText.innerText = "ACCEDI O CREA PROGETTO";
-                        return;
+                    if (docSnap.data().password && docSnap.data().password !== pass) {
+                        throw new Error("Password errata per questo gruppo.");
                     }
                 } else {
                     if (!confirm(`Il gruppo "${nameRaw}" è nuovo. Crearlo con questa password?`)) { 
-                        loginBtn.disabled = false;
-                        btnText.innerText = "ACCEDI O CREA PROGETTO";
-                        return; 
+                        loginBtn.disabled = false; loginBtn.innerText = "ACCEDI AL CLOUD"; return; 
                     }
                     await fb.setDoc(projRef, { password: pass, fields: [] });
                 }
 
+                isLocalMode = false;
                 currentProjectName = name; currentPassword = pass;
-                localStorage.setItem('isolamenti_last_project', JSON.stringify({ name, pass }));
+                localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'cloud', name, pass }));
                 
-                startCloudSync();
-                
+                document.getElementById('syncStatusLabel').innerText = "Sincronizzazione Cloud Attiva";
                 document.getElementById('displayProjName').innerText = name.toUpperCase();
                 document.getElementById('loginOverlay').classList.add('hidden');
                 
+                startCloudSync();
                 checkAndMigrateLocalData();
             } catch (err) { 
-                console.error("Login Error:", err);
-                errorEl.innerText = err.message || "Errore di connessione."; 
-                errorEl.classList.remove('hidden'); 
-                loginBtn.disabled = false;
-                btnText.innerText = "ACCEDI O CREA PROGETTO";
+                errorEl.innerText = err.message; errorEl.classList.remove('hidden'); 
+                loginBtn.disabled = false; loginBtn.innerText = "ACCEDI AL CLOUD";
             }
         };
 
-        window.toggleManualConfig = function() {
-            const area = document.getElementById('manualConfigArea');
-            area.classList.toggle('hidden');
+        // --- GESTIONE MODALITÀ LOCALE ---
+        window.handleLocalMode = function() {
+            isLocalMode = true;
+            localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'local' }));
+            
+            document.getElementById('syncStatusLabel').innerText = "Modalità Locale (Solo Smartphone)";
+            document.getElementById('displayProjName').innerText = "LOCALE";
+            document.getElementById('loginOverlay').classList.add('hidden');
+            
+            loadLocalModeData();
+            showNotification("Avviato in Modalità Locale");
         };
 
         function startCloudSync() {
-            if (!currentProjectName) return;
             const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
             fb.onSnapshot(projRef, (doc) => {
                 if (doc.exists()) {
                     const cloudFields = doc.data().fields || [];
                     const localHash = JSON.stringify(fields.map(f => f.id));
                     const cloudHash = JSON.stringify(cloudFields.map(f => f.id));
-                    if (localHash !== cloudHash) mergeCloudData(cloudFields);
+                    if (localHash !== cloudHash) mergeData(cloudFields);
                 }
-            }, (err) => {
-                showNotification("Sync Cloud in pausa...");
             });
         }
 
-        function mergeCloudData(cloudData) {
+        function mergeData(newData) {
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle);
                 if(f.polyline) map.removeLayer(f.polyline);
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
             fields = [];
-            cloudData.forEach(fData => addFieldToMap(fData));
+            newData.forEach(fData => addFieldToMap(fData));
             updateFieldUI();
         }
 
-        async function saveToCloud() {
-            if (!currentProjectName || isSyncing || !fb.auth?.currentUser) return;
-            isSyncing = true;
-            document.getElementById('syncIndicator').classList.add('animate-pulse');
-            
+        async function saveData() {
             const cleanFields = fields.map(f => ({
                 id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords,
                 checkpoints: (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date }))
             }));
 
-            try {
-                const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
-                await fb.setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
+            if (isLocalMode) {
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
                 document.getElementById('syncIndicator').className = "text-green-500";
-            } catch (err) { 
-                document.getElementById('syncIndicator').className = "text-red-500"; 
-            } finally { 
-                isSyncing = false; 
-                document.getElementById('syncIndicator').classList.remove('animate-pulse'); 
+            } else if (fb.auth?.currentUser) {
+                isSyncing = true;
+                document.getElementById('syncIndicator').classList.add('animate-pulse');
+                try {
+                    const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
+                    await fb.setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
+                    document.getElementById('syncIndicator').className = "text-green-500";
+                } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; }
+                finally { isSyncing = false; document.getElementById('syncIndicator').classList.remove('animate-pulse'); }
             }
+        }
+
+        function loadLocalModeData() {
+            const db = localStorage.getItem('isolamenti_local_db');
+            if (db) mergeData(JSON.parse(db));
         }
 
         function checkAndMigrateLocalData() {
-            const localRaw = localStorage.getItem('isolamenti_agricoli_v4');
-            if (localRaw) {
-                try {
-                    const localData = JSON.parse(localRaw);
-                    if (localData && localData.length > 0) {
-                        if (confirm(`Trovati ${localData.length} campi salvati in precedenza. Caricarli nel Cloud?`)) {
-                            fields = [...fields, ...localData];
-                            saveToCloud().then(() => localStorage.removeItem('isolamenti_agricoli_v4'));
-                        }
-                    }
-                } catch(e) {}
+            const old = localStorage.getItem('isolamenti_local_db');
+            if (old) {
+                const data = JSON.parse(old);
+                if (data.length > 0 && confirm(`Trovati ${data.length} campi salvati in locale. Vuoi caricarli nel progetto Cloud?`)) {
+                    fields = [...fields, ...data]; saveData();
+                }
             }
         }
 
-        // --- MAP & UI LOGIC ---
-        window.recenterOnUser = () => {
-            if (userMarker) map.flyTo(userMarker.getLatLng(), 17);
-            else showNotification("GPS non attivo.");
-        };
-
-        window.logoutProject = () => {
-            if (confirm("Vuoi uscire da questo progetto?")) {
-                localStorage.removeItem('isolamenti_last_project');
-                location.reload();
-            }
-        };
-
+        // --- UI & LOGICA MAPPA ---
+        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
+        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o progetto?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => {
-            const query = document.getElementById('searchInput').value.trim().toLowerCase();
-            if (!query) return; 
-            const f = fields.find(f => (f.name && f.name.toLowerCase().includes(query)) || (f.code && f.code.toLowerCase().includes(query)));
+            const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
+            const f = fields.find(f => (f.name && f.name.toLowerCase().includes(q)) || (f.code && f.code.toLowerCase().includes(q)));
             if (f) { map.flyTo(f.latlng, 15); f.marker.openPopup(); expandPanel(); }
         };
 
         window.toggleTracking = () => {
-            const btn = document.getElementById('trackBtn');
-            const tele = document.getElementById('telemetryPanel');
+            const btn = document.getElementById('trackBtn'); const tele = document.getElementById('telemetryPanel');
             if (isTracking) {
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
                 watchId = null; isTracking = false;
                 btn.innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
-                btn.classList.replace('bg-rose-600', 'bg-slate-900');
-                tele.classList.add('hidden');
-                if(userMarker) map.removeLayer(userMarker);
-                resetGlobalStatus();
+                btn.classList.replace('bg-rose-600', 'bg-slate-900'); tele.classList.add('hidden');
+                if(userMarker) map.removeLayer(userMarker); resetGlobalStatus();
             } else {
                 showNotification("Aggancio GPS...");
                 watchId = navigator.geolocation.watchPosition((pos) => {
@@ -494,17 +442,10 @@
             lucide.createIcons();
         };
 
-        function showNotification(text) {
-            const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text;
-            el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0');
-            setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000);
-        }
-
         window.openManualCoordModal = () => openFieldModal(true);
         window.closeFieldModal = () => document.getElementById('fieldModal').classList.replace('flex', 'hidden');
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointNoteInput').value = ""; };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.replace('flex', 'hidden');
-        
         window.selectNewField = () => { closeActionChoiceModal(); openFieldModal(false); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); };
 
@@ -526,7 +467,7 @@
                 if(isNaN(lat)) return; latlng = L.latLng(lat, lon);
             }
             addFieldToMap({ id: Date.now(), name, code, category, latlng, radius, pathCoords: [], checkpoints: [] });
-            closeFieldModal(); saveToCloud();
+            closeFieldModal(); saveData();
         };
 
         window.confirmAddCheckpoint = function() {
@@ -536,7 +477,7 @@
                 const cpData = { id: Date.now(), latlng: tempCheckpointCoords.latlng, note, date: new Date().toLocaleString('it-IT') };
                 if (!field.checkpoints) field.checkpoints = [];
                 field.checkpoints.push(cpData); renderCheckpointOnMap(cpData);
-                closeCheckpointModal(); saveToCloud();
+                closeCheckpointModal(); saveData();
             }
         };
 
@@ -547,9 +488,8 @@
             marker.bindPopup(`<div class="text-xs"><b>${fData.name}</b><br>${fData.code}</div>`);
             const circle = L.circle(fData.latlng, { radius: fData.radius, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
             const polyline = L.polyline(fData.pathCoords || [], { color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
-            const field = { ...fData, marker, circle, polyline };
-            fields.push(field);
-            if (field.checkpoints) field.checkpoints.forEach(renderCheckpointOnMap);
+            fields.push({ ...fData, marker, circle, polyline });
+            if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             lucide.createIcons();
         }
 
@@ -574,7 +514,7 @@
             const statusDot = document.getElementById('statusDot');
             statusDot.className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-slate-400";
             document.getElementById('statusText').innerText = anyInside ? "In Area" : "Monitoraggio...";
-            if (updated) saveToCloud();
+            if (updated) saveData();
         }
 
         function resetGlobalStatus() { 
@@ -602,60 +542,47 @@
             document.getElementById('emptyMsg').classList.toggle('hidden', total > 0); lucide.createIcons();
         }
 
-        window.deleteField = function(id) { if (confirm(`Eliminare il campo?`)) { fields = fields.filter(f => f.id !== id); saveToCloud(); } };
+        window.deleteField = function(id) { if (confirm(`Eliminare il campo?`)) { fields = fields.filter(f => f.id !== id); saveData(); } };
 
-        // --- INIZIALIZZAZIONE MAPPA ---
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
-            
             map.on('click', function(e) {
-                if (!currentProjectName) return;
+                if (!currentProjectName && !isLocalMode) return;
                 let targetField = fields.find(f => e.latlng.distanceTo(f.latlng) <= f.radius);
-                if (targetField) { 
-                    tempFieldCoords = e.latlng; 
-                    tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; 
-                    openActionChoiceModal(); 
-                } else { 
-                    tempFieldCoords = e.latlng; openFieldModal(false); 
-                }
+                if (targetField) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: targetField.id }; openActionChoiceModal(); }
+                else { tempFieldCoords = e.latlng; openFieldModal(false); }
             });
 
-            // Tentativo caricamento progetto salvato
-            const saved = localStorage.getItem('isolamenti_last_project');
+            const saved = localStorage.getItem('isolamenti_last_session');
             if (saved) { 
                 try { 
-                    const { name, pass } = JSON.parse(saved); 
-                    document.getElementById('projectInput').value = name; 
-                    document.getElementById('passwordInput').value = pass; 
-                    
-                    // Auto-login più veloce
-                    setTimeout(() => {
-                        window.handleLogin();
-                    }, 1000);
+                    const session = JSON.parse(saved);
+                    if (session.mode === 'local') handleLocalMode();
+                    else if (session.mode === 'cloud') {
+                        document.getElementById('projectInput').value = session.name;
+                        document.getElementById('passwordInput').value = session.pass;
+                        setTimeout(handleLogin, 1000);
+                    }
                 } catch(e) {} 
             }
             lucide.createIcons();
         }
 
-        // Pannello Trascinabile
+        // --- UI PANNELLO ---
         const panel = document.getElementById('statusPanel');
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
         let startY, currentTranslateY = 0, isDragging = false;
-
         dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; isDragging = true; panel.style.transition = 'none'; }, {passive: true});
         window.addEventListener('touchmove', (e) => { if (!isDragging) return; const move = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (move <= panel.offsetHeight - 85) panel.style.transform = `translateY(${move}px)`; }, {passive: true});
         window.addEventListener('touchend', (e) => { if (!isDragging) return; isDragging = false; panel.style.transition = 'transform 0.3s'; const deltaY = e.changedTouches[0].clientY - startY; if (deltaY > 50) minimizePanel(); else if (deltaY < -50) expandPanel(); else panel.style.transform = `translateY(${currentTranslateY}px)`; });
-        
         function minimizePanel() { currentTranslateY = panel.offsetHeight - 85; panel.style.transform = `translateY(${currentTranslateY}px)`; content.style.opacity = '0.4'; }
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
+        function showNotification(text) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
 
-        // Start
-        initFirebaseCore().then(() => {
-            window.addEventListener('load', initMap);
-        });
+        window.addEventListener('load', initMap);
     </script>
 </body>
 </html>
