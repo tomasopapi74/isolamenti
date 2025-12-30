@@ -18,9 +18,9 @@
             box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); animation: pulse 2s infinite;
         }
         @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            0 { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
         }
 
         #statusPanel { transition: transform 0.3s cubic-bezier(0.17, 0.67, 0.83, 0.67); touch-action: none; padding-bottom: env(safe-area-inset-bottom); }
@@ -55,8 +55,8 @@
                     <input type="password" id="passwordInput" placeholder="Scegli una password" 
                         class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-green-500 outline-none text-sm bg-slate-50">
                 </div>
-                <button onclick="handleLogin()" id="loginBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-green-100 active:scale-95 transition-all disabled:opacity-50">
-                    ACCEDI O CREA PROGETTO
+                <button onclick="handleLogin()" id="loginBtn" class="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-sm shadow-lg shadow-green-100 active:scale-95 transition-all disabled:bg-slate-300">
+                    ATTENDI CLOUD...
                 </button>
             </div>
             <p id="loginError" class="text-red-500 text-xs text-center font-bold hidden px-4 leading-relaxed"></p>
@@ -171,40 +171,26 @@
 
     <!-- Modal Nuovo Campo -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-green-700"><i data-lucide="plus-circle"></i> Nuovo Isolamento</h2>
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Nome</label>
-                        <input type="text" id="fieldNameInput" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Codice</label>
-                        <input type="text" id="fieldCodeInput" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50">
-                    </div>
+                    <input type="text" id="fieldNameInput" placeholder="Nome Campo" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                    <input type="text" id="fieldCodeInput" placeholder="Codice" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Categoria</label>
-                    <select id="fieldCategoryInput" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50">
-                        <option value="cipolle">Cipolle</option>
-                        <option value="bunching">Bunching</option>
-                        <option value="brassiche">Brassiche</option>
-                    </select>
+                <select id="fieldCategoryInput" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                    <option value="cipolle">Cipolle</option>
+                    <option value="bunching">Bunching</option>
+                    <option value="brassiche">Brassiche</option>
+                </select>
+                <div id="coordsInputs" class="hidden grid grid-cols-2 gap-3">
+                    <input type="number" id="fieldLatInput" step="any" placeholder="Latitudine" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                    <input type="number" id="fieldLonInput" step="any" placeholder="Longitudine" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
                 </div>
-                <div id="coordsInputs" class="hidden space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <input type="number" id="fieldLatInput" step="any" placeholder="Lat" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                        <input type="number" id="fieldLonInput" step="any" placeholder="Lon" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1 ml-1">Raggio (m)</label>
-                    <input type="number" id="fieldRadiusInput" value="1000" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
-                </div>
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeFieldModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 text-sm">Annulla</button>
-                    <button onclick="confirmAddField()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold text-sm">Registra</button>
+                <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50">
+                <div class="flex gap-3">
+                    <button onclick="closeFieldModal()" class="flex-1 py-3 border rounded-xl font-bold text-slate-400">Annulla</button>
+                    <button onclick="confirmAddField()" class="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold">Registra</button>
                 </div>
             </div>
         </div>
@@ -212,13 +198,13 @@
 
     <!-- Modal Checkpoint -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Rilevamento</h2>
             <div class="space-y-4">
-                <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 outline-none text-sm bg-slate-50" placeholder="Inserisci note..."></textarea>
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-500 text-sm">Annulla</button>
-                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">Salva</button>
+                <textarea id="checkpointNoteInput" rows="4" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50" placeholder="Inserisci note rilevamento..."></textarea>
+                <div class="flex gap-3">
+                    <button onclick="closeCheckpointModal()" class="flex-1 py-3 border rounded-xl font-bold text-slate-400">Annulla</button>
+                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Salva Nota</button>
                 </div>
             </div>
         </div>
@@ -228,89 +214,79 @@
         <span id="notifText"></span>
     </div>
 
-    <!-- Firebase SDK & App Logic -->
+    <!-- Script Unificato in Modulo -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // GLOBALS
+        // --- STATO APPLICAZIONE ---
         let fb = {};
         let map, userMarker, watchId = null, fields = []; 
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null;
         let currentProjectName = null, currentPassword = null, isSyncing = false;
 
-        // --- INIZIALIZZAZIONE SICURA FIREBASE ---
-        async function initFirebase() {
+        // --- INIZIALIZZAZIONE FIREBASE ROBUSTA ---
+        async function initFirebaseCore() {
             try {
-                // Lettura configurazione dall'ambiente con polling esteso
-                let configFound = false;
-                let firebaseConfig = {};
-                
-                for(let i=0; i<15; i++) {
-                    const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
-                    if (configStr && configStr.trim() !== "") {
-                        firebaseConfig = JSON.parse(configStr);
-                        configFound = true;
+                // Polling aggressivo per recuperare la config
+                let config = null;
+                for (let i = 0; i < 20; i++) {
+                    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                        config = JSON.parse(__firebase_config);
                         break;
                     }
-                    await new Promise(res => setTimeout(res, 300));
+                    await new Promise(r => setTimeout(r, 250));
                 }
 
-                if (!configFound) return false;
+                if (!config) return false;
 
-                const app = initializeApp(firebaseConfig);
+                const app = initializeApp(config);
                 fb.auth = getAuth(app);
                 fb.db = getFirestore(app);
                 fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
                 
-                // Metodi Firebase necessari
+                // Binding funzioni
                 fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; 
                 fb.getDoc = getDoc; fb.signInAnonymously = signInAnonymously; 
                 fb.signInWithCustomToken = signInWithCustomToken;
                 
                 window.fbReady = true;
+                const loginBtn = document.getElementById('loginBtn');
+                if (loginBtn) {
+                    loginBtn.innerText = "ACCEDI O CREA PROGETTO";
+                    loginBtn.disabled = false;
+                }
                 return true;
             } catch (e) {
-                console.error("Firebase Init Error:", e);
+                console.error("Firebase Error:", e);
                 return false;
             }
         }
 
-        // --- AUTENTICAZIONE RESILIENTE (REGOLA 3) ---
-        async function authenticate() {
-            if (!window.fbReady) {
-                const ok = await initFirebase();
+        // --- AUTENTICAZIONE (REGOLA 3) ---
+        async function runAuth() {
+            if (!fb.auth) {
+                const ok = await initFirebaseCore();
                 if (!ok) return null;
             }
             
-            // Tentativi di accesso con backoff esponenziale
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                try {
-                    const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                    if (token) {
-                        await fb.signInWithCustomToken(fb.auth, token);
-                    } else {
-                        await fb.signInAnonymously(fb.auth);
-                    }
-                    
-                    if (fb.auth.currentUser) return fb.auth.currentUser;
-                } catch (err) {
-                    console.warn(`Auth fallita (tentativo ${attempt}):`, err);
-                    if (attempt < 3) await new Promise(res => setTimeout(res, 1000 * attempt));
-                }
-            }
-            
-            // Ultimo tentativo anonimo diretto se tutto il resto fallisce
             try {
+                const customToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (customToken) {
+                    await fb.signInWithCustomToken(fb.auth, customToken);
+                } else {
+                    await fb.signInAnonymously(fb.auth);
+                }
+                return fb.auth.currentUser;
+            } catch (err) {
+                console.warn("Retrying anonymous auth...");
                 await fb.signInAnonymously(fb.auth);
                 return fb.auth.currentUser;
-            } catch(e) {
-                return null;
             }
         }
 
-        // --- LOGIN E CLOUD LOGIC ---
+        // --- GESTIONE LOGIN ---
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
             const errorEl = document.getElementById('loginError');
@@ -330,25 +306,24 @@
             errorEl.classList.add('hidden');
             
             try {
-                // Autenticazione obbligatoria prima di qualsiasi query (REGOLA 3)
-                const user = await authenticate();
-                if (!user) throw new Error("Configurazione Cloud non rilevata o rete assente. Ricarica la pagina e riprova tra pochi secondi.");
+                const user = await runAuth();
+                if (!user) throw new Error("Configurazione Cloud non rilevata. Assicurati di essere online e riprova.");
                 
-                // Percorso obbligatorio per dati pubblici (REGOLA 1)
+                // Percorso REGOLA 1: /artifacts/{appId}/public/data/projects/{name}
                 const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await fb.getDoc(projRef);
 
                 if (docSnap.exists()) {
-                    const cloudData = docSnap.data();
-                    if (cloudData && cloudData.password && cloudData.password !== pass) {
-                        errorEl.innerText = "Password errata per questo gruppo di lavoro."; 
+                    const data = docSnap.data();
+                    if (data.password && data.password !== pass) {
+                        errorEl.innerText = "Password errata per questo gruppo."; 
                         errorEl.classList.remove('hidden');
                         loginBtn.innerText = "ACCEDI O CREA PROGETTO";
                         loginBtn.disabled = false;
                         return;
                     }
                 } else {
-                    if (!confirm(`Il gruppo "${nameRaw}" è nuovo. Confermi di volerlo creare con questa password?`)) { 
+                    if (!confirm(`Il gruppo "${nameRaw}" non esiste. Vuoi crearlo ora con questa password?`)) { 
                         loginBtn.innerText = "ACCEDI O CREA PROGETTO";
                         loginBtn.disabled = false;
                         return; 
@@ -366,8 +341,7 @@
                 
                 checkAndMigrateLocalData();
             } catch (err) { 
-                console.error("Login Error:", err);
-                errorEl.innerText = err.message || "Impossibile stabilire una connessione sicura."; 
+                errorEl.innerText = err.message || "Errore di connessione."; 
                 errorEl.classList.remove('hidden'); 
                 loginBtn.innerText = "ACCEDI O CREA PROGETTO";
                 loginBtn.disabled = false;
@@ -380,14 +354,12 @@
             fb.onSnapshot(projRef, (doc) => {
                 if (doc.exists()) {
                     const cloudFields = doc.data().fields || [];
-                    // Sincronizza solo se i dati sono cambiati effettivamente
                     const localHash = JSON.stringify(fields.map(f => f.id));
                     const cloudHash = JSON.stringify(cloudFields.map(f => f.id));
                     if (localHash !== cloudHash) mergeCloudData(cloudFields);
                 }
             }, (err) => {
-                console.error("Snapshot Error:", err);
-                showNotification("Sync Cloud in pausa...");
+                showNotification("Sincronizzazione Cloud interrotta.");
             });
         }
 
@@ -417,7 +389,6 @@
                 await fb.setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
                 document.getElementById('syncIndicator').className = "text-green-500";
             } catch (err) { 
-                console.error("Save Error:", err);
                 document.getElementById('syncIndicator').className = "text-red-500"; 
             } finally { 
                 isSyncing = false; 
@@ -430,8 +401,8 @@
             if (localRaw) {
                 try {
                     const localData = JSON.parse(localRaw);
-                    if (localData && Array.isArray(localData) && localData.length > 0) {
-                        if (confirm(`Trovati ${localData.length} campi salvati in precedenza su questo telefono. Caricarli nel Cloud?`)) {
+                    if (localData && localData.length > 0) {
+                        if (confirm(`Trovati ${localData.length} campi salvati in precedenza. Caricarli nel Cloud?`)) {
                             fields = [...fields, ...localData];
                             saveToCloud().then(() => localStorage.removeItem('isolamenti_agricoli_v4'));
                         }
@@ -440,27 +411,27 @@
             }
         }
 
-        // --- MAP & UI LOGIC ---
-        window.recenterOnUser = function() {
+        // --- LOGICA MAPPA & UI ---
+        window.recenterOnUser = () => {
             if (userMarker) map.flyTo(userMarker.getLatLng(), 17);
             else showNotification("GPS non attivo.");
         };
 
-        window.logoutProject = function() {
+        window.logoutProject = () => {
             if (confirm("Vuoi uscire da questo progetto?")) {
                 localStorage.removeItem('isolamenti_last_project');
                 location.reload();
             }
         };
 
-        window.handleSearch = function() {
+        window.handleSearch = () => {
             const query = document.getElementById('searchInput').value.trim().toLowerCase();
             if (!query) return; 
             const f = fields.find(f => (f.name && f.name.toLowerCase().includes(query)) || (f.code && f.code.toLowerCase().includes(query)));
             if (f) { map.flyTo(f.latlng, 15); f.marker.openPopup(); expandPanel(); }
         };
 
-        window.toggleTracking = function() {
+        window.toggleTracking = () => {
             const btn = document.getElementById('trackBtn');
             const tele = document.getElementById('telemetryPanel');
             if (isTracking) {
@@ -489,7 +460,6 @@
             lucide.createIcons();
         };
 
-        // UI Helpers
         function showNotification(text) {
             const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text;
             el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0');
@@ -573,7 +543,11 @@
             if (updated) saveToCloud();
         }
 
-        function resetGlobalStatus() { document.getElementById('statusText').innerText = "GPS Off"; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; fields.forEach(f => f.circle.setStyle({ fillOpacity: 0.1, dashArray: '8, 8' })); }
+        function resetGlobalStatus() { 
+            document.getElementById('statusText').innerText = "GPS Off"; 
+            document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; 
+            fields.forEach(f => f.circle.setStyle({ fillOpacity: 0.1, dashArray: '8, 8' })); 
+        }
 
         function updateFieldUI() {
             const categories = ['cipolle', 'bunching', 'brassiche']; let total = 0;
@@ -596,7 +570,7 @@
 
         window.deleteField = function(id) { if (confirm(`Eliminare il campo?`)) { fields = fields.filter(f => f.id !== id); saveToCloud(); } };
 
-        // Inizializzazione Mappa
+        // --- INIZIALIZZAZIONE MAPPA ---
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
@@ -614,7 +588,7 @@
                 }
             });
 
-            // Auto-login se salvato
+            // Tentativo caricamento progetto salvato
             const saved = localStorage.getItem('isolamenti_last_project');
             if (saved) { 
                 try { 
@@ -622,18 +596,13 @@
                     document.getElementById('projectInput').value = name; 
                     document.getElementById('passwordInput').value = pass; 
                     
-                    // Ciclo di controllo resiliente per l'auto-login
-                    let loginAttempts = 0;
                     const checkFb = setInterval(() => {
-                        loginAttempts++;
                         if (window.fbReady) {
                             window.handleLogin();
                             clearInterval(checkFb);
-                        } else if (loginAttempts > 20) {
-                            clearInterval(checkFb);
-                            console.warn("Auto-login interrotto per ritardo configurazione.");
                         }
                     }, 500);
+                    setTimeout(() => clearInterval(checkFb), 8000);
                 } catch(e) {} 
             }
             lucide.createIcons();
@@ -653,7 +622,9 @@
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
 
         // Start
-        window.addEventListener('load', initMap);
+        initFirebaseCore().then(() => {
+            window.addEventListener('load', initMap);
+        });
     </script>
 </body>
 </html>
