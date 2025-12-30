@@ -179,7 +179,7 @@
                 </button>
                 <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-4 rounded-2xl border border-blue-200 active:scale-95 transition-all">
                     <div class="flex items-center gap-3"><i data-lucide="clipboard-check" class="w-6 h-6"></i><span class="font-bold">Aggiungi Nota</span></div>
-                    <i data-lucide="chevron-right" class="w-4 h-4 text-blue-400"></i>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-green-400"></i>
                 </button>
                 <button onclick="closeActionChoiceModal()" class="mt-2 text-slate-400 text-sm font-bold py-2">Annulla</button>
             </div>
@@ -254,10 +254,17 @@
         let isLocalMode = false;
         let mapReady = false;
 
-        // --- INIZIALIZZAZIONE FIREBASE (BACKGROUND) ---
+        // --- INIZIALIZZAZIONE FIREBASE ---
         async function initFirebaseCore() {
             try {
-                const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
+                let configStr = "";
+                // Polling breve per config
+                for(let i=0; i<5; i++) {
+                    configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
+                    if (configStr) break;
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
                 if (!configStr || configStr.trim() === "") return false;
                 
                 const firebaseConfig = JSON.parse(configStr);
@@ -270,9 +277,23 @@
                 fb.signInAnonymously = signInAnonymously; fb.signInWithCustomToken = signInWithCustomToken;
                 
                 window.fbReady = true;
-                console.log("Servizi Cloud inizializzati in background.");
                 return true;
             } catch (e) { return false; }
+        }
+
+        // --- AUTENTICAZIONE ---
+        async function runAuth() {
+            if (!window.fbReady) await initFirebaseCore();
+            if (!window.fbReady) return null;
+
+            try {
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) await fb.signInWithCustomToken(fb.auth, token);
+                else await fb.signInAnonymously(fb.auth);
+                return fb.auth.currentUser;
+            } catch (err) {
+                try { await fb.signInAnonymously(fb.auth); return fb.auth.currentUser; } catch(e) { return null; }
+            }
         }
 
         // --- GESTIONE LOGIN CLOUD ---
@@ -283,28 +304,23 @@
             const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
             const pass = document.getElementById('passwordInput').value.trim();
             
-            if (!name || !pass) { errorEl.innerText = "Inserisci nome gruppo e password."; errorEl.classList.remove('hidden'); return; }
+            if (!name || !pass) { errorEl.innerText = "Dati mancanti."; errorEl.classList.remove('hidden'); return; }
 
             loginBtn.disabled = true; loginBtn.innerText = "CONNESSIONE...";
             
             try {
-                // Autenticazione
-                if (!window.fbReady) await initFirebaseCore();
-                if (!window.fbReady) throw new Error("Configurazione Cloud non rilevata. Usa la Modalità Locale.");
-
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) await fb.signInWithCustomToken(fb.auth, token);
-                else await fb.signInAnonymously(fb.auth);
-
+                const user = await runAuth();
+                if (!user) throw new Error("Cloud non disponibile. Usa Modalità Locale.");
+                
                 const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await fb.getDoc(projRef);
 
                 if (docSnap.exists()) {
                     if (docSnap.data().password && docSnap.data().password !== pass) {
-                        throw new Error("Password errata per questo gruppo.");
+                        throw new Error("Password errata.");
                     }
                 } else {
-                    if (!confirm(`Il gruppo "${nameRaw}" è nuovo. Crearlo con questa password?`)) { 
+                    if (!confirm(`Creare nuovo gruppo "${nameRaw}"?`)) { 
                         loginBtn.disabled = false; loginBtn.innerText = "ACCEDI AL CLOUD"; return; 
                     }
                     await fb.setDoc(projRef, { password: pass, fields: [] });
@@ -314,7 +330,7 @@
                 currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'cloud', name, pass }));
                 
-                document.getElementById('syncStatusLabel').innerText = "Sincronizzazione Cloud Attiva";
+                document.getElementById('syncStatusLabel').innerText = "Cloud Attivo";
                 document.getElementById('displayProjName').innerText = name.toUpperCase();
                 document.getElementById('loginOverlay').classList.add('hidden');
                 
@@ -326,20 +342,19 @@
             }
         };
 
-        // --- GESTIONE MODALITÀ LOCALE (RISOLTO) ---
+        // --- GESTIONE MODALITÀ LOCALE (POTENZIATA) ---
         window.handleLocalMode = function() {
-            console.log("Attivazione Modalità Locale...");
+            console.log("Forzatura Modalità Locale...");
             isLocalMode = true;
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'local' }));
             
-            document.getElementById('syncStatusLabel').innerText = "Modalità Locale (Solo Smartphone)";
+            // UI Update immediato
+            document.getElementById('syncStatusLabel').innerText = "Modalità Locale";
             document.getElementById('displayProjName').innerText = "LOCALE";
-            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('loginOverlay').style.display = 'none'; // Forza chiusura overlay
             
-            if (mapReady) {
-                loadLocalModeData();
-                showNotification("Avviato in Modalità Locale");
-            }
+            loadLocalModeData();
+            showNotification("Avviato in Locale");
         };
 
         function startCloudSync() {
@@ -355,7 +370,6 @@
         }
 
         function mergeData(newData) {
-            if (!mapReady) return;
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle);
                 if(f.polyline) map.removeLayer(f.polyline);
@@ -377,13 +391,12 @@
                 document.getElementById('syncIndicator').className = "text-green-500";
             } else if (fb.auth?.currentUser) {
                 isSyncing = true;
-                document.getElementById('syncIndicator').classList.add('animate-pulse');
                 try {
                     const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
                     await fb.setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-500";
                 } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; }
-                finally { isSyncing = false; document.getElementById('syncIndicator').classList.remove('animate-pulse'); }
+                finally { isSyncing = false; }
             }
         }
 
@@ -397,7 +410,7 @@
             if (old) {
                 try {
                     const data = JSON.parse(old);
-                    if (data.length > 0 && confirm(`Trovati ${data.length} campi salvati in locale. Vuoi caricarli nel progetto Cloud?`)) {
+                    if (data.length > 0 && confirm(`Caricare i ${data.length} campi locali nel Cloud?`)) {
                         fields = [...fields, ...data]; saveData();
                         localStorage.removeItem('isolamenti_local_db');
                     }
@@ -407,7 +420,7 @@
 
         // --- UI & LOGICA MAPPA ---
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.logoutProject = () => { if (confirm("Vuoi cambiare modalità o uscire dal progetto?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
             const f = fields.find(f => (f.name && f.name.toLowerCase().includes(q)) || (f.code && f.code.toLowerCase().includes(q)));
@@ -544,6 +557,7 @@
 
         // --- INIZIALIZZAZIONE MAPPA IMMEDIATA ---
         function initMap() {
+            console.log("Mappa in fase di avvio...");
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
@@ -578,7 +592,7 @@
             lucide.createIcons();
         }
 
-        // --- UI PANNELLO TRASCINABILE ---
+        // --- UI PANNELLO ---
         const panel = document.getElementById('statusPanel');
         const dragArea = document.getElementById('dragArea');
         const content = document.getElementById('panelContent');
@@ -590,11 +604,9 @@
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; content.style.opacity = '1'; }
         function showNotification(text) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
 
-        // AVVIO
-        window.addEventListener('load', () => {
-            initMap();
-            initFirebaseCore(); // In background
-        });
+        // AVVIO (Map first, then Cloud)
+        initMap();
+        initFirebaseCore();
     </script>
 </body>
 </html>
