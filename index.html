@@ -237,7 +237,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // STATO
+        // STATO GLOBALE
         let fb = {};
         let map, userMarker, watchId = null, fields = []; 
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null;
@@ -245,29 +245,45 @@
         let isLocalMode = false;
         let mapReady = false;
 
-        // --- FILTRO JSON ---
+        // --- FILTRO JSON INTELLIGENTE ---
         function cleanFirebaseConfig(input) {
             if (!input) return null;
             let clean = input.trim();
-            clean = clean.replace(/const\s+\w+\s*=\s*/g, '').replace(/let\s+\w+\s*=\s*/g, '').replace(/var\s+\w+\s*=\s*/g, '').replace(/;/g, '');
-            clean = clean.replace(/(\w+):/g, '"$1":').replace(/'/g, '"').replace(/,\s*}/g, '}');
+            // Rimuove variabili javascript se incollate per sbaglio
+            clean = clean.replace(/const\s+\w+\s*=\s*/g, '').replace(/let\s+\w+\s*=\s*/g, '').replace(/var\s+\w+\s*=\s*/g, '');
+            clean = clean.replace(/firebaseConfig\s*=\s*/g, '').replace(/;/g, '');
+            // Aggiunge virgolette alle chiavi se mancano (trasforma JS in JSON)
+            clean = clean.replace(/([a-zA-Z0-9]+):/g, '"$1":');
+            // Sistema virgolette singole in doppie
+            clean = clean.replace(/'/g, '"');
+            // Rimuove virgole finali prima della chiusura graffa
+            clean = clean.replace(/,\s*}/g, '}');
             try { return JSON.parse(clean); } catch(e) { return null; }
         }
 
         async function initFirebaseCore(manualInput = null) {
             try {
-                let config = manualInput ? cleanFirebaseConfig(manualInput) : null;
-                if(!config) {
+                let config = null;
+                if(manualInput) {
+                    config = cleanFirebaseConfig(manualInput);
+                    if(!config) throw new Error("Chiavi Cloud non valide. Controlla il codice incollato.");
+                } else {
                     const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '';
                     if (configStr) config = JSON.parse(configStr);
                 }
+                
                 if (!config) return false;
                 const app = initializeApp(config);
-                fb.auth = getAuth(app); fb.db = getFirestore(app);
+                fb.auth = getAuth(app);
+                fb.db = getFirestore(app);
                 fb.appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-agricoli';
-                fb.doc = doc; fb.setDoc = setDoc; fb.onSnapshot = onSnapshot; fb.getDoc = getDoc;
-                fb.signInAnonymously = signInAnonymously; fb.signInWithCustomToken = signInWithCustomToken;
-                window.fbReady = true; return true;
+                
+                // Funzioni di Auth dirette per evitare errori di riferimento
+                fb.doSignInAnon = () => signInAnonymously(fb.auth);
+                fb.doSignInToken = (t) => signInWithCustomToken(fb.auth, t);
+                
+                window.fbReady = true;
+                return true;
             } catch (e) { throw e; }
         }
 
@@ -283,16 +299,20 @@
             errorEl.classList.add('hidden');
             
             try {
-                await initFirebaseCore(manualVal || null);
-                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                if (token) await fb.signInWithCustomToken(fb.auth, token); else await fb.signInAnonymously(fb.auth);
+                const ok = await initFirebaseCore(manualVal || null);
+                if (!ok) throw new Error("Configurazione Cloud non rilevata.");
+
+                // Autenticazione (REGOLA 3)
+                const customToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (customToken) await fb.doSignInToken(customToken);
+                else await fb.doSignInAnon();
 
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
-                const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
-                const docSnap = await fb.getDoc(projRef);
+                const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
+                const docSnap = await getDoc(projRef);
 
                 if (docSnap.exists() && docSnap.data().password !== pass) throw new Error("Password errata.");
-                if (!docSnap.exists()) await fb.setDoc(projRef, { password: pass, fields: [] });
+                if (!docSnap.exists()) await setDoc(projRef, { password: pass, fields: [] });
 
                 isLocalMode = false; currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: 'cloud', name, pass, manualConfig: manualVal }));
@@ -302,6 +322,7 @@
                 startCloudSync();
                 checkAndMigrateLegacyData();
             } catch (err) { 
+                console.error(err);
                 errorEl.innerText = err.message || "Errore Cloud."; errorEl.classList.remove('hidden'); 
                 loginBtn.disabled = false; document.getElementById('btnLabel').innerText = "ACCEDI AL CLOUD";
             }
@@ -319,7 +340,10 @@
 
         function loadLocalModeData() {
             let db = localStorage.getItem('isolamenti_local_db') || localStorage.getItem('isolamenti_agricoli_v4');
-            if (db) { mergeData(JSON.parse(db)); if (!localStorage.getItem('isolamenti_local_db')) localStorage.setItem('isolamenti_local_db', db); }
+            if (db) {
+                mergeData(JSON.parse(db));
+                if (!localStorage.getItem('isolamenti_local_db')) localStorage.setItem('isolamenti_local_db', db);
+            }
         }
 
         function checkAndMigrateLegacyData() {
@@ -327,7 +351,7 @@
             if (legacy) {
                 try {
                     const data = JSON.parse(legacy);
-                    if (data && data.length > 0 && confirm(`Caricare i punti salvati sul telefono nel Cloud?`)) {
+                    if (data && data.length > 0 && confirm(`Caricare i punti locali nel Cloud?`)) {
                         fields = [...fields, ...data]; saveData();
                         localStorage.removeItem('isolamenti_agricoli_v4');
                     }
@@ -336,30 +360,40 @@
         }
 
         function startCloudSync() {
-            const projRef = fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
-            fb.onSnapshot(projRef, (doc) => {
+            const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
+            onSnapshot(projRef, (doc) => {
                 if (doc.exists()) {
                     const cloudFields = doc.data().fields || [];
                     if (JSON.stringify(fields.map(f => f.id)) !== JSON.stringify(cloudFields.map(f => f.id))) mergeData(cloudFields);
                 }
-            });
+            }, (err) => { console.error("Snapshot error:", err); });
         }
 
         function mergeData(newData) {
-            fields.forEach(f => { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); });
+            if (!mapReady) return;
+            fields.forEach(f => {
+                if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle);
+                if(f.polyline) map.removeLayer(f.polyline);
+                if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
+            });
             fields = []; newData.forEach(fData => addFieldToMap(fData)); updateFieldUI();
         }
 
         async function saveData() {
             const clean = fields.map(f => ({ id: f.id, name: f.name, code: f.code, category: f.category, latlng: f.latlng, radius: f.radius, pathCoords: f.pathCoords, checkpoints: (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date })) }));
-            if (isLocalMode) { localStorage.setItem('isolamenti_local_db', JSON.stringify(clean)); document.getElementById('syncIndicator').className = "text-green-500"; }
-            else if (fb.auth?.currentUser) {
-                try { await fb.setDoc(fb.doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName), { password: currentPassword, fields: clean }, { merge: true }); document.getElementById('syncIndicator').className = "text-green-500"; }
-                catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; }
+            if (isLocalMode) {
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(clean));
+                document.getElementById('syncIndicator').className = "text-green-500";
+            } else if (fb.auth?.currentUser) {
+                try {
+                    const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
+                    await setDoc(projRef, { password: currentPassword, fields: clean }, { merge: true });
+                    document.getElementById('syncIndicator').className = "text-green-500";
+                } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; }
             }
         }
 
-        // --- GPS E UI ---
+        // --- MAPPA E GPS ---
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.logoutProject = () => { if (confirm("Vuoi uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => {
@@ -370,8 +404,24 @@
 
         window.toggleTracking = () => {
             const btn = document.getElementById('trackBtn'); const tele = document.getElementById('telemetryPanel');
-            if (isTracking) { if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; btn.innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS'; btn.classList.replace('bg-rose-600', 'bg-slate-900'); tele.classList.add('hidden'); if(userMarker) map.removeLayer(userMarker); resetGlobalStatus(); }
-            else { showNotification("Aggancio GPS..."); watchId = navigator.geolocation.watchPosition((pos) => { document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude); if (!userMarker) { userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map); map.flyTo(latlng, 15); } else userMarker.setLatLng(latlng); updateGeofencing(latlng); }, () => showNotification("Errore GPS"), { enableHighAccuracy: true }); isTracking = true; tele.classList.remove('hidden'); btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS'; btn.classList.replace('bg-slate-900', 'bg-rose-600'); }
+            if (isTracking) {
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                watchId = null; isTracking = false;
+                btn.innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
+                btn.classList.replace('bg-rose-600', 'bg-slate-900'); tele.classList.add('hidden');
+                if(userMarker) map.removeLayer(userMarker); resetGlobalStatus();
+            } else {
+                showNotification("Aggancio GPS...");
+                watchId = navigator.geolocation.watchPosition((pos) => {
+                    document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
+                    const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+                    if (!userMarker) { userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'pulse-user', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map); map.flyTo(latlng, 15); } else userMarker.setLatLng(latlng);
+                    updateGeofencing(latlng);
+                }, () => showNotification("Errore GPS"), { enableHighAccuracy: true });
+                isTracking = true; tele.classList.remove('hidden');
+                btn.innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Ferma GPS';
+                btn.classList.replace('bg-slate-900', 'bg-rose-600');
+            }
             lucide.createIcons();
         };
 
