@@ -103,7 +103,7 @@
             <div class="flex-1 flex gap-2">
                 <div class="relative flex-1">
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
-                    <input type="text" id="searchInput" placeholder="Cerca campo o codice..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
+                    <input type="text" id="searchInput" placeholder="Cerca punto o codice..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
                 </div>
                 <button onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold active:scale-95 shadow-md">Trova</button>
             </div>
@@ -124,7 +124,7 @@
 
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
             <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
-                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">Precisione GPS</span><span id="accuracyVal">--m</span></div>
+                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">Segnale GPS</span><span id="accuracyVal">--m</span></div>
                 <div id="syncIndicator" class="text-slate-400 transition-colors"><i data-lucide="cloud" class="w-4 h-4"></i></div>
             </div>
         </div>
@@ -176,7 +176,7 @@
     <!-- MODALS -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl text-center animate-in zoom-in duration-200">
-            <h2 class="text-lg font-bold text-slate-800 mb-6 tracking-tight">Cosa vuoi fare?</h2>
+            <h2 class="text-lg font-bold text-slate-800 mb-6 tracking-tight">Nuovo Rilevamento</h2>
             <div class="flex flex-col gap-4">
                 <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200 active:scale-95 transition-all">
                     <div class="flex items-center gap-3"><i data-lucide="plus-circle" class="w-6 h-6"></i><span class="font-bold">Crea Isolamento</span></div>
@@ -230,7 +230,7 @@
         </div>
     </div>
 
-    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold text-center">
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold text-center min-w-[220px]">
         <span id="notifText"></span>
     </div>
 
@@ -256,6 +256,7 @@
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false;
         let mapReady = false;
+        let isSyncing = false; // Anti-flooding per il database
 
         async function initFirebase() {
             try {
@@ -281,7 +282,7 @@
             loginBtn.disabled = true; btnLabel.innerHTML = '<span class="loader"></span> AUTH...';
             errorEl.classList.add('hidden');
             
-            // Avvio GPS anticipato
+            // Avvio GPS immediato per reattività
             setTimeout(() => toggleTracking(true), 100);
 
             try {
@@ -356,7 +357,7 @@
             if (recovered.length > 0) {
                 mergeData(recovered);
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(recovered));
-                showNotification(`Dati recuperati dalla memoria locale.`);
+                showNotification(`Punto Zero: Recuperati ${recovered.length} punti.`);
             }
         }
 
@@ -382,46 +383,67 @@
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
             fields = []; 
-            newData.forEach(fData => addFieldToMap(fData)); 
+            newData.forEach(fData => {
+                // Parsing delle tracce GPS serializzate
+                if (fData.pathCoords && typeof fData.pathCoords === 'string') {
+                    try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
+                }
+                addFieldToMap(fData);
+            }); 
             updateFieldUI();
             map.invalidateSize();
         }
 
-        // --- SALVATAGGIO "CLEAN CLONE" ---
+        // --- SALVATAGGIO "CLEAN CLONE" POTENZIATO PER IL CLOUD ---
         async function saveData() {
-            const cleanFields = fields.map(f => ({ 
-                id: f.id, 
-                name: f.name, 
-                code: f.code, 
-                category: f.category, 
-                latlng: f.latlng, 
-                radius: f.radius, 
-                pathCoords: f.pathCoords || [], 
-                checkpoints: (f.checkpoints || []).map(cp => ({ 
-                    id: cp.id, 
-                    latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
-                    note: cp.note, 
-                    date: cp.date 
-                })) 
-            }));
+            if (isSyncing) return; // Evita salvataggi sovrapposti
+
+            const cleanFields = fields.map(f => {
+                const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
+                return { 
+                    id: f.id, 
+                    name: f.name || "Campo", 
+                    code: f.code || "---", 
+                    category: f.category || "cipolle", 
+                    latlng: latlng, 
+                    radius: Number(f.radius) || 1000, 
+                    // Regola Regola 2: Serializza array nidificati in stringhe per Firestore
+                    pathCoords: JSON.stringify(f.pathCoords || []), 
+                    checkpoints: (f.checkpoints || []).map(cp => ({ 
+                        id: cp.id, 
+                        latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
+                        note: cp.note || "", 
+                        date: cp.date || "" 
+                    })) 
+                };
+            });
 
             if (isLocalMode) {
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
             } else if (fb.auth?.currentUser) {
                 try {
+                    isSyncing = true;
                     const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
-                    await setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
+                    await setDoc(projRef, { 
+                        password: currentPassword, 
+                        fields: cleanFields,
+                        lastSync: new Date().toISOString()
+                    }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600 font-black";
                 } catch (e) { 
-                    console.error("Cloud Save Error:", e); 
-                    showNotification("Errore durante il salvataggio Cloud.");
+                    console.error("Cloud Save Failure:", e); 
+                    document.getElementById('syncIndicator').className = "text-red-500";
+                    // Non disturbiamo l'utente con notifiche se sta camminando e salvando il GPS ogni secondo
+                    if (!isTracking) showNotification("Errore sincronizzazione Cloud.");
+                } finally {
+                    isSyncing = false;
                 }
             }
         }
 
         // --- MAPPA E GPS ---
-        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("In attesa del segnale GPS..."); };
-        window.logoutProject = () => { if (confirm("Vuoi cambiare gruppo o modalità?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("GPS non pronto."); };
+        window.logoutProject = () => { if (confirm("Vuoi uscire o cambiare gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); 
@@ -519,7 +541,7 @@
                 
                 closeCheckpointModal(); 
                 saveData(); 
-                showNotification("Nota salvata.");
+                showNotification("Nota salvata con successo.");
             }
         };
 
@@ -558,7 +580,7 @@
                     iconSize: [24, 24], 
                     iconAnchor: [12, 24] 
                 }),
-                zIndexOffset: 500 // Sotto il punto blu ma sopra i cerchi
+                zIndexOffset: 500 
             }).addTo(map);
             cpMarker.bindPopup(`<div class="text-[10px] custom-popup"><b>RILEVAMENTO</b><br>${cp.date}<br><br>${cp.note}</div>`); 
             cp.marker = cpMarker;
@@ -628,7 +650,7 @@
 
         const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea'); let startY, currentTranslateY = 0, isDragging = false;
         dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; isDragging = true; panel.style.transition = 'none'; }, {passive: true});
-        window.addEventListener('touchmove', (e) => { if (!isDragging) return; const m = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (m <= panel.offsetHeight - 85) panel.style.transform = `translateY(${move}px)`; }, {passive: true});
+        window.addEventListener('touchmove', (e) => { if (!isDragging) return; const m = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (m <= panel.offsetHeight - 85) panel.style.transform = `translateY(${m}px)`; }, {passive: true});
         window.addEventListener('touchend', (e) => { if (!isDragging) return; isDragging = false; panel.style.transition = 'transform 0.4s'; const dY = e.changedTouches[0].clientY - startY; if (dY > 50) minimizePanel(); else if (dY < -50) expandPanel(); else panel.style.transform = `translateY(${currentTranslateY}px)`; });
         function minimizePanel() { currentTranslateY = panel.offsetHeight - 85; panel.style.transform = `translateY(${currentTranslateY}px)`; document.getElementById('panelContent').style.opacity = '0.4'; }
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; document.getElementById('panelContent').style.opacity = '1'; }
