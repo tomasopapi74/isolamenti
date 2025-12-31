@@ -20,7 +20,7 @@
             pointer-events: none;
         }
         .gps-dot {
-            width: 18px !important; height: 18px !important; 
+            width: 20px !important; height: 20px !important; 
             background: #2563eb !important; border: 3px solid white !important; border-radius: 50%;
             box-shadow: 0 0 15px rgba(0,0,0,0.6);
             position: relative; z-index: 10;
@@ -60,12 +60,12 @@
                     <i data-lucide="shield-check" class="text-blue-600 w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">Accesso Isolamenti</h1>
-                <p class="text-slate-500 text-sm italic leading-tight">Configurazione Cloud Personale</p>
+                <p class="text-slate-500 text-sm italic leading-tight">Progetto Cloud: isolamenti-923d0</p>
             </div>
             
             <div class="space-y-4">
                 <div class="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
-                    <input type="text" id="projectInput" placeholder="Nome Gruppo (es: Team_2025)" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
+                    <input type="text" id="projectInput" placeholder="ID Gruppo (Team)" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
                     <input type="password" id="passwordInput" placeholder="Password" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
                     <button onclick="handleLogin()" id="loginBtn" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">
                         <span id="btnLabel">ACCEDI AL CLOUD</span>
@@ -87,7 +87,7 @@
         </div>
     </div>
 
-    <!-- INTERFACCIA PRINCIPALE -->
+    <!-- UI PRINCIPALE -->
     <header class="bg-white shadow-md p-4 sticky top-0 z-50 border-b border-slate-100 h-[80px]">
         <div class="max-w-6xl mx-auto flex items-center gap-4">
             <div class="flex items-center gap-2 shrink-0">
@@ -103,7 +103,7 @@
             <div class="flex-1 flex gap-2">
                 <div class="relative flex-1">
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
-                    <input type="text" id="searchInput" placeholder="Cerca punto o codice..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
+                    <input type="text" id="searchInput" placeholder="Cerca campo o codice..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
                 </div>
                 <button onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold active:scale-95 shadow-md">Trova</button>
             </div>
@@ -124,7 +124,7 @@
 
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
             <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
-                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">Segnale GPS</span><span id="accuracyVal">--m</span></div>
+                <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">Precisione GPS</span><span id="accuracyVal">--m</span></div>
                 <div id="syncIndicator" class="text-slate-400"><i data-lucide="cloud-off" class="w-4 h-4"></i></div>
             </div>
         </div>
@@ -173,10 +173,10 @@
         </div>
     </main>
 
-    <!-- Modal Scelta Azione -->
+    <!-- MODALS -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl text-center animate-in zoom-in duration-200">
-            <h2 class="text-lg font-bold text-slate-800 mb-6 tracking-tight">Nuovo Rilevamento</h2>
+            <h2 class="text-lg font-bold text-slate-800 mb-6 tracking-tight">Cosa vuoi fare?</h2>
             <div class="flex flex-col gap-4">
                 <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200 active:scale-95 transition-all">
                     <div class="flex items-center gap-3"><i data-lucide="plus-circle" class="w-6 h-6"></i><span class="font-bold">Crea Isolamento</span></div>
@@ -191,7 +191,7 @@
         </div>
     </div>
 
-    <!-- Modal Form Campo -->
+    <!-- MODAL FORM CAMPO -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-green-700"><i data-lucide="plus-circle"></i> Registra Isolamento</h2>
@@ -218,7 +218,7 @@
         </div>
     </div>
 
-    <!-- Modal Nota sul Campo -->
+    <!-- MODAL NOTA -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Nota sul Campo</h2>
@@ -236,13 +236,11 @@
         <span id="notifText"></span>
     </div>
 
-    <!-- Script Applicazione -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // TUE CHIAVI PERSONALI GOOGLE FIREBASE
         const myFirebaseConfig = {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -275,7 +273,6 @@
 
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
-            const btnLabel = document.getElementById('btnLabel');
             const errorEl = document.getElementById('loginError');
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
@@ -284,6 +281,9 @@
             loginBtn.disabled = true; document.getElementById('btnLabel').innerHTML = '<span class="loader"></span> AUTH...';
             errorEl.classList.add('hidden');
             
+            // GPS in parallelo per velocità
+            setTimeout(() => toggleTracking(true), 100);
+
             try {
                 if (!window.fbReady) await initFirebase();
                 const authPromise = (async () => {
@@ -323,14 +323,16 @@
             
             const checkMap = setInterval(() => {
                 if (mapReady) {
-                    setTimeout(() => toggleTracking(true), 300);
                     if (local) loadForensicData();
                     else startCloudSync();
+                    
+                    setTimeout(() => toggleTracking(true), 300);
                     clearInterval(checkMap);
                 }
             }, 300);
         }
 
+        // --- RECUPERO DATI "RADICALE" ---
         function loadForensicData() {
             let recovered = [];
             const seenIds = new Set();
@@ -355,9 +357,7 @@
             if (recovered.length > 0) {
                 mergeData(recovered);
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(recovered));
-                showNotification(`Dati Recuperati: ${recovered.length} punti.`);
-                const bounds = recovered.map(f => f.latlng);
-                if (bounds.length > 0) map.fitBounds(bounds, { padding: [40, 40] });
+                showNotification(`Punto Zero: Recuperati ${recovered.length} punti.`);
             }
         }
 
@@ -379,16 +379,12 @@
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
             fields = []; 
-            newData.forEach(fData => {
-                if (fData.latlng && typeof fData.latlng === 'object' && !Array.isArray(fData.latlng)) {
-                    fData.latlng = [fData.latlng.lat, fData.latlng.lng];
-                }
-                addFieldToMap(fData);
-            }); 
+            newData.forEach(fData => addFieldToMap(fData)); 
             updateFieldUI();
             map.invalidateSize();
         }
 
+        // --- SALVATAGGIO "DEEP CLONE" (FIX BUG NOTE) ---
         async function saveData() {
             const clean = fields.map(f => ({ 
                 id: f.id, 
@@ -398,21 +394,29 @@
                 latlng: f.latlng, 
                 radius: f.radius, 
                 pathCoords: f.pathCoords || [], 
-                checkpoints: (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date })) 
+                // Assicura che le note siano incluse nel salvataggio Cloud
+                checkpoints: (f.checkpoints || []).map(cp => ({ 
+                    id: cp.id, 
+                    latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
+                    note: cp.note, 
+                    date: cp.date 
+                })) 
             }));
+
             if (isLocalMode) {
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(clean));
             } else if (fb.auth?.currentUser) {
                 try {
                     const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
                     await setDoc(projRef, { password: currentPassword, fields: clean }, { merge: true });
-                } catch (e) { console.error(e); }
+                    document.getElementById('syncIndicator').className = "text-green-600 font-black";
+                } catch (e) { console.error("Cloud Save Error:", e); }
             }
         }
 
-        // --- GPS E UI ---
-        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("GPS non pronto."); };
-        window.logoutProject = () => { if (confirm("Vuoi cambiare gruppo o modalità?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        // --- MAPPA E GPS ---
+        window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("In attesa del segnale GPS..."); };
+        window.logoutProject = () => { if (confirm("Vuoi uscire o cambiare gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); 
@@ -489,14 +493,21 @@
             fields.push(newField); addFieldToMap(newField); closeFieldModal(); saveData(); updateFieldUI();
         };
 
+        // --- AGGIUNTA NOTA (FIX BUG CLOUD) ---
         window.confirmAddCheckpoint = function() {
-            const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
+            const note = document.getElementById('checkpointNoteInput').value.trim(); 
+            if (!note) return;
             const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             if (field) { 
-                const cpData = { id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT') }; 
+                const cpData = { 
+                    id: Date.now(), 
+                    latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], 
+                    note, 
+                    date: new Date().toLocaleString('it-IT') 
+                }; 
                 if (!field.checkpoints) field.checkpoints = []; 
                 field.checkpoints.push(cpData); 
-                renderCheckpointOnMap(cpData); 
+                // Non chiamiamo render qui, lasciamo che saveData + startCloudSync (onSnapshot) facciano il refresh
                 closeCheckpointModal(); 
                 saveData(); 
             }
@@ -518,14 +529,13 @@
                 fields.push({ ...fData, marker, circle, polyline }); 
             }
 
-            // Renderizza i triangolini delle note
+            // Renderizza i triangolini delle note recuperate dal Cloud/Locale
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
-            
             lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp) {
-            const triangleSVG = `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2"/></svg>`;
+            const triangleSVG = `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/></svg>`;
             const cpMarker = L.marker(cp.latlng, { 
                 icon: L.divIcon({ 
                     html: triangleSVG, 
@@ -534,7 +544,6 @@
                     iconAnchor: [11, 22] 
                 }) 
             }).addTo(map);
-            
             cpMarker.bindPopup(`<div class="text-[10px] custom-popup"><b>RILEVAMENTO</b><br>${cp.date}<br><br>${cp.note}</div>`); 
             cp.marker = cpMarker;
         }
@@ -555,7 +564,7 @@
                 } else field.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
             });
             document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-slate-400";
-            document.getElementById('statusText').innerText = anyInside ? "In Area Sicura" : "Monitoraggio...";
+            document.getElementById('statusText').innerText = anyInside ? "In Area" : "Monitoraggio...";
         }
 
         function resetGlobalStatus() { document.getElementById('statusText').innerText = "GPS Off"; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; fields.forEach(f => f.circle.setStyle({ fillOpacity: 0.1, dashArray: '8, 8' })); }
@@ -573,7 +582,7 @@
         }
 
         window.deleteField = function(id) { 
-            if (confirm("Eliminare definitivamente questo punto?")) { 
+            if (confirm("Vuoi eliminare definitivamente questo punto?")) { 
                 const f = fields.find(f => f.id === id);
                 if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); updateFieldUI(); }
             } 
@@ -583,7 +592,6 @@
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
-            
             map.on('click', (e) => { 
                 if (!currentProjectName && !isLocalMode) return; 
                 let target = fields.find(f => e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
@@ -596,7 +604,6 @@
                     openFieldModal(false); 
                 } 
             });
-            
             mapReady = true;
             const saved = localStorage.getItem('isolamenti_last_session');
             if (saved) { try { const s = JSON.parse(saved); enterApp(s.name, s.pass, s.mode === 'local'); } catch(e) {} }
@@ -605,7 +612,7 @@
 
         const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea'); let startY, currentTranslateY = 0, isDragging = false;
         dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; isDragging = true; panel.style.transition = 'none'; }, {passive: true});
-        window.addEventListener('touchmove', (e) => { if (!isDragging) return; const m = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (m <= panel.offsetHeight - 85) panel.style.transform = `translateY(${m}px)`; }, {passive: true});
+        window.addEventListener('touchmove', (e) => { if (!isDragging) return; const m = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (m <= panel.offsetHeight - 85) panel.style.transform = `translateY(${move}px)`; }, {passive: true});
         window.addEventListener('touchend', (e) => { if (!isDragging) return; isDragging = false; panel.style.transition = 'transform 0.4s'; const dY = e.changedTouches[0].clientY - startY; if (dY > 50) minimizePanel(); else if (dY < -50) expandPanel(); else panel.style.transform = `translateY(${currentTranslateY}px)`; });
         function minimizePanel() { currentTranslateY = panel.offsetHeight - 85; panel.style.transform = `translateY(${currentTranslateY}px)`; document.getElementById('panelContent').style.opacity = '0.4'; }
         function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; document.getElementById('panelContent').style.opacity = '1'; }
