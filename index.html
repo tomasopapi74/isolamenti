@@ -20,7 +20,7 @@
             pointer-events: none;
         }
         .gps-dot {
-            width: 20px !important; height: 20px !important; 
+            width: 18px !important; height: 18px !important; 
             background: #2563eb !important; border: 3px solid white !important; border-radius: 50%;
             box-shadow: 0 0 15px rgba(0,0,0,0.6);
             position: relative; z-index: 10;
@@ -60,12 +60,12 @@
                     <i data-lucide="shield-check" class="text-blue-600 w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">Accesso Isolamenti</h1>
-                <p class="text-slate-500 text-sm italic leading-tight">Progetto Cloud: isolamenti-923d0</p>
+                <p class="text-slate-500 text-sm italic leading-tight">Configurazione Cloud Personale</p>
             </div>
             
             <div class="space-y-4">
                 <div class="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
-                    <input type="text" id="projectInput" placeholder="ID Gruppo (Team)" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
+                    <input type="text" id="projectInput" placeholder="Nome Gruppo (es: Team_2025)" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
                     <input type="password" id="passwordInput" placeholder="Password" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
                     <button onclick="handleLogin()" id="loginBtn" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">
                         <span id="btnLabel">ACCEDI AL CLOUD</span>
@@ -125,7 +125,7 @@
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden">
             <div class="bg-white/90 backdrop-blur px-3 py-2 rounded-xl shadow-lg border border-slate-100 text-[10px] font-bold text-slate-600 flex items-center gap-2">
                 <div class="flex flex-col"><span class="text-slate-400 uppercase tracking-tighter">Precisione GPS</span><span id="accuracyVal">--m</span></div>
-                <div id="syncIndicator" class="text-slate-400"><i data-lucide="cloud-off" class="w-4 h-4"></i></div>
+                <div id="syncIndicator" class="text-slate-400 transition-colors"><i data-lucide="cloud" class="w-4 h-4"></i></div>
             </div>
         </div>
 
@@ -191,7 +191,6 @@
         </div>
     </div>
 
-    <!-- MODAL FORM CAMPO -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-green-700"><i data-lucide="plus-circle"></i> Registra Isolamento</h2>
@@ -209,7 +208,7 @@
                     <input type="number" id="fieldLatInput" step="any" placeholder="Lat" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none">
                     <input type="number" id="fieldLonInput" step="any" placeholder="Lon" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none">
                 </div>
-                <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-green-500">
                 <div class="flex gap-3 pt-2">
                     <button onclick="closeFieldModal()" class="flex-1 py-3.5 border border-slate-200 rounded-xl font-bold text-slate-400">Annulla</button>
                     <button onclick="confirmAddField()" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold">REGISTRA</button>
@@ -218,7 +217,6 @@
         </div>
     </div>
 
-    <!-- MODAL NOTA -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in duration-200">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Nota sul Campo</h2>
@@ -241,6 +239,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // CONFIGURAZIONE FIREBASE PERSONALE
         const myFirebaseConfig = {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -273,15 +272,16 @@
 
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
+            const btnLabel = document.getElementById('btnLabel');
             const errorEl = document.getElementById('loginError');
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
             
-            if (!nameRaw || !pass) { errorEl.innerText = "Inserisci nome gruppo e password."; errorEl.classList.remove('hidden'); return; }
-            loginBtn.disabled = true; document.getElementById('btnLabel').innerHTML = '<span class="loader"></span> AUTH...';
+            if (!nameRaw || !pass) { errorEl.innerText = "Dati incompleti."; errorEl.classList.remove('hidden'); return; }
+            loginBtn.disabled = true; btnLabel.innerHTML = '<span class="loader"></span> AUTH...';
             errorEl.classList.add('hidden');
             
-            // GPS in parallelo per velocità
+            // Avvio GPS anticipato
             setTimeout(() => toggleTracking(true), 100);
 
             try {
@@ -304,7 +304,7 @@
                 enterApp(name, pass, false);
             } catch (err) { 
                 errorEl.innerText = err.message; errorEl.classList.remove('hidden'); 
-                loginBtn.disabled = false; document.getElementById('btnLabel').innerText = "ACCEDI AL CLOUD";
+                loginBtn.disabled = false; btnLabel.innerText = "ACCEDI AL CLOUD";
             }
         };
 
@@ -317,7 +317,7 @@
             currentProjectName = name; currentPassword = pass;
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: local ? 'local' : 'cloud', name, pass }));
             
-            document.getElementById('syncStatusLabel').innerText = local ? "Sola Smartphone" : "Cloud Attivo";
+            document.getElementById('syncStatusLabel').innerText = local ? "Dati Smartphone" : "Cloud Attivo";
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
             
@@ -332,7 +332,6 @@
             }, 300);
         }
 
-        // --- RECUPERO DATI "RADICALE" ---
         function loadForensicData() {
             let recovered = [];
             const seenIds = new Set();
@@ -357,7 +356,7 @@
             if (recovered.length > 0) {
                 mergeData(recovered);
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(recovered));
-                showNotification(`Punto Zero: Recuperati ${recovered.length} punti.`);
+                showNotification(`Dati recuperati dalla memoria locale.`);
             }
         }
 
@@ -367,7 +366,11 @@
                 if (doc.exists()) {
                     const cloudFields = doc.data().fields || [];
                     mergeData(cloudFields);
+                    document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                 }
+            }, (err) => { 
+                console.error("Sync Error:", err);
+                document.getElementById('syncIndicator').className = "text-red-500 transition-all";
             });
         }
 
@@ -384,9 +387,9 @@
             map.invalidateSize();
         }
 
-        // --- SALVATAGGIO "DEEP CLONE" (FIX BUG NOTE) ---
+        // --- SALVATAGGIO "CLEAN CLONE" ---
         async function saveData() {
-            const clean = fields.map(f => ({ 
+            const cleanFields = fields.map(f => ({ 
                 id: f.id, 
                 name: f.name, 
                 code: f.code, 
@@ -394,7 +397,6 @@
                 latlng: f.latlng, 
                 radius: f.radius, 
                 pathCoords: f.pathCoords || [], 
-                // Assicura che le note siano incluse nel salvataggio Cloud
                 checkpoints: (f.checkpoints || []).map(cp => ({ 
                     id: cp.id, 
                     latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
@@ -404,19 +406,22 @@
             }));
 
             if (isLocalMode) {
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(clean));
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
             } else if (fb.auth?.currentUser) {
                 try {
                     const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
-                    await setDoc(projRef, { password: currentPassword, fields: clean }, { merge: true });
+                    await setDoc(projRef, { password: currentPassword, fields: cleanFields }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600 font-black";
-                } catch (e) { console.error("Cloud Save Error:", e); }
+                } catch (e) { 
+                    console.error("Cloud Save Error:", e); 
+                    showNotification("Errore durante il salvataggio Cloud.");
+                }
             }
         }
 
         // --- MAPPA E GPS ---
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("In attesa del segnale GPS..."); };
-        window.logoutProject = () => { if (confirm("Vuoi uscire o cambiare gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Vuoi cambiare gruppo o modalità?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); 
@@ -493,9 +498,10 @@
             fields.push(newField); addFieldToMap(newField); closeFieldModal(); saveData(); updateFieldUI();
         };
 
-        // --- AGGIUNTA NOTA (FIX BUG CLOUD) ---
+        // --- AGGIUNTA NOTA (CORRETTO SALVATAGGIO CLOUD) ---
         window.confirmAddCheckpoint = function() {
-            const note = document.getElementById('checkpointNoteInput').value.trim(); 
+            const noteInput = document.getElementById('checkpointNoteInput');
+            const note = noteInput.value.trim(); 
             if (!note) return;
             const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             if (field) { 
@@ -507,9 +513,13 @@
                 }; 
                 if (!field.checkpoints) field.checkpoints = []; 
                 field.checkpoints.push(cpData); 
-                // Non chiamiamo render qui, lasciamo che saveData + startCloudSync (onSnapshot) facciano il refresh
+                
+                // Rendering immediato per feedback
+                renderCheckpointOnMap(cpData);
+                
                 closeCheckpointModal(); 
                 saveData(); 
+                showNotification("Nota salvata.");
             }
         };
 
@@ -530,19 +540,25 @@
             }
 
             // Renderizza i triangolini delle note recuperate dal Cloud/Locale
-            if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
+            if (fData.checkpoints) {
+                fData.checkpoints.forEach(cp => {
+                    // Evita duplicati se il marker esiste già
+                    if (!cp.marker) renderCheckpointOnMap(cp);
+                });
+            }
             lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp) {
-            const triangleSVG = `<svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/></svg>`;
+            const triangleSVG = `<svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/></svg>`;
             const cpMarker = L.marker(cp.latlng, { 
                 icon: L.divIcon({ 
                     html: triangleSVG, 
                     className: '', 
-                    iconSize: [22, 22], 
-                    iconAnchor: [11, 22] 
-                }) 
+                    iconSize: [24, 24], 
+                    iconAnchor: [12, 24] 
+                }),
+                zIndexOffset: 500 // Sotto il punto blu ma sopra i cerchi
             }).addTo(map);
             cpMarker.bindPopup(`<div class="text-[10px] custom-popup"><b>RILEVAMENTO</b><br>${cp.date}<br><br>${cp.note}</div>`); 
             cp.marker = cpMarker;
