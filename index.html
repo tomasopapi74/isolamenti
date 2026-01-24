@@ -20,8 +20,13 @@
         .gps-radar { position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(37, 99, 235, 0.3); animation: radar-pulse 2s ease-out infinite; z-index: 1; }
         @keyframes radar-pulse { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
 
-        #statusPanel { transition: transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); touch-action: none; padding-bottom: env(safe-area-inset-bottom); }
-        .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 10px auto; }
+        /* Pannello con transizione fluida */
+        #statusPanel { 
+            transition: transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); 
+            touch-action: none; 
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 4px auto; }
         
         #loginOverlay { position: fixed; inset: 0; background: #f8fafc; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #16a34a; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
@@ -29,6 +34,10 @@
         
         .photo-preview { width: 100%; height: 120px; border-radius: 12px; object-fit: cover; background: #f1f5f9; border: 2px dashed #cbd5e1; }
         .list-thumb { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; border: 1px solid #e2e8f0; }
+
+        /* Rotazione icona tendina */
+        .chevron-rotate { transition: transform 0.4s ease; }
+        .expanded .chevron-rotate { transform: rotate(180deg); }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -85,11 +94,15 @@
             </div>
         </div>
 
+        <!-- PANNELLO INFERIORE -->
         <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] rounded-t-[32px] p-5 z-[1000] border-t border-slate-200 max-h-[85vh] flex flex-col translate-y-[calc(100%-85px)]">
-            <div id="dragArea" class="cursor-grab active:cursor-grabbing pb-4 -mt-2 shrink-0">
+            <div id="dragArea" class="cursor-pointer pb-4 -mt-2 shrink-0 select-none">
                 <div class="drag-handle"></div>
                 <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">I Miei Punti</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">I Miei Punti</span>
+                        <i data-lucide="chevron-up" class="w-4 h-4 text-slate-300 chevron-rotate"></i>
+                    </div>
                     <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 transition-all">
                         <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
                         <span id="statusText">GPS Off</span>
@@ -282,7 +295,8 @@
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 try {
-                    const data = JSON.parse(localStorage.getItem(key));
+                    const raw = localStorage.getItem(key);
+                    const data = JSON.parse(raw);
                     const extract = (item) => {
                         if (!item) return;
                         const coords = item.latlng || (item.lat && item.lng ? [item.lat, item.lng] : null);
@@ -559,12 +573,65 @@
             lucide.createIcons();
         }
 
-        const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea'); let startY, currentTranslateY = 0, isDragging = false;
-        dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; isDragging = true; panel.style.transition = 'none'; }, {passive: true});
-        window.addEventListener('touchmove', (e) => { if (!isDragging) return; const m = Math.max(0, e.touches[0].clientY - startY + currentTranslateY); if (m <= panel.offsetHeight - 85) panel.style.transform = `translateY(${m}px)`; }, {passive: true});
-        window.addEventListener('touchend', (e) => { if (!isDragging) return; isDragging = false; panel.style.transition = 'transform 0.4s'; const dY = e.changedTouches[0].clientY - startY; if (dY > 50) minimizePanel(); else if (dY < -50) expandPanel(); else panel.style.transform = `translateY(${currentTranslateY}px)`; });
-        function minimizePanel() { currentTranslateY = panel.offsetHeight - 85; panel.style.transform = `translateY(${currentTranslateY}px)`; document.getElementById('panelContent').style.opacity = '0.4'; }
-        function expandPanel() { currentTranslateY = 0; panel.style.transform = `translateY(0px)`; document.getElementById('panelContent').style.opacity = '1'; }
+        // --- GESTIONE TENDINA ---
+        const panel = document.getElementById('statusPanel'); 
+        const dragArea = document.getElementById('dragArea'); 
+        let startY, currentTranslateY = 0, isDragging = false, isExpanded = false;
+
+        function updatePanelPosition() {
+            if (isExpanded) {
+                panel.style.transform = 'translateY(0)';
+                panel.classList.add('expanded');
+                document.getElementById('panelContent').style.opacity = '1';
+                currentTranslateY = 0;
+            } else {
+                const hiddenY = panel.offsetHeight - 85;
+                panel.style.transform = `translateY(${hiddenY}px)`;
+                panel.classList.remove('expanded');
+                document.getElementById('panelContent').style.opacity = '0.4';
+                currentTranslateY = hiddenY;
+            }
+        }
+
+        // Click per aprire/chiudere al tocco
+        dragArea.addEventListener('click', () => {
+            isExpanded = !isExpanded;
+            updatePanelPosition();
+        });
+
+        dragArea.addEventListener('touchstart', (e) => { 
+            startY = e.touches[0].clientY; 
+            isDragging = true; 
+            panel.style.transition = 'none'; 
+        }, {passive: true});
+
+        window.addEventListener('touchmove', (e) => { 
+            if (!isDragging) return; 
+            const deltaY = e.touches[0].clientY - startY;
+            const newY = currentTranslateY + deltaY;
+            const minClamp = 0;
+            const maxClamp = panel.offsetHeight - 85;
+            
+            if (newY >= minClamp && newY <= maxClamp) {
+                panel.style.transform = `translateY(${newY}px) text-slate-100`;
+            }
+        }, {passive: true});
+
+        window.addEventListener('touchend', (e) => { 
+            if (!isDragging) return; 
+            isDragging = false; 
+            panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; 
+            const finalY = e.changedTouches[0].clientY;
+            const dY = finalY - startY;
+
+            if (dY > 50) isExpanded = false;
+            else if (dY < -50) isExpanded = true;
+            
+            updatePanelPosition();
+        });
+
+        window.expandPanel = () => { isExpanded = true; updatePanelPosition(); };
+        window.minimizePanel = () => { isExpanded = false; updatePanelPosition(); };
         function showNotification(text) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = text; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 5000); }
 
         initMap(); initFirebase();
