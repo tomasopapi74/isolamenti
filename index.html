@@ -37,7 +37,7 @@
 
         /* Rotazione icona tendina */
         .chevron-rotate { transition: transform 0.4s ease; }
-        .expanded .chevron-rotate { transform: rotate(180deg); }
+        .is-expanded .chevron-rotate { transform: rotate(180deg); }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -96,11 +96,11 @@
 
         <!-- PANNELLO INFERIORE -->
         <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] rounded-t-[32px] p-5 z-[1000] border-t border-slate-200 max-h-[85vh] flex flex-col translate-y-[calc(100%-85px)]">
-            <div id="dragArea" class="cursor-pointer pb-4 -mt-2 shrink-0 select-none">
+            <div id="dragArea" onclick="togglePanel()" class="cursor-pointer pb-4 -mt-2 shrink-0 select-none">
                 <div class="drag-handle"></div>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">I Miei Punti</span>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Elenco Campi</span>
                         <i data-lucide="chevron-up" class="w-4 h-4 text-slate-300 chevron-rotate"></i>
                     </div>
                     <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 transition-all">
@@ -175,7 +175,7 @@
                 </div>
                 <div class="flex gap-3 pt-2">
                     <button onclick="closeFieldModal()" class="flex-1 py-3.5 border border-slate-200 rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddField()" id="fieldConfirmBtn" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold">REGISTRA</button>
+                    <button onclick="confirmAddField()" id="fieldConfirmBtn" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold">SALVA</button>
                 </div>
             </div>
         </div>
@@ -278,7 +278,7 @@
         function enterApp(name, pass, local) {
             isLocalMode = local; currentProjectName = name; currentPassword = pass;
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: local ? 'local' : 'cloud', name, pass }));
-            document.getElementById('syncStatusLabel').innerText = local ? "Sola Smartphone" : "Cloud Attivo";
+            document.getElementById('syncStatusLabel').innerText = local ? "Dati Smartphone" : "Cloud Attivo";
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
             const checkMap = setInterval(() => {
@@ -337,7 +337,7 @@
                 }
                 addFieldToMap(fData);
             }); 
-            updateFieldUI(); map.invalidateSize();
+            window.updateFieldUI(); map.invalidateSize();
         }
 
         async function saveData() {
@@ -345,7 +345,7 @@
             const cleanFields = fields.map(f => {
                 const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
                 return { 
-                    id: f.id, name: f.name || "Campo", code: f.code || "---", category: f.category || "cipolle", latlng: latlng, radius: Number(f.radius) || 1000, 
+                    id: f.id, name: f.name || "Campo", code: f.code || "---", category: (f.category || "cipolle").toLowerCase(), latlng: latlng, radius: Number(f.radius) || 1000, 
                     photo: f.photo || null,
                     pathCoords: JSON.stringify(f.pathCoords || []), 
                     checkpoints: (f.checkpoints || []).map(cp => ({ 
@@ -391,7 +391,7 @@
         window.confirmAddField = function() {
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "001";
-            const category = document.getElementById('fieldCategoryInput').value;
+            const category = document.getElementById('fieldCategoryInput').value.toLowerCase();
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             const photoPreview = document.getElementById('fieldPhotoPreview');
             const photo = photoPreview.src.startsWith('data:') ? photoPreview.src : null;
@@ -412,7 +412,7 @@
                 const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                 fields.push(newField); addFieldToMap(newField);
             }
-            closeFieldModal(); saveData(); updateFieldUI();
+            closeFieldModal(); saveData(); window.updateFieldUI();
         };
 
         window.confirmAddCheckpoint = function() {
@@ -437,15 +437,24 @@
         };
 
         function addFieldToMap(fData) {
-            const colors = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7' }; const color = colors[fData.category] || '#64748b';
+            const categories = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7' };
+            const catKey = (fData.category || "cipolle").toLowerCase();
+            const color = categories[catKey] || '#64748b';
             const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             const circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
             const polyline = L.polyline(fData.pathCoords || [], { color: '#000000', weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
             const photoHtml = fData.photo ? `<img src="${fData.photo}" class="w-full rounded-lg mt-2 shadow-sm border border-slate-200">` : '';
             marker.bindPopup(`<div class="text-[11px] font-bold uppercase tracking-tight">${fData.name}</div><div class="text-[9px] text-slate-400 font-mono">${fData.code}</div>${photoHtml}`, { className: 'custom-popup' });
+            
             fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
+            
+            const existingIdx = fields.findIndex(f => f.id === fData.id);
+            if (existingIdx === -1) {
+                fields.push(fData);
+            }
+            
             if (fData.checkpoints) fData.checkpoints.forEach(cp => { if (!cp.marker) renderCheckpointOnMap(cp); });
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp) {
@@ -465,7 +474,7 @@
             document.getElementById('fieldConfirmBtn').innerText = "Aggiorna Dati";
             document.getElementById('fieldNameInput').value = f.name;
             document.getElementById('fieldCodeInput').value = f.code;
-            document.getElementById('fieldCategoryInput').value = f.category;
+            document.getElementById('fieldCategoryInput').value = (f.category || "cipolle").toLowerCase();
             document.getElementById('fieldRadiusInput').value = f.radius;
             const preview = document.getElementById('fieldPhotoPreview');
             if (f.photo) { preview.src = f.photo; preview.classList.remove('hidden'); } else { preview.src = ""; preview.classList.add('hidden'); }
@@ -490,12 +499,12 @@
 
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); else showNotification("GPS non pronto."); };
         window.logoutProject = () => { if (confirm("Vuoi cambiare gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
-        window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.remove('flex'); document.getElementById('fieldModal').classList.add('hidden'); document.getElementById('fieldPhotoPreview').src = ""; };
-        window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.remove('flex'); document.getElementById('checkpointModal').classList.add('hidden'); document.getElementById('checkpointPhotoPreview').src = ""; };
+        window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); document.getElementById('fieldModal').classList.remove('flex'); document.getElementById('fieldPhotoPreview').src = ""; };
+        window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.add('hidden'); document.getElementById('checkpointModal').classList.remove('flex'); document.getElementById('checkpointPhotoPreview').src = ""; };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
-        window.selectNewField = () => { closeActionChoiceModal(); tempFieldId = null; document.getElementById('fieldModalTitle').innerHTML = '<i data-lucide="plus-circle"></i> Registra Isolamento'; document.getElementById('fieldConfirmBtn').innerText = "Registra"; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('fieldNameInput').focus(); lucide.createIcons(); };
-        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModalTitle').innerHTML = '<i data-lucide="clipboard-check"></i> Nota sul Campo'; document.getElementById('checkpointConfirmBtn').innerText = "Salva Nota"; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); lucide.createIcons(); };
-        window.openManualCoordModal = () => { document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('coordsInputs').classList.remove('hidden'); document.getElementById('fieldNameInput').focus(); };
+        window.selectNewField = () => { closeActionChoiceModal(); tempFieldId = null; document.getElementById('fieldModalTitle').innerHTML = '<i data-lucide="plus-circle"></i> Registra Isolamento'; document.getElementById('fieldConfirmBtn').innerText = "Registra"; document.getElementById('fieldModal').classList.remove('hidden'); document.getElementById('fieldModal').classList.add('flex'); document.getElementById('fieldNameInput').focus(); lucide.createIcons(); };
+        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModalTitle').innerHTML = '<i data-lucide="clipboard-check"></i> Nota sul Campo'; document.getElementById('checkpointConfirmBtn').innerText = "Salva Nota"; document.getElementById('checkpointModal').classList.remove('hidden'); document.getElementById('checkpointModal').classList.add('flex'); document.getElementById('checkpointNoteInput').focus(); lucide.createIcons(); };
+        window.openManualCoordModal = () => { document.getElementById('fieldModal').classList.remove('hidden'); document.getElementById('fieldModal').classList.add('flex'); document.getElementById('coordsInputs').classList.remove('hidden'); document.getElementById('fieldNameInput').focus(); };
 
         window.toggleTracking = (auto = false) => {
             const btn = document.getElementById('trackBtn'); const tele = document.getElementById('telemetryPanel');
@@ -533,11 +542,16 @@
         window.updateFieldUI = function() {
             const categories = ['cipolle', 'bunching', 'brassiche']; let total = 0;
             categories.forEach(cat => {
-                const section = document.getElementById(`cat-${cat}`); const list = document.getElementById(`list-${cat}`); const catFields = fields.filter(f => f.category === cat);
+                const section = document.getElementById(`cat-${cat}`); 
+                const list = document.getElementById(`list-${cat}`); 
+                const catFields = fields.filter(f => (f.category || "").toLowerCase() === cat);
+                
                 if (catFields.length > 0) {
-                    section.classList.remove('hidden'); list.innerHTML = "";
+                    section.classList.remove('hidden'); 
+                    list.innerHTML = "";
                     catFields.forEach(f => {
-                        total++; const item = document.createElement('div');
+                        total++; 
+                        const item = document.createElement('div');
                         item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm active:scale-[0.98]";
                         item.onclick = () => { map.flyTo(f.latlng, 15); f.marker.openPopup(); };
                         const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-300"></i></div>`;
@@ -550,13 +564,16 @@
                             </div>`;
                         list.appendChild(item);
                     });
-                } else section.classList.add('hidden');
+                } else {
+                    section.classList.add('hidden');
+                }
             });
+            
             document.getElementById('emptyMsg').classList.toggle('hidden', total > 0); 
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
-        window.deleteField = function(id) { if (confirm("Eliminare definitivamente?")) { const f = fields.find(f => f.id === id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); updateFieldUI(); } } };
+        window.deleteField = function(id) { if (confirm("Eliminare definitivamente?")) { const f = fields.find(f => f.id === id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); window.updateFieldUI(); } } };
         window.handleSearch = () => { const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return; const f = fields.find(f => (f.name && f.name.toLowerCase().includes(q)) || (f.code && f.code.toLowerCase().includes(q))); if (f) { map.flyTo(f.latlng, 15); f.marker.openPopup(); expandPanel(); } };
 
         function initMap() {
@@ -579,27 +596,26 @@
         const dragArea = document.getElementById('dragArea'); 
         let startY, currentTranslateY = 0, isDragging = false, isExpanded = false;
 
+        window.togglePanel = function() {
+            if (isDragging) return;
+            isExpanded = !isExpanded;
+            updatePanelPosition();
+        };
+
         function updatePanelPosition() {
             if (isExpanded) {
                 panel.style.transform = 'translateY(0)';
-                panel.classList.add('expanded');
+                panel.classList.add('is-expanded');
                 document.getElementById('panelContent').style.opacity = '1';
                 currentTranslateY = 0;
             } else {
                 const hiddenY = panel.offsetHeight - 85;
                 panel.style.transform = `translateY(${hiddenY}px)`;
-                panel.classList.remove('expanded');
+                panel.classList.remove('is-expanded');
                 document.getElementById('panelContent').style.opacity = '0.4';
                 currentTranslateY = hiddenY;
             }
         }
-
-        // Click per aprire/chiudere al tocco
-        dragArea.addEventListener('click', (e) => {
-            if (isDragging) return;
-            isExpanded = !isExpanded;
-            updatePanelPosition();
-        });
 
         dragArea.addEventListener('touchstart', (e) => { 
             startY = e.touches[0].clientY; 
@@ -621,7 +637,7 @@
 
         window.addEventListener('touchend', (e) => { 
             if (!isDragging) return; 
-            isDragging = false; 
+            setTimeout(() => { isDragging = false; }, 100);
             panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; 
             const finalY = e.changedTouches[0].clientY;
             const dY = finalY - startY;
