@@ -168,15 +168,27 @@
                     <input type="number" id="fieldLonInput" step="any" placeholder="Lon" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none">
                 </div>
                 <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-green-500">
+                
+                <!-- SEZIONE FOTO CAMPO -->
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto del Campo</label>
                     <img id="fieldPhotoPreview" src="" class="photo-preview hidden">
-                    <button onclick="document.getElementById('fieldPhotoInput').click()" class="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold border border-slate-200 flex items-center justify-center gap-2"><i data-lucide="camera" class="w-4 h-4"></i> SCATTA O SCEGLI FOTO</button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="document.getElementById('fieldCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold shadow-md active:scale-95 flex items-center justify-center gap-1.5 uppercase">
+                            <i data-lucide="camera" class="w-4 h-4"></i> Scatta
+                        </button>
+                        <button onclick="document.getElementById('fieldPhotoInput').click()" class="py-3 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border border-slate-200 active:scale-95 flex items-center justify-center gap-1.5 uppercase">
+                            <i data-lucide="image" class="w-4 h-4"></i> Galleria
+                        </button>
+                    </div>
+                    <!-- Inputs nascosti -->
+                    <input type="file" id="fieldCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview')">
                     <input type="file" id="fieldPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview')">
                 </div>
+
                 <div class="flex gap-3 pt-2">
                     <button onclick="closeFieldModal()" class="flex-1 py-3.5 border border-slate-200 rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddField()" id="fieldConfirmBtn" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold">SALVA</button>
+                    <button onclick="confirmAddField()" id="fieldConfirmBtn" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold shadow-lg shadow-green-100 active:scale-95 transition-all">SALVA</button>
                 </div>
             </div>
         </div>
@@ -192,15 +204,27 @@
                     <input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
                     <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700 cursor-pointer select-none uppercase">Controllato OK (Applica X)</label>
                 </div>
+
+                <!-- SEZIONE FOTO NOTA -->
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto del Rilevamento</label>
                     <img id="checkpointPhotoPreview" src="" class="photo-preview hidden">
-                    <button onclick="document.getElementById('checkpointPhotoInput').click()" class="w-full py-3 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold border border-slate-200 flex items-center justify-center gap-2"><i data-lucide="camera" class="w-4 h-4"></i> SCATTA O SCEGLI FOTO</button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="document.getElementById('checkpointCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold shadow-md active:scale-95 flex items-center justify-center gap-1.5 uppercase">
+                            <i data-lucide="camera" class="w-4 h-4"></i> Scatta
+                        </button>
+                        <button onclick="document.getElementById('checkpointPhotoInput').click()" class="py-3 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border border-slate-200 active:scale-95 flex items-center justify-center gap-1.5 uppercase">
+                            <i data-lucide="image" class="w-4 h-4"></i> Galleria
+                        </button>
+                    </div>
+                    <!-- Inputs nascosti -->
+                    <input type="file" id="checkpointCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview')">
                     <input type="file" id="checkpointPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview')">
                 </div>
+
                 <div class="flex gap-3 pt-2">
                     <button onclick="closeCheckpointModal()" class="flex-1 py-3.5 border border-slate-200 rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddCheckpoint()" id="checkpointConfirmBtn" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold uppercase">SALVA</button>
+                    <button onclick="confirmAddCheckpoint()" id="checkpointConfirmBtn" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold uppercase shadow-lg shadow-blue-100 active:scale-95 transition-all">SALVA</button>
                 </div>
             </div>
         </div>
