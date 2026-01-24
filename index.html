@@ -74,7 +74,7 @@
             <div class="flex-1 flex gap-2">
                 <div class="relative flex-1">
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
-                    <input type="text" id="searchInput" placeholder="Cerca..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
+                    <input type="text" id="searchInput" placeholder="Cerca campo..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
                 </div>
                 <button onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold active:scale-95 shadow-md">Trova</button>
             </div>
@@ -530,7 +530,7 @@
             document.getElementById('statusText').innerText = anyInside ? "In Area" : "Monitoraggio...";
         }
 
-        function updateFieldUI() {
+        window.updateFieldUI = function() {
             const categories = ['cipolle', 'bunching', 'brassiche']; let total = 0;
             categories.forEach(cat => {
                 const section = document.getElementById(`cat-${cat}`); const list = document.getElementById(`list-${cat}`); const catFields = fields.filter(f => f.category === cat);
@@ -552,7 +552,8 @@
                     });
                 } else section.classList.add('hidden');
             });
-            document.getElementById('emptyMsg').classList.toggle('hidden', total > 0); lucide.createIcons();
+            document.getElementById('emptyMsg').classList.toggle('hidden', total > 0); 
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
         window.deleteField = function(id) { if (confirm("Eliminare definitivamente?")) { const f = fields.find(f => f.id === id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); updateFieldUI(); } } };
@@ -565,12 +566,12 @@
             map.on('click', (e) => { 
                 if (!currentProjectName && !isLocalMode) return; 
                 let target = fields.find(f => e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
-                if (target) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: target.id, checkpointId: null }; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); } 
-                else { tempFieldCoords = e.latlng; tempFieldId = null; document.getElementById('fieldModalTitle').innerHTML = '<i data-lucide="plus-circle"></i> Registra Isolamento'; document.getElementById('fieldConfirmBtn').innerText = "Registra"; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('fieldNameInput').focus(); lucide.createIcons(); }
+                if (target) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: target.id, checkpointId: null }; document.getElementById('actionChoiceModal').classList.remove('hidden'); if (typeof lucide !== 'undefined') lucide.createIcons(); } 
+                else { tempFieldCoords = e.latlng; tempFieldId = null; document.getElementById('fieldModalTitle').innerHTML = '<i data-lucide="plus-circle"></i> Registra Isolamento'; document.getElementById('fieldConfirmBtn').innerText = "Registra"; document.getElementById('fieldModal').classList.remove('hidden'); document.getElementById('fieldModal').classList.add('flex'); document.getElementById('fieldNameInput').focus(); if (typeof lucide !== 'undefined') lucide.createIcons(); }
             });
             mapReady = true; const saved = localStorage.getItem('isolamenti_last_session');
             if (saved) { try { const s = JSON.parse(saved); enterApp(s.name, s.pass, s.mode === 'local'); } catch(e) {} }
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
         // --- GESTIONE TENDINA ---
@@ -594,7 +595,8 @@
         }
 
         // Click per aprire/chiudere al tocco
-        dragArea.addEventListener('click', () => {
+        dragArea.addEventListener('click', (e) => {
+            if (isDragging) return;
             isExpanded = !isExpanded;
             updatePanelPosition();
         });
@@ -613,7 +615,7 @@
             const maxClamp = panel.offsetHeight - 85;
             
             if (newY >= minClamp && newY <= maxClamp) {
-                panel.style.transform = `translateY(${newY}px) text-slate-100`;
+                panel.style.transform = `translateY(${newY}px)`;
             }
         }, {passive: true});
 
@@ -624,8 +626,8 @@
             const finalY = e.changedTouches[0].clientY;
             const dY = finalY - startY;
 
-            if (dY > 50) isExpanded = false;
-            else if (dY < -50) isExpanded = true;
+            if (dY > 40) isExpanded = false;
+            else if (dY < -40) isExpanded = true;
             
             updatePanelPosition();
         });
