@@ -116,7 +116,10 @@
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3.5 rounded-xl font-bold active:scale-95 shadow-md"><i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS</button>
                         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3.5 rounded-xl hover:bg-slate-200"><i data-lucide="log-out" class="w-5 h-5"></i></button>
                     </div>
-                    <button onclick="triggerExcelImport()" class="w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-3 rounded-xl font-black text-xs border border-green-200 active:scale-95 shadow-sm"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> IMPORTA DA EXCEL / CSV</button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="triggerExcelImport()" class="w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-3 rounded-xl font-black text-[10px] border border-green-200 active:scale-95 shadow-sm uppercase"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Importa Excel</button>
+                        <button onclick="exportBackup()" class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-700 py-3 rounded-xl font-black text-[10px] border border-blue-200 active:scale-95 shadow-sm uppercase"><i data-lucide="download" class="w-4 h-4"></i> Esporta Backup</button>
+                    </div>
                     <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleExcelFile(event)">
                 </div>
                 <div id="fieldsSection" class="space-y-6">
@@ -500,43 +503,15 @@
                 if(userMarker) { map.removeLayer(userMarker); userMarker = null; }
             } else if (!isTracking) {
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
-                
-                // Freccia SVG stile navigatore
-                const arrowSVG = `
-                    <div class="gps-arrow-icon">
-                        <svg viewBox="0 0 24 24" width="44" height="44">
-                            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/>
-                        </svg>
-                    </div>`;
-
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
-                    
                     if (!userMarker) { 
-                        userMarker = L.marker(latlng, { 
-                            icon: L.divIcon({ 
-                                className: 'gps-arrow-container', 
-                                html: arrowSVG, 
-                                iconSize: [44, 44], 
-                                iconAnchor: [22, 22] 
-                            }), 
-                            zIndexOffset: 10000 
-                        }).addTo(map); 
+                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-marker-container', html: '<div class="gps-radar"></div><div class="gps-dot"></div>', iconSize: [44, 44], iconAnchor: [22, 22] }), zIndexOffset: 10000 }).addTo(map); 
                         map.flyTo(latlng, 17); 
-                    } else { 
-                        userMarker.setLatLng(latlng); 
-                    }
-
-                    // Ruota la freccia se l'heading è disponibile (direzione di marcia)
-                    if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
-                        const iconEl = userMarker.getElement().querySelector('.gps-arrow-icon');
-                        if (iconEl) iconEl.style.transform = `rotate(${pos.coords.heading}deg)`;
-                    }
-
+                    } else { userMarker.setLatLng(latlng); }
                     updateTrajectory(latlng);
-                    isTracking = true; 
-                    document.getElementById('telemetryPanel').classList.remove('hidden');
+                    isTracking = true; document.getElementById('telemetryPanel').classList.remove('hidden');
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Stop GPS';
                     document.getElementById('trackBtn').classList.replace('bg-slate-900', 'bg-rose-600');
                     lucide.createIcons();
@@ -584,6 +559,77 @@
             document.getElementById('emptyMsg').classList.toggle('hidden', total > 0); 
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
+
+        // Funzione per esportare il backup
+        window.exportBackup = () => {
+            if (fields.length === 0) {
+                showNotification("Nessun dato da esportare.");
+                return;
+            }
+            // Prepariamo i dati per l'esportazione (tutti i campi con note e traiettorie)
+            const backupData = fields.map(f => ({
+                ...f,
+                marker: undefined, // Rimuoviamo gli oggetti mappa che non sono serializzabili
+                circle: undefined,
+                polyline: undefined,
+                checkpoints: (f.checkpoints || []).map(cp => ({ ...cp, marker: undefined }))
+            }));
+
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const fileName = `backup_isolamenti_${currentProjectName || 'locale'}_${new Date().toISOString().slice(0,10)}.json`;
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', fileName);
+            linkElement.click();
+            showNotification("Backup scaricato.");
+        };
+
+        window.triggerExcelImport = () => document.getElementById('excelInput').click();
+
+        window.handleExcelFile = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            // Supporto basilare per importare anche il backup JSON se selezionato
+            if (file.name.endsWith('.json')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        mergeData(imported);
+                        saveData();
+                        showNotification("Backup ripristinato!");
+                    } catch (err) { showNotification("Errore nel file JSON."); }
+                };
+                reader.readAsText(file);
+                return;
+            }
+            // Logica Excel esistente...
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                const newFields = json.map(item => ({
+                    id: Date.now() + Math.random(),
+                    name: item.Nome || item.name || "Campo",
+                    code: item.Codice || item.code || "---",
+                    category: (item.Categoria || item.category || "cipolle").toLowerCase(),
+                    latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)],
+                    radius: parseInt(item.Raggio || item.radius) || 1000,
+                    photo: null,
+                    pathCoords: [],
+                    checkpoints: []
+                })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
+                mergeData([...fields, ...newFields]);
+                saveData();
+                showNotification(`Importati ${newFields.length} punti.`);
+            };
+            reader.readAsArrayBuffer(file);
+        };
 
         window.deleteField = (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id === id); if (f) { map.removeLayer(f.marker); map.removeLayer(f.circle); map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); window.updateFieldUI(); } } };
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
