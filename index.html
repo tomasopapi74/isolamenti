@@ -15,11 +15,13 @@
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; }
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; }
         
-        .gps-marker-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
-        .gps-dot { width: 18px !important; height: 18px !important; background: #2563eb !important; border: 3px solid white !important; border-radius: 50%; box-shadow: 0 0 15px rgba(0,0,0,0.6); position: relative; z-index: 10; }
-        .gps-radar { position: absolute; width: 44px; height: 44px; border-radius: 50%; background: rgba(37, 99, 235, 0.3); animation: radar-pulse 2s ease-out infinite; z-index: 1; }
-        @keyframes radar-pulse { 0% { transform: scale(0.2); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
-
+        /* Stile per il cursore a freccia */
+        .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
+        .gps-arrow-icon { 
+            transition: transform 0.3s ease-out; 
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+        
         #statusPanel { 
             transition: transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); 
             touch-action: none; 
@@ -498,15 +500,43 @@
                 if(userMarker) { map.removeLayer(userMarker); userMarker = null; }
             } else if (!isTracking) {
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
+                
+                // Freccia SVG stile navigatore
+                const arrowSVG = `
+                    <div class="gps-arrow-icon">
+                        <svg viewBox="0 0 24 24" width="44" height="44">
+                            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/>
+                        </svg>
+                    </div>`;
+
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
+                    
                     if (!userMarker) { 
-                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-marker-container', html: '<div class="gps-radar"></div><div class="gps-dot"></div>', iconSize: [44, 44], iconAnchor: [22, 22] }), zIndexOffset: 10000 }).addTo(map); 
+                        userMarker = L.marker(latlng, { 
+                            icon: L.divIcon({ 
+                                className: 'gps-arrow-container', 
+                                html: arrowSVG, 
+                                iconSize: [44, 44], 
+                                iconAnchor: [22, 22] 
+                            }), 
+                            zIndexOffset: 10000 
+                        }).addTo(map); 
                         map.flyTo(latlng, 17); 
-                    } else { userMarker.setLatLng(latlng); }
+                    } else { 
+                        userMarker.setLatLng(latlng); 
+                    }
+
+                    // Ruota la freccia se l'heading è disponibile (direzione di marcia)
+                    if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
+                        const iconEl = userMarker.getElement().querySelector('.gps-arrow-icon');
+                        if (iconEl) iconEl.style.transform = `rotate(${pos.coords.heading}deg)`;
+                    }
+
                     updateTrajectory(latlng);
-                    isTracking = true; document.getElementById('telemetryPanel').classList.remove('hidden');
+                    isTracking = true; 
+                    document.getElementById('telemetryPanel').classList.remove('hidden');
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Stop GPS';
                     document.getElementById('trackBtn').classList.replace('bg-slate-900', 'bg-rose-600');
                     lucide.createIcons();
