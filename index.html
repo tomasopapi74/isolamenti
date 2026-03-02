@@ -116,11 +116,14 @@
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3.5 rounded-xl font-bold active:scale-95 shadow-md"><i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS</button>
                         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3.5 rounded-xl hover:bg-slate-200"><i data-lucide="log-out" class="w-5 h-5"></i></button>
                     </div>
+                    <!-- Nuova gestione bottoni import/export -->
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="triggerExcelImport()" class="w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-3 rounded-xl font-black text-[10px] border border-green-200 active:scale-95 shadow-sm uppercase"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Importa Excel</button>
-                        <button onclick="exportBackup()" class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-700 py-3 rounded-xl font-black text-[10px] border border-blue-200 active:scale-95 shadow-sm uppercase"><i data-lucide="download" class="w-4 h-4"></i> Esporta Backup</button>
+                        <button onclick="triggerBackupImport()" class="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 py-3 rounded-xl font-black text-[10px] border border-indigo-200 active:scale-95 shadow-sm uppercase"><i data-lucide="upload" class="w-4 h-4"></i> Importa Backup</button>
                     </div>
-                    <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleExcelFile(event)">
+                    <button onclick="exportBackup()" class="w-full flex items-center justify-center gap-2 bg-blue-50 text-blue-700 py-3.5 rounded-xl font-black text-[10px] border border-blue-200 active:scale-95 shadow-sm uppercase mt-1"><i data-lucide="download" class="w-4 h-4"></i> Esporta Backup (JSON)</button>
+                    
+                    <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv, .json" onchange="handleExcelFile(event)">
                 </div>
                 <div id="fieldsSection" class="space-y-6">
                     <div id="cat-cipolle" class="hidden">
@@ -612,6 +615,7 @@
         };
 
         window.triggerExcelImport = () => document.getElementById('excelInput').click();
+        window.triggerBackupImport = () => document.getElementById('excelInput').click();
 
         window.handleExcelFile = (event) => {
             const file = event.target.files[0];
