@@ -27,6 +27,7 @@
             touch-action: none; 
             padding-bottom: env(safe-area-inset-bottom);
             z-index: 1001;
+            max-height: 85vh; /* Limita l'altezza massima per non coprire tutto */
         }
         .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 4px auto; }
         
@@ -39,6 +40,11 @@
 
         .chevron-rotate { transition: transform 0.4s ease; }
         .is-expanded .chevron-rotate { transform: rotate(180deg); }
+
+        /* Scrollbar sottile per la lista */
+        #panelContent::-webkit-scrollbar { width: 4px; }
+        #panelContent::-webkit-scrollbar-track { background: transparent; }
+        #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -82,7 +88,7 @@
         </div>
     </header>
 
-    <main class="relative">
+    <main class="relative h-[calc(100vh-80px)] overflow-hidden">
         <div id="map"></div>
         <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
             <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg text-slate-700 active:scale-90 border border-slate-100"><i data-lucide="locate-fixed" class="w-5 h-5"></i></button>
@@ -95,9 +101,10 @@
             </div>
         </div>
 
-        <div id="statusPanel" class="absolute bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] rounded-t-[32px] p-5 flex flex-col translate-y-[calc(100%-85px)]">
-            <div id="dragArea" class="cursor-pointer pb-4 -mt-2 shrink-0 select-none">
-                <div class="drag-handle"></div>
+        <!-- PANNELLO INFERIORE -->
+        <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] rounded-t-[32px] flex flex-col translate-y-[calc(100%-85px)] z-[1001]">
+            <div id="dragArea" class="cursor-pointer p-5 pb-2 shrink-0 select-none">
+                <div class="drag-handle mb-4"></div>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Elenco Campi</span>
@@ -110,13 +117,13 @@
                 </div>
             </div>
 
-            <div id="panelContent" class="space-y-6 overflow-y-auto flex-1 pb-6 opacity-40">
+            <div id="panelContent" class="space-y-6 overflow-y-auto px-5 pb-10 opacity-40 touch-pan-y" style="height: 70vh;">
                 <div class="flex flex-col gap-3">
                     <div class="flex gap-2">
                         <button id="trackBtn" onclick="toggleTracking()" class="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3.5 rounded-xl font-bold active:scale-95 shadow-md"><i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS</button>
                         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3.5 rounded-xl hover:bg-slate-200"><i data-lucide="log-out" class="w-5 h-5"></i></button>
                     </div>
-                    <!-- Nuova gestione bottoni import/export -->
+                    
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="triggerExcelImport()" class="w-full flex items-center justify-center gap-2 bg-green-50 text-green-700 py-3 rounded-xl font-black text-[10px] border border-green-200 active:scale-95 shadow-sm uppercase"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Importa Excel</button>
                         <button onclick="triggerBackupImport()" class="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 py-3 rounded-xl font-black text-[10px] border border-indigo-200 active:scale-95 shadow-sm uppercase"><i data-lucide="upload" class="w-4 h-4"></i> Importa Backup</button>
@@ -125,6 +132,7 @@
                     
                     <input type="file" id="excelInput" class="hidden" accept=".xlsx, .xls, .csv, .json" onchange="handleExcelFile(event)">
                 </div>
+
                 <div id="fieldsSection" class="space-y-6">
                     <div id="cat-cipolle" class="hidden">
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-orange-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Cipolle</h3></div>
@@ -218,7 +226,6 @@
                         <button onclick="closeCheckpointModal()" class="flex-1 py-3.5 border border-slate-200 rounded-xl font-bold text-slate-400">Annulla</button>
                         <button onclick="confirmAddCheckpoint()" id="checkpointConfirmBtn" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold uppercase">SALVA</button>
                     </div>
-                    <!-- Bottone per eliminare la nota -->
                     <button id="deleteCheckpointBtn" onclick="deleteCheckpoint()" class="w-full py-2.5 bg-slate-100 text-red-500 rounded-xl font-bold text-xs hidden flex items-center justify-center gap-2 mt-2"><i data-lucide="trash-2" class="w-4 h-4"></i> ELIMINA QUESTA NOTA</button>
                 </div>
             </div>
@@ -269,7 +276,6 @@
             if (!nameRaw || !pass) { errorEl.innerText = "Dati incompleti."; errorEl.classList.remove('hidden'); return; }
             loginBtn.disabled = true; document.getElementById('btnLabel').innerHTML = '<span class="loader"></span> AUTH...';
             errorEl.classList.add('hidden');
-            setTimeout(() => toggleTracking(true), 100);
             try {
                 if (!window.fbReady) await initFirebase();
                 const authPromise = (async () => {
@@ -488,7 +494,7 @@
             document.getElementById('checkpointModalTitle').innerText = "Modifica Nota";
             document.getElementById('checkpointNoteInput').value = cp.note;
             document.getElementById('checkpointCheckedInput').checked = cp.checked || false;
-            document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); // Mostra tasto elimina
+            document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); 
             const p = document.getElementById('checkpointPhotoPreview');
             if (cp.photo) { p.src = cp.photo; p.classList.remove('hidden'); } else { p.src = ""; p.classList.add('hidden'); }
             document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
@@ -506,7 +512,6 @@
             } else if (!isTracking) {
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
                 
-                // Freccia SVG stile navigatore
                 const arrowSVG = `
                     <div class="gps-arrow-icon">
                         <svg viewBox="0 0 24 24" width="44" height="44">
@@ -533,7 +538,6 @@
                         userMarker.setLatLng(latlng); 
                     }
 
-                    // Ruota la freccia se l'heading è disponibile
                     if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
                         const iconEl = userMarker.getElement().querySelector('.gps-arrow-icon');
                         if (iconEl) iconEl.style.transform = `rotate(${pos.coords.heading}deg)`;
@@ -687,15 +691,70 @@
             lucide.createIcons();
         }
 
-        const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea'); 
+        const panel = document.getElementById('statusPanel'); 
+        const dragArea = document.getElementById('dragArea'); 
+        const panelContent = document.getElementById('panelContent');
+        
         let startY, curY = 0, dragging = false, isExpanded = false;
-        window.togglePanel = () => { if (dragging) return; isExpanded = !isExpanded; updatePanel(); };
-        function updatePanel() { const h = panel.offsetHeight - 85; if (isExpanded) { panel.style.transform = 'translateY(0)'; panel.classList.add('is-expanded'); document.getElementById('panelContent').style.opacity = '1'; curY = 0; } else { panel.style.transform = `translateY(${h}px)`; panel.classList.remove('is-expanded'); document.getElementById('panelContent').style.opacity = '0.4'; curY = h; } }
+        
+        window.togglePanel = () => { 
+            if (dragging) return; 
+            isExpanded = !isExpanded; 
+            updatePanel(); 
+        };
+
+        function updatePanel() { 
+            const h = window.innerHeight - 85; 
+            if (isExpanded) { 
+                panel.style.transform = 'translateY(0)'; 
+                panel.classList.add('is-expanded'); 
+                panelContent.style.opacity = '1'; 
+                curY = 0; 
+            } else { 
+                const hiddenY = panel.offsetHeight - 85;
+                panel.style.transform = `translateY(${hiddenY}px)`; 
+                panel.classList.remove('is-expanded'); 
+                panelContent.style.opacity = '0.4'; 
+                curY = hiddenY; 
+            } 
+        }
+
         dragArea.addEventListener('click', togglePanel);
-        dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; dragging = true; panel.style.transition = 'none'; }, {passive: true});
-        window.addEventListener('touchmove', (e) => { if (!dragging) return; const delta = e.touches[0].clientY - startY; const n = curY + delta; if (n >= 0 && n <= panel.offsetHeight - 85) panel.style.transform = `translateY(${n}px)`; }, {passive: false});
-        window.addEventListener('touchend', (e) => { if (!dragging) return; panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; const d = e.changedTouches[0].clientY - startY; if (Math.abs(d) > 40) isExpanded = d < 0; updatePanel(); setTimeout(() => dragging = false, 50); }, {passive: true});
-        function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); }
+        
+        dragArea.addEventListener('touchstart', (e) => { 
+            startY = e.touches[0].clientY; 
+            dragging = true; 
+            panel.style.transition = 'none'; 
+        }, {passive: true});
+
+        window.addEventListener('touchmove', (e) => { 
+            if (!dragging) return; 
+            const delta = e.touches[0].clientY - startY; 
+            const n = curY + delta; 
+            const maxClamp = panel.offsetHeight - 85;
+            if (n >= 0 && n <= maxClamp) panel.style.transform = `translateY(${n}px)`; 
+        }, {passive: false});
+
+        window.addEventListener('touchend', (e) => { 
+            if (!dragging) return; 
+            panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; 
+            const d = e.changedTouches[0].clientY - startY; 
+            if (Math.abs(d) > 40) isExpanded = d < 0; 
+            updatePanel(); 
+            setTimeout(() => dragging = false, 50); 
+        }, {passive: true});
+
+        function showNotification(t) { 
+            const el = document.getElementById('notification'); 
+            document.getElementById('notifText').innerText = t; 
+            el.classList.replace('opacity-0', 'opacity-100'); 
+            el.classList.replace('-translate-y-24', 'translate-y-0'); 
+            setTimeout(() => { 
+                el.classList.replace('opacity-100', 'opacity-0'); 
+                el.classList.replace('translate-y-0', '-translate-y-24'); 
+            }, 4000); 
+        }
+        
         window.expandPanel = () => { isExpanded = true; updatePanel(); };
         window.onload = () => { initMap(); initFirebase(); setTimeout(updatePanel, 600); };
     </script>
