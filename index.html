@@ -257,6 +257,9 @@
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false, isSyncing = false; 
 
+        // Riferimento per impedire lo spegnimento dello schermo
+        let wakeLock = null;
+
         async function initFirebase() {
             try {
                 const app = initializeApp(myFirebaseConfig);
@@ -267,6 +270,28 @@
                 window.fbReady = true; return true;
             } catch (e) { return false; }
         }
+
+        // Funzioni per gestire lo schermo sempre acceso
+        const requestWakeLock = async () => {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        };
+
+        const releaseWakeLock = async () => {
+            if (wakeLock !== null) {
+                try {
+                    await wakeLock.release();
+                    wakeLock = null;
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        };
 
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
@@ -505,6 +530,10 @@
             if (isTracking && !auto) {
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
                 watchId = null; isTracking = false;
+                
+                // Rilascia il blocco dello schermo quando il GPS viene disattivato
+                releaseWakeLock();
+
                 document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
                 document.getElementById('trackBtn').classList.replace('bg-rose-600', 'bg-slate-900');
                 document.getElementById('telemetryPanel').classList.add('hidden');
@@ -512,6 +541,9 @@
             } else if (!isTracking) {
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
                 
+                // Richiede il blocco dello schermo per tenerlo sempre acceso
+                requestWakeLock();
+
                 const arrowSVG = `
                     <div class="gps-arrow-icon">
                         <svg viewBox="0 0 24 24" width="44" height="44">
@@ -690,6 +722,13 @@
             if (s) { try { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); } catch(e) {} }
             lucide.createIcons();
         }
+
+        // Re-integrazione Wake Lock al cambio di visibilità (es. se l'utente cambia app e torna)
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && isTracking) {
+                await requestWakeLock();
+            }
+        });
 
         const panel = document.getElementById('statusPanel'); 
         const dragArea = document.getElementById('dragArea'); 
