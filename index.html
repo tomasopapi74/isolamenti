@@ -132,7 +132,6 @@
                 </div>
 
                 <div id="fieldsSection" class="space-y-6">
-                    <!-- Liste Varietà -->
                     <div id="cat-cipolle" class="hidden">
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-orange-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Cipolle</h3></div>
                         <div id="list-cipolle" class="space-y-2"></div>
@@ -154,7 +153,7 @@
                         <div id="list-cicoria" class="space-y-2"></div>
                     </div>
                     <div id="cat-altro" class="hidden">
-                        <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-slate-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Altro</h3></div>
+                        <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-slate-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Altro / Note Libere</h3></div>
                         <div id="list-altro" class="space-y-2"></div>
                     </div>
                     <div id="emptyMsg" class="text-center py-10 text-slate-400 text-xs italic">Nessun punto registrato.</div>
@@ -272,8 +271,7 @@
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false, isSyncing = false; 
-        let lastLocalUpdate = 0; // Timestamp dell'ultima modifica locale
-
+        let lastLocalUpdate = 0; 
         let wakeLock = null;
 
         async function initFirebase() {
@@ -281,11 +279,9 @@
                 const app = initializeApp(myFirebaseConfig);
                 fb.auth = getAuth(app); fb.db = getFirestore(app);
                 fb.appId = 'isolamenti-923d0';
-                
                 onAuthStateChanged(fb.auth, (user) => {
                     if (user) document.getElementById('syncIndicator')?.classList.remove('text-slate-400');
                 });
-
                 window.fbReady = true; return true;
             } catch (e) { return false; }
         }
@@ -314,7 +310,6 @@
                 if (!window.fbReady) await initFirebase();
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(fb.auth, __initial_auth_token); 
                 else await signInAnonymously(fb.auth);
-                
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
                 const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await getDoc(projRef);
@@ -352,7 +347,6 @@
         function startCloudSync() {
             const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                // Ignora se siamo in mezzo a un salvataggio o se il dato cloud è più vecchio della nostra ultima modifica locale (race condition)
                 if (doc.exists() && !isSyncing) {
                     const data = doc.data();
                     const cloudTimestamp = data.lastSync ? new Date(data.lastSync).getTime() : 0;
@@ -385,7 +379,6 @@
             if (isSyncing) return;
             const now = new Date().toISOString();
             lastLocalUpdate = new Date(now).getTime();
-
             const cleanFields = fields.map(f => {
                 const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
                 return { 
@@ -398,10 +391,8 @@
                     })) 
                 };
             });
-
-            if (isLocalMode) { 
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
-            } else if (fb.auth?.currentUser) {
+            if (isLocalMode) { localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); } 
+            else if (fb.auth?.currentUser) {
                 try {
                     isSyncing = true;
                     const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
@@ -435,11 +426,8 @@
             const category = document.getElementById('fieldCategoryInput').value.toLowerCase();
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
-            
             const confirmBtn = document.getElementById('fieldConfirmBtn');
-            confirmBtn.disabled = true;
-            confirmBtn.innerText = "Salvataggio...";
-
+            confirmBtn.disabled = true; confirmBtn.innerText = "Salvataggio...";
             try {
                 if (tempFieldId) {
                     const idx = fields.findIndex(f => f.id === tempFieldId);
@@ -462,24 +450,27 @@
                     const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                     addFieldToMap(newField);
                 }
-                await saveData(); 
-                window.updateFieldUI();
-                closeFieldModal(); 
-                showNotification("Isolamento salvato correttamente!");
-            } catch (err) {
-                showNotification("Errore: " + err.message);
-            } finally {
-                confirmBtn.disabled = false;
-                confirmBtn.innerText = "SALVA";
-            }
+                await saveData(); window.updateFieldUI(); closeFieldModal(); showNotification("Isolamento salvato correttamente!");
+            } catch (err) { showNotification("Errore: " + err.message); } finally { confirmBtn.disabled = false; confirmBtn.innerText = "SALVA"; }
         };
 
         window.confirmAddCheckpoint = async function() {
             const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
-            const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             
+            // Cerca il campo di appartenenza
+            let field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
+            
+            // Se non c'è campo (click fuori), usa o crea un campo virtuale "Note Libere"
+            if (!field || tempCheckpointCoords.fieldId === 'generiche') {
+                field = fields.find(f => f.id === 'field_generiche');
+                if (!field) {
+                    field = { id: 'field_generiche', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, photo: null, pathCoords: [], checkpoints: [] };
+                    fields.push(field);
+                }
+            }
+
             if (field) { 
                 if (tempCheckpointCoords.checkpointId) {
                     const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId);
@@ -491,23 +482,25 @@
                     const cpData = { id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                     if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
                 }
-                await saveData(); 
-                closeCheckpointModal(); 
-                showNotification("Nota salvata.");
+                await saveData(); closeCheckpointModal(); showNotification("Nota salvata.");
             }
         };
 
         window.deleteCheckpoint = async function() {
             if (!tempCheckpointCoords || !tempCheckpointCoords.checkpointId) return;
             if (confirm("Vuoi davvero eliminare questa nota?")) {
-                const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
-                if (field) {
-                    const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId);
-                    if (cp && cp.marker) map.removeLayer(cp.marker);
-                    field.checkpoints = field.checkpoints.filter(c => c.id !== tempCheckpointCoords.checkpointId);
-                    closeCheckpointModal();
-                    await saveData();
-                    showNotification("Nota eliminata.");
+                let found = false;
+                fields.forEach(field => {
+                    const cpIdx = field.checkpoints?.findIndex(c => c.id === tempCheckpointCoords.checkpointId);
+                    if (cpIdx !== undefined && cpIdx !== -1) {
+                        const cp = field.checkpoints[cpIdx];
+                        if (cp.marker) map.removeLayer(cp.marker);
+                        field.checkpoints.splice(cpIdx, 1);
+                        found = true;
+                    }
+                });
+                if (found) {
+                    closeCheckpointModal(); await saveData(); showNotification("Nota eliminata.");
                 }
             }
         };
@@ -515,16 +508,19 @@
         function addFieldToMap(fData) {
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[(fData.category || "cipolle").toLowerCase()] || '#64748b';
-            const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
-            const circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
             
-            let path = fData.pathCoords || [];
-            if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
-            const polyline = L.polyline(path, { color: '#334155', weight: 3, opacity: 0.7, dashArray: '5, 10' }).addTo(map);
-            
-            const p = fData.photo ? `<img src="${fData.photo}" class="w-full rounded-lg mt-2">` : '';
-            marker.bindPopup(`<div class="text-[11px] font-bold">${fData.name}</div><div class="text-[9px] text-slate-400 font-mono">${fData.code}</div>${p}`, { className: 'custom-popup' });
-            fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
+            // Non aggiungere marker per il campo "Note Generiche" virtuale che ha coordinate 0,0
+            if (fData.id !== 'field_generiche') {
+                const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
+                const circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
+                let path = fData.pathCoords || [];
+                if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
+                const polyline = L.polyline(path, { color: '#334155', weight: 3, opacity: 0.7, dashArray: '5, 10' }).addTo(map);
+                const p = fData.photo ? `<img src="${fData.photo}" class="w-full rounded-lg mt-2">` : '';
+                marker.bindPopup(`<div class="text-[11px] font-bold">${fData.name}</div><div class="text-[9px] text-slate-400 font-mono">${fData.code}</div>${p}`, { className: 'custom-popup' });
+                fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
+            }
+
             if (fields.findIndex(f => f.id === fData.id) === -1) fields.push(fData);
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -541,7 +537,7 @@
         }
 
         window.openEditField = (id) => {
-            const f = fields.find(f => f.id === id); if (!f) return;
+            const f = fields.find(f => f.id === id); if (!f || id === 'field_generiche') return;
             tempFieldId = f.id;
             document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento";
             document.getElementById('fieldNameInput').value = f.name;
@@ -555,7 +551,8 @@
         };
 
         window.openEditCheckpoint = (cp) => {
-            let fid = null; fields.forEach(f => { if (f.checkpoints?.some(c => c.id === cp.id)) fid = f.id; });
+            let fid = 'generiche'; 
+            fields.forEach(f => { if (f.checkpoints?.some(c => c.id === cp.id)) fid = f.id; });
             tempCheckpointCoords = { latlng: L.latLng(cp.latlng[0], cp.latlng[1]), fieldId: fid, checkpointId: cp.id };
             document.getElementById('checkpointModalTitle').innerText = "Modifica Nota";
             document.getElementById('checkpointNoteInput').value = cp.note;
@@ -570,8 +567,7 @@
         window.toggleTracking = (auto = false) => {
             if (isTracking && !auto) {
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-                watchId = null; isTracking = false;
-                releaseWakeLock();
+                watchId = null; isTracking = false; releaseWakeLock();
                 document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
                 document.getElementById('trackBtn').classList.replace('bg-rose-600', 'bg-slate-900');
                 document.getElementById('telemetryPanel').classList.add('hidden');
@@ -604,6 +600,7 @@
         function updateTrajectory(userPos) {
             let anyInside = false; 
             fields.forEach(f => {
+                if (f.id === 'field_generiche') return;
                 const dist = userPos.distanceTo(L.latLng(f.latlng));
                 if (dist <= f.radius) { 
                     anyInside = true; 
@@ -617,7 +614,7 @@
                         f.polyline.setLatLngs(path); 
                         saveData(); 
                     }
-                } else f.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
+                } else if(f.circle) f.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
             });
             document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-slate-400";
             document.getElementById('statusText').innerText = anyInside ? "In Area" : "Monitoraggio...";
@@ -634,9 +631,11 @@
                     cfs.forEach(f => {
                         total++; const item = document.createElement('div');
                         item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm active:scale-[0.98]";
-                        item.onclick = () => { map.flyTo(f.latlng, 15); f.marker.openPopup(); };
-                        const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-300"></i></div>`;
-                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase leading-none truncate">${f.name}</p><p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); openEditField(${f.id})" class="p-2 text-slate-300 hover:text-blue-500"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+                        item.onclick = () => { if(f.latlng[0]!==0) map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
+                        const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="${f.id==='field_generiche'?'clipboard-list':'image'}" class="w-4 h-4 text-slate-300"></i></div>`;
+                        const delBtn = f.id !== 'field_generiche' ? `<button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+                        const editBtn = f.id !== 'field_generiche' ? `<button onclick="event.stopPropagation(); openEditField(${f.id})" class="p-2 text-slate-300 hover:text-blue-500"><i data-lucide="edit-3" class="w-4 h-4"></i></button>` : '';
+                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase leading-none truncate">${f.name}</p><p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p></div><div class="flex gap-1">${editBtn}${delBtn}</div>`;
                         list.appendChild(item);
                     });
                 } else sec.classList.add('hidden');
@@ -650,9 +649,7 @@
             const backupData = fields.map(f => ({ ...f, marker: undefined, circle: undefined, polyline: undefined, checkpoints: (f.checkpoints || []).map(cp => ({ ...cp, marker: undefined })) }));
             const dataStr = JSON.stringify(backupData, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            const fileName = `backup_isolamenti_${currentProjectName || 'locale'}_${new Date().toISOString().slice(0,10)}.json`;
-            const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', fileName); linkElement.click();
-            showNotification("Backup scaricato.");
+            const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', `backup_isolamenti_${currentProjectName}.json`); linkElement.click();
         };
 
         window.triggerExcelImport = () => document.getElementById('excelInput').click();
@@ -660,38 +657,30 @@
 
         window.handleExcelFile = (event) => {
             const file = event.target.files[0]; if (!file) return;
-            if (file.name.endsWith('.json')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try { const imported = JSON.parse(e.target.result); mergeData(imported); saveData(); showNotification("Backup ripristinato!"); } catch (err) { showNotification("Errore nel file JSON."); }
-                };
-                reader.readAsText(file); return;
-            }
             const reader = new FileReader();
             reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                const newFields = json.map(item => ({ id: Date.now() + Math.random(), name: item.Nome || item.name || "Campo", code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "cipolle").toLowerCase(), latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
-                mergeData([...fields, ...newFields]); saveData(); showNotification(`Importati ${newFields.length} punti.`);
+                if (file.name.endsWith('.json')) {
+                    try { mergeData(JSON.parse(e.target.result)); saveData(); showNotification("Backup ripristinato!"); } catch (err) { showNotification("Errore JSON."); }
+                } else {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const newFields = json.map(item => ({ id: Date.now() + Math.random(), name: item.Nome || item.name || "Campo", code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "cipolle").toLowerCase(), latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
+                    mergeData([...fields, ...newFields]); saveData();
+                }
             };
-            reader.readAsArrayBuffer(file);
+            if (file.name.endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
         };
 
-        window.deleteField = async (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id === id); if (f) { map.removeLayer(f.marker); map.removeLayer(f.circle); map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); await saveData(); window.updateFieldUI(); } } };
+        window.deleteField = async (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id === id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); await saveData(); window.updateFieldUI(); } } };
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.closeFieldModal = () => { 
-            tempFieldId = null; tempFieldCoords = null;
-            document.getElementById('fieldModal').classList.replace('flex', 'hidden'); 
-            document.getElementById('fieldPhotoPreview').src = ""; 
-            document.getElementById('fieldPhotoPreview').classList.add('hidden');
-        };
+        window.closeFieldModal = () => { tempFieldId = null; tempFieldCoords = null; document.getElementById('fieldModal').classList.replace('flex', 'hidden'); document.getElementById('fieldPhotoPreview').src = ""; document.getElementById('fieldPhotoPreview').classList.add('hidden'); };
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Registra Isolamento"; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('fieldNameInput').focus(); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModalTitle').innerText = "Nuova Nota"; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); };
         window.logoutProject = () => { if (confirm("Uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
-        window.handleSearch = () => { const q = document.getElementById('searchInput').value.trim().toLowerCase(); const f = fields.find(f => (f.name?.toLowerCase().includes(q)) || (f.code?.toLowerCase().includes(q))); if (f) { map.flyTo(f.latlng, 15); f.marker.openPopup(); expandPanel(); } };
+        window.handleSearch = () => { const q = document.getElementById('searchInput').value.trim().toLowerCase(); const f = fields.find(f => (f.name?.toLowerCase().includes(q)) || (f.code?.toLowerCase().includes(q))); if (f) { if(f.latlng[0]!==0) map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); expandPanel(); } };
 
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
@@ -699,9 +688,14 @@
             L.control.zoom({ position: 'topright' }).addTo(map);
             map.on('click', (e) => { 
                 if (!currentProjectName && !isLocalMode) return; 
-                let target = fields.find(f => e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
-                if (target) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: target.id, checkpointId: null }; document.getElementById('actionChoiceModal').classList.remove('hidden'); } 
-                else { tempFieldCoords = e.latlng; tempFieldId = null; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); }
+                let target = fields.find(f => f.id !== 'field_generiche' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
+                tempFieldCoords = e.latlng;
+                tempCheckpointCoords = { 
+                    latlng: e.latlng, 
+                    fieldId: target ? target.id : 'generiche', 
+                    checkpointId: null 
+                };
+                document.getElementById('actionChoiceModal').classList.remove('hidden');
             });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
@@ -710,10 +704,7 @@
         }
 
         document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible' && isTracking) await requestWakeLock(); });
-
-        const panel = document.getElementById('statusPanel'); 
-        const dragArea = document.getElementById('dragArea'); 
-        const panelContent = document.getElementById('panelContent');
+        const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea'); const panelContent = document.getElementById('panelContent');
         let startY, curY = 0, dragging = false, isExpanded = false;
         window.togglePanel = () => { if (dragging) return; isExpanded = !isExpanded; updatePanel(); };
         function updatePanel() { if (isExpanded) { panel.style.transform = 'translateY(0)'; panel.classList.add('is-expanded'); panelContent.style.opacity = '1'; curY = 0; } else { const hiddenY = panel.offsetHeight - 85; panel.style.transform = `translateY(${hiddenY}px)`; panel.classList.remove('is-expanded'); panelContent.style.opacity = '0.4'; curY = hiddenY; } }
