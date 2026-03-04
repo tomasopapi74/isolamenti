@@ -15,7 +15,6 @@
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; }
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; }
         
-        /* Stile per il cursore a freccia */
         .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
         .gps-arrow-icon { 
             transition: transform 0.3s ease-out; 
@@ -27,7 +26,7 @@
             touch-action: none; 
             padding-bottom: env(safe-area-inset-bottom);
             z-index: 1001;
-            max-height: 85vh; /* Limita l'altezza massima per non coprire tutto */
+            max-height: 85vh;
         }
         .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 4px auto; }
         
@@ -41,7 +40,6 @@
         .chevron-rotate { transition: transform 0.4s ease; }
         .is-expanded .chevron-rotate { transform: rotate(180deg); }
 
-        /* Scrollbar sottile per la lista */
         #panelContent::-webkit-scrollbar { width: 4px; }
         #panelContent::-webkit-scrollbar-track { background: transparent; }
         #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
@@ -134,6 +132,7 @@
                 </div>
 
                 <div id="fieldsSection" class="space-y-6">
+                    <!-- Liste Varietà -->
                     <div id="cat-cipolle" class="hidden">
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-orange-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Cipolle</h3></div>
                         <div id="list-cipolle" class="space-y-2"></div>
@@ -146,7 +145,6 @@
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-purple-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Brassiche</h3></div>
                         <div id="list-brassiche" class="space-y-2"></div>
                     </div>
-                    <!-- Nuove categorie aggiunte qui -->
                     <div id="cat-cavoli" class="hidden">
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-blue-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Cavoli</h3></div>
                         <div id="list-cavoli" class="space-y-2"></div>
@@ -256,7 +254,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
@@ -274,8 +272,8 @@
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false, isSyncing = false; 
+        let lastLocalUpdate = 0; // Timestamp dell'ultima modifica locale
 
-        // Riferimento per impedire lo spegnimento dello schermo
         let wakeLock = null;
 
         async function initFirebase() {
@@ -283,31 +281,24 @@
                 const app = initializeApp(myFirebaseConfig);
                 fb.auth = getAuth(app); fb.db = getFirestore(app);
                 fb.appId = 'isolamenti-923d0';
-                fb.loginAnon = () => signInAnonymously(fb.auth);
-                fb.loginToken = (t) => signInWithCustomToken(fb.auth, t);
+                
+                onAuthStateChanged(fb.auth, (user) => {
+                    if (user) document.getElementById('syncIndicator')?.classList.remove('text-slate-400');
+                });
+
                 window.fbReady = true; return true;
             } catch (e) { return false; }
         }
 
-        // Funzioni per gestire lo schermo sempre acceso
         const requestWakeLock = async () => {
             if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                } catch (err) {
-                    console.error(`${err.name}, ${err.message}`);
-                }
+                try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
             }
         };
 
         const releaseWakeLock = async () => {
             if (wakeLock !== null) {
-                try {
-                    await wakeLock.release();
-                    wakeLock = null;
-                } catch (err) {
-                    console.error(`${err.name}, ${err.message}`);
-                }
+                try { await wakeLock.release(); wakeLock = null; } catch (err) {}
             }
         };
 
@@ -321,12 +312,9 @@
             errorEl.classList.add('hidden');
             try {
                 if (!window.fbReady) await initFirebase();
-                const authPromise = (async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await fb.loginToken(__initial_auth_token); 
-                    else await fb.loginAnon();
-                    return fb.auth.currentUser;
-                })();
-                const user = await Promise.race([authPromise, new Promise((_, r) => setTimeout(() => r(new Error("Timeout")), 15000))]);
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(fb.auth, __initial_auth_token); 
+                else await signInAnonymously(fb.auth);
+                
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
                 const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
                 const docSnap = await getDoc(projRef);
@@ -364,10 +352,14 @@
         function startCloudSync() {
             const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
+                // Ignora se siamo in mezzo a un salvataggio o se il dato cloud è più vecchio della nostra ultima modifica locale (race condition)
                 if (doc.exists() && !isSyncing) {
-                    const cloudFields = doc.data().fields || [];
-                    mergeData(cloudFields);
-                    document.getElementById('syncIndicator').className = "text-green-500 transition-all";
+                    const data = doc.data();
+                    const cloudTimestamp = data.lastSync ? new Date(data.lastSync).getTime() : 0;
+                    if (cloudTimestamp >= lastLocalUpdate) {
+                        mergeData(data.fields || []);
+                        document.getElementById('syncIndicator').className = "text-green-500 transition-all";
+                    }
                 }
             }, (err) => { document.getElementById('syncIndicator').className = "text-red-500 transition-all"; });
         }
@@ -391,24 +383,29 @@
 
         async function saveData() {
             if (isSyncing) return;
+            const now = new Date().toISOString();
+            lastLocalUpdate = new Date(now).getTime();
+
             const cleanFields = fields.map(f => {
                 const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
                 return { 
                     id: f.id, name: f.name || "Campo", code: f.code || "---", category: (f.category || "cipolle").toLowerCase(), latlng: latlng, radius: Number(f.radius) || 1000, 
                     photo: f.photo || null,
-                    pathCoords: JSON.stringify(f.pathCoords || []), 
+                    pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
                     checkpoints: (f.checkpoints || []).map(cp => ({ 
                         id: cp.id, latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], note: cp.note || "", date: cp.date || "", checked: cp.checked || false,
                         photo: cp.photo || null
                     })) 
                 };
             });
-            if (isLocalMode) { localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); }
-            else if (fb.auth?.currentUser) {
+
+            if (isLocalMode) { 
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
+            } else if (fb.auth?.currentUser) {
                 try {
                     isSyncing = true;
                     const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
-                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: new Date().toISOString() }, { merge: true });
+                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600 font-black";
                 } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; }
                 finally { isSyncing = false; }
@@ -432,37 +429,57 @@
             };
         };
 
-        window.confirmAddField = function() {
+        window.confirmAddField = async function() {
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "001";
             const category = document.getElementById('fieldCategoryInput').value.toLowerCase();
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
             
-            if (tempFieldId) {
-                const idx = fields.findIndex(f => f.id === tempFieldId);
-                if (idx !== -1) {
-                    fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
-                    if (photo) fields[idx].photo = photo;
-                    if (fields[idx].marker) map.removeLayer(fields[idx].marker);
-                    if (fields[idx].circle) map.removeLayer(fields[idx].circle);
-                    if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
-                    addFieldToMap(fields[idx]);
+            const confirmBtn = document.getElementById('fieldConfirmBtn');
+            confirmBtn.disabled = true;
+            confirmBtn.innerText = "Salvataggio...";
+
+            try {
+                if (tempFieldId) {
+                    const idx = fields.findIndex(f => f.id === tempFieldId);
+                    if (idx !== -1) {
+                        fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
+                        if (photo) fields[idx].photo = photo;
+                        if (fields[idx].marker) map.removeLayer(fields[idx].marker);
+                        if (fields[idx].circle) map.removeLayer(fields[idx].circle);
+                        if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
+                        addFieldToMap(fields[idx]);
+                    }
+                } else {
+                    let latlng = tempFieldCoords;
+                    if(!latlng) { 
+                        const lat = parseFloat(document.getElementById('fieldLatInput').value); 
+                        const lon = parseFloat(document.getElementById('fieldLonInput').value); 
+                        if(isNaN(lat) || isNaN(lon)) throw new Error("Coordinate non valide.");
+                        latlng = L.latLng(lat, lon); 
+                    }
+                    const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
+                    addFieldToMap(newField);
                 }
-            } else {
-                let latlng = tempFieldCoords;
-                if(!latlng) { const lat = parseFloat(document.getElementById('fieldLatInput').value); const lon = parseFloat(document.getElementById('fieldLonInput').value); if(isNaN(lat) || isNaN(lon)) return; latlng = L.latLng(lat, lon); }
-                const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
-                addFieldToMap(newField);
+                await saveData(); 
+                window.updateFieldUI();
+                closeFieldModal(); 
+                showNotification("Isolamento salvato correttamente!");
+            } catch (err) {
+                showNotification("Errore: " + err.message);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerText = "SALVA";
             }
-            closeFieldModal(); saveData(); window.updateFieldUI();
         };
 
-        window.confirmAddCheckpoint = function() {
+        window.confirmAddCheckpoint = async function() {
             const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
             const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
+            
             if (field) { 
                 if (tempCheckpointCoords.checkpointId) {
                     const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId);
@@ -474,11 +491,13 @@
                     const cpData = { id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                     if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
                 }
-                closeCheckpointModal(); saveData(); showNotification("Salvato.");
+                await saveData(); 
+                closeCheckpointModal(); 
+                showNotification("Nota salvata.");
             }
         };
 
-        window.deleteCheckpoint = function() {
+        window.deleteCheckpoint = async function() {
             if (!tempCheckpointCoords || !tempCheckpointCoords.checkpointId) return;
             if (confirm("Vuoi davvero eliminare questa nota?")) {
                 const field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
@@ -487,26 +506,22 @@
                     if (cp && cp.marker) map.removeLayer(cp.marker);
                     field.checkpoints = field.checkpoints.filter(c => c.id !== tempCheckpointCoords.checkpointId);
                     closeCheckpointModal();
-                    saveData();
+                    await saveData();
                     showNotification("Nota eliminata.");
                 }
             }
         };
 
         function addFieldToMap(fData) {
-            // Palette colori estesa per le nuove varietà
-            const cats = { 
-                cipolle: '#f97316', 
-                bunching: '#22c55e', 
-                brassiche: '#a855f7',
-                cavoli: '#3b82f6',
-                cicoria: '#059669',
-                altro: '#64748b'
-            };
+            const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[(fData.category || "cipolle").toLowerCase()] || '#64748b';
             const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             const circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
-            const polyline = L.polyline(fData.pathCoords || [], { color: '#334155', weight: 3, opacity: 0.7, dashArray: '5, 10' }).addTo(map);
+            
+            let path = fData.pathCoords || [];
+            if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
+            const polyline = L.polyline(path, { color: '#334155', weight: 3, opacity: 0.7, dashArray: '5, 10' }).addTo(map);
+            
             const p = fData.photo ? `<img src="${fData.photo}" class="w-full rounded-lg mt-2">` : '';
             marker.bindPopup(`<div class="text-[11px] font-bold">${fData.name}</div><div class="text-[9px] text-slate-400 font-mono">${fData.code}</div>${p}`, { className: 'custom-popup' });
             fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
@@ -556,51 +571,26 @@
             if (isTracking && !auto) {
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId);
                 watchId = null; isTracking = false;
-                
-                // Rilascia il blocco dello schermo quando il GPS viene disattivato
                 releaseWakeLock();
-
                 document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
                 document.getElementById('trackBtn').classList.replace('bg-rose-600', 'bg-slate-900');
                 document.getElementById('telemetryPanel').classList.add('hidden');
                 if(userMarker) { map.removeLayer(userMarker); userMarker = null; }
             } else if (!isTracking) {
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
-                
-                // Richiede il blocco dello schermo per tenerlo sempre acceso
                 requestWakeLock();
-
-                const arrowSVG = `
-                    <div class="gps-arrow-icon">
-                        <svg viewBox="0 0 24 24" width="44" height="44">
-                            <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/>
-                        </svg>
-                    </div>`;
-
+                const arrowSVG = `<div class="gps-arrow-icon"><svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg></div>`;
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
-                    
                     if (!userMarker) { 
-                        userMarker = L.marker(latlng, { 
-                            icon: L.divIcon({ 
-                                className: 'gps-arrow-container', 
-                                html: arrowSVG, 
-                                iconSize: [44, 44], 
-                                iconAnchor: [22, 22] 
-                            }), 
-                            zIndexOffset: 10000 
-                        }).addTo(map); 
+                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-arrow-container', html: arrowSVG, iconSize: [44, 44], iconAnchor: [22, 22] }), zIndexOffset: 10000 }).addTo(map); 
                         map.flyTo(latlng, 17); 
-                    } else { 
-                        userMarker.setLatLng(latlng); 
-                    }
-
+                    } else { userMarker.setLatLng(latlng); }
                     if (pos.coords.heading !== null && pos.coords.heading !== undefined) {
                         const iconEl = userMarker.getElement().querySelector('.gps-arrow-icon');
                         if (iconEl) iconEl.style.transform = `rotate(${pos.coords.heading}deg)`;
                     }
-
                     updateTrajectory(latlng);
                     isTracking = true; 
                     document.getElementById('telemetryPanel').classList.remove('hidden');
@@ -618,11 +608,13 @@
                 if (dist <= f.radius) { 
                     anyInside = true; 
                     f.circle.setStyle({ fillOpacity: 0.3, dashArray: '' }); 
-                    if (!f.pathCoords) f.pathCoords = [];
-                    const last = f.pathCoords[f.pathCoords.length - 1];
+                    let path = f.pathCoords || [];
+                    if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
+                    const last = path[path.length - 1];
                     if (!last || (Math.abs(last[0] - userPos.lat) > 0.00005 || Math.abs(last[1] - userPos.lng) > 0.00005)) { 
-                        f.pathCoords.push([userPos.lat, userPos.lng]); 
-                        f.polyline.setLatLngs(f.pathCoords); 
+                        path.push([userPos.lat, userPos.lng]); 
+                        f.pathCoords = path;
+                        f.polyline.setLatLngs(path); 
                         saveData(); 
                     }
                 } else f.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
@@ -654,26 +646,12 @@
         }
 
         window.exportBackup = () => {
-            if (fields.length === 0) {
-                showNotification("Nessun dato da esportare.");
-                return;
-            }
-            const backupData = fields.map(f => ({
-                ...f,
-                marker: undefined, 
-                circle: undefined,
-                polyline: undefined,
-                checkpoints: (f.checkpoints || []).map(cp => ({ ...cp, marker: undefined }))
-            }));
-
+            if (fields.length === 0) { showNotification("Nessun dato da esportare."); return; }
+            const backupData = fields.map(f => ({ ...f, marker: undefined, circle: undefined, polyline: undefined, checkpoints: (f.checkpoints || []).map(cp => ({ ...cp, marker: undefined })) }));
             const dataStr = JSON.stringify(backupData, null, 2);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
             const fileName = `backup_isolamenti_${currentProjectName || 'locale'}_${new Date().toISOString().slice(0,10)}.json`;
-
-            const linkElement = document.createElement('a');
-            linkElement.setAttribute('href', dataUri);
-            linkElement.setAttribute('download', fileName);
-            linkElement.click();
+            const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', fileName); linkElement.click();
             showNotification("Backup scaricato.");
         };
 
@@ -681,57 +659,37 @@
         window.triggerBackupImport = () => document.getElementById('excelInput').click();
 
         window.handleExcelFile = (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
+            const file = event.target.files[0]; if (!file) return;
             if (file.name.endsWith('.json')) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    try {
-                        const imported = JSON.parse(e.target.result);
-                        mergeData(imported);
-                        saveData();
-                        showNotification("Backup ripristinato!");
-                    } catch (err) { showNotification("Errore nel file JSON."); }
+                    try { const imported = JSON.parse(e.target.result); mergeData(imported); saveData(); showNotification("Backup ripristinato!"); } catch (err) { showNotification("Errore nel file JSON."); }
                 };
-                reader.readAsText(file);
-                return;
+                reader.readAsText(file); return;
             }
             const reader = new FileReader();
             reader.onload = (e) => {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const json = XLSX.utils.sheet_to_json(worksheet);
-                const newFields = json.map(item => ({
-                    id: Date.now() + Math.random(),
-                    name: item.Nome || item.name || "Campo",
-                    code: item.Codice || item.code || "---",
-                    category: (item.Categoria || item.category || "cipolle").toLowerCase(),
-                    latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)],
-                    radius: parseInt(item.Raggio || item.radius) || 1000,
-                    photo: null,
-                    pathCoords: [],
-                    checkpoints: []
-                })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
-                mergeData([...fields, ...newFields]);
-                saveData();
-                showNotification(`Importati ${newFields.length} punti.`);
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                const newFields = json.map(item => ({ id: Date.now() + Math.random(), name: item.Nome || item.name || "Campo", code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "cipolle").toLowerCase(), latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
+                mergeData([...fields, ...newFields]); saveData(); showNotification(`Importati ${newFields.length} punti.`);
             };
             reader.readAsArrayBuffer(file);
         };
 
-        window.deleteField = (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id === id); if (f) { map.removeLayer(f.marker); map.removeLayer(f.circle); map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); saveData(); window.updateFieldUI(); } } };
+        window.deleteField = async (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id === id); if (f) { map.removeLayer(f.marker); map.removeLayer(f.circle); map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); await saveData(); window.updateFieldUI(); } } };
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.replace('flex', 'hidden'); document.getElementById('fieldPhotoPreview').src = ""; };
-        window.closeCheckpointModal = () => { 
-            document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); 
-            document.getElementById('checkpointPhotoPreview').src = ""; 
-            document.getElementById('deleteCheckpointBtn').classList.add('hidden'); 
+        window.closeFieldModal = () => { 
+            tempFieldId = null; tempFieldCoords = null;
+            document.getElementById('fieldModal').classList.replace('flex', 'hidden'); 
+            document.getElementById('fieldPhotoPreview').src = ""; 
+            document.getElementById('fieldPhotoPreview').classList.add('hidden');
         };
+        window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Registra Isolamento"; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); document.getElementById('fieldNameInput').focus(); };
-        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModalTitle').innerText = "Nuova Nota"; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
+        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModalTitle').innerText = "Nuova Nota"; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); document.getElementById('checkpointNoteInput').focus(); };
         window.logoutProject = () => { if (confirm("Uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.handleSearch = () => { const q = document.getElementById('searchInput').value.trim().toLowerCase(); const f = fields.find(f => (f.name?.toLowerCase().includes(q)) || (f.code?.toLowerCase().includes(q))); if (f) { map.flyTo(f.latlng, 15); f.marker.openPopup(); expandPanel(); } };
 
@@ -745,82 +703,25 @@
                 if (target) { tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: target.id, checkpointId: null }; document.getElementById('actionChoiceModal').classList.remove('hidden'); } 
                 else { tempFieldCoords = e.latlng; tempFieldId = null; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); }
             });
-            mapReady = true; const s = localStorage.getItem('isolamenti_last_session');
+            mapReady = true; 
+            const s = localStorage.getItem('isolamenti_last_session');
             if (s) { try { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); } catch(e) {} }
             lucide.createIcons();
         }
 
-        // Re-integrazione Wake Lock al cambio di visibilità (es. se l'utente cambia app e torna)
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible' && isTracking) {
-                await requestWakeLock();
-            }
-        });
+        document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible' && isTracking) await requestWakeLock(); });
 
         const panel = document.getElementById('statusPanel'); 
         const dragArea = document.getElementById('dragArea'); 
         const panelContent = document.getElementById('panelContent');
-        
         let startY, curY = 0, dragging = false, isExpanded = false;
-        
-        window.togglePanel = () => { 
-            if (dragging) return; 
-            isExpanded = !isExpanded; 
-            updatePanel(); 
-        };
-
-        function updatePanel() { 
-            const h = window.innerHeight - 85; 
-            if (isExpanded) { 
-                panel.style.transform = 'translateY(0)'; 
-                panel.classList.add('is-expanded'); 
-                panelContent.style.opacity = '1'; 
-                curY = 0; 
-            } else { 
-                const hiddenY = panel.offsetHeight - 85;
-                panel.style.transform = `translateY(${hiddenY}px)`; 
-                panel.classList.remove('is-expanded'); 
-                panelContent.style.opacity = '0.4'; 
-                curY = hiddenY; 
-            } 
-        }
-
+        window.togglePanel = () => { if (dragging) return; isExpanded = !isExpanded; updatePanel(); };
+        function updatePanel() { if (isExpanded) { panel.style.transform = 'translateY(0)'; panel.classList.add('is-expanded'); panelContent.style.opacity = '1'; curY = 0; } else { const hiddenY = panel.offsetHeight - 85; panel.style.transform = `translateY(${hiddenY}px)`; panel.classList.remove('is-expanded'); panelContent.style.opacity = '0.4'; curY = hiddenY; } }
         dragArea.addEventListener('click', togglePanel);
-        
-        dragArea.addEventListener('touchstart', (e) => { 
-            startY = e.touches[0].clientY; 
-            dragging = true; 
-            panel.style.transition = 'none'; 
-        }, {passive: true});
-
-        window.addEventListener('touchmove', (e) => { 
-            if (!dragging) return; 
-            const delta = e.touches[0].clientY - startY; 
-            const n = curY + delta; 
-            const maxClamp = panel.offsetHeight - 85;
-            if (n >= 0 && n <= maxClamp) panel.style.transform = `translateY(${n}px)`; 
-        }, {passive: false});
-
-        window.addEventListener('touchend', (e) => { 
-            if (!dragging) return; 
-            panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; 
-            const d = e.changedTouches[0].clientY - startY; 
-            if (Math.abs(d) > 40) isExpanded = d < 0; 
-            updatePanel(); 
-            setTimeout(() => dragging = false, 50); 
-        }, {passive: true});
-
-        function showNotification(t) { 
-            const el = document.getElementById('notification'); 
-            document.getElementById('notifText').innerText = t; 
-            el.classList.replace('opacity-0', 'opacity-100'); 
-            el.classList.replace('-translate-y-24', 'translate-y-0'); 
-            setTimeout(() => { 
-                el.classList.replace('opacity-100', 'opacity-0'); 
-                el.classList.replace('translate-y-0', '-translate-y-24'); 
-            }, 4000); 
-        }
-        
+        dragArea.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; dragging = true; panel.style.transition = 'none'; }, {passive: true});
+        window.addEventListener('touchmove', (e) => { if (!dragging) return; const delta = e.touches[0].clientY - startY; const n = curY + delta; if (n >= 0 && n <= panel.offsetHeight - 85) panel.style.transform = `translateY(${n}px)`; }, {passive: false});
+        window.addEventListener('touchend', (e) => { if (!dragging) return; panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; const d = e.changedTouches[0].clientY - startY; if (Math.abs(d) > 40) isExpanded = d < 0; updatePanel(); setTimeout(() => dragging = false, 50); }, {passive: true});
+        function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); }
         window.expandPanel = () => { isExpanded = true; updatePanel(); };
         window.onload = () => { initMap(); initFirebase(); setTimeout(updatePanel, 600); };
     </script>
