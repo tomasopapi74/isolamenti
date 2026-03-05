@@ -277,6 +277,7 @@
         let isLocalMode = false, mapReady = false, isSyncing = false; 
         let isInitialized = false; 
         let lastCloudSyncTime = 0; 
+        let pendingSave = false; // CODA DI SALVATAGGIO
         let wakeLock = null;
 
         const app = initializeApp(firebaseConfig);
@@ -317,8 +318,6 @@
                     await signInAnonymously(auth);
                 }
 
-                if (!auth.currentUser) throw new Error("Utente non autenticato.");
-
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
                 const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', name);
                 
@@ -330,11 +329,10 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.password !== pass) throw new Error("Password errata.");
-                    
                     mergeData(data.fields || []);
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                     isInitialized = true; 
-                    showNotification("Ultimo salvataggio caricato.");
+                    showNotification("Dati caricati dal Cloud.");
                 } else {
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
                     isInitialized = true;
@@ -359,6 +357,7 @@
             isLocalMode = local; 
             currentProjectName = name; 
             currentPassword = pass;
+            isInitialized = true; // Sblocca forzatamente
             
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: local ? 'local' : 'cloud', name, pass }));
             document.getElementById('displayProjName').innerText = name.toUpperCase();
@@ -388,29 +387,20 @@
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             
             onSnapshot(projRef, (doc) => {
-                // Se stiamo scrivendo noi (isSyncing), ignoriamo il ritorno per non sovrascrivere i dati appena creati
+                // Se stiamo attivamente scrivendo, ignoriamo gli aggiornamenti in arrivo (echo)
                 if (isSyncing) return;
 
                 if (doc.exists()) {
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                     
+                    // Solo se il dato nel cloud è REALMENTE più nuovo di quello che abbiamo visualizzato
                     if (incomingSyncTime > lastCloudSyncTime) {
                         mergeData(data.fields || []);
                         lastCloudSyncTime = incomingSyncTime;
-                        
-                        const validFields = fields.filter(f => f.id !== 'field_generiche');
-                        if (validFields.length > 0 && map.getCenter().lat === 44.5) {
-                            map.setView(validFields[validFields.length - 1].latlng, 15);
-                        }
                     }
-                    
-                    isInitialized = true;
-                    document.getElementById('syncStatusLabel').innerText = "Cloud Connesso";
                     document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                 }
-            }, (err) => {
-                showNotification("Connessione Cloud persa.");
             });
         }
 
@@ -435,10 +425,7 @@
         }
 
         async function saveData() {
-            // Se non siamo inizializzati, non facciamo nulla
-            if (!isInitialized) return;
-            
-            const now = new Date().toISOString();
+            // SALVATAGGIO LOCALE: Sempre e comunque, nessuna condizione.
             const cleanFields = fields.map(f => {
                 const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
                 return { 
@@ -460,29 +447,41 @@
                     })) 
                 };
             });
-
-            // SALVATAGGIO LOCALE: SEMPRE PRIORITARIO E IMMEDIATO
             localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
 
-            // SALVATAGGIO CLOUD: Solo se necessario e non già in corso
-            if (!isLocalMode && auth.currentUser && !isSyncing) {
+            // Se siamo già in fase di sincronizzazione, mettiamo in coda la richiesta e usciamo
+            if (isSyncing) {
+                pendingSave = true;
+                return;
+            }
+
+            // SALVATAGGIO CLOUD: Solo se non siamo in locale
+            if (!isLocalMode && auth.currentUser) {
                 try {
                     isSyncing = true;
                     document.getElementById('syncIndicator').classList.add('saving-pulse');
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
                     
-                    // Aggiorniamo il timestamp locale PRIMA dell'invio
-                    lastCloudSyncTime = new Date(now).getTime();
+                    const now = new Date().toISOString();
+                    lastCloudSyncTime = new Date(now).getTime(); // Blocca immediatamente l'echo
                     
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
-                    console.error("Errore salvataggio Cloud:", e);
+                    console.error("Sync Error:", e);
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
                     document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                    // Breve delay per evitare overlap di feedback
-                    setTimeout(() => { isSyncing = false; }, 1000);
+                    
+                    // Rilasciamo il blocco dopo un secondo per sicurezza
+                    setTimeout(async () => {
+                        isSyncing = false;
+                        // Se c'è un salvataggio in coda, lo eseguiamo ora
+                        if (pendingSave) {
+                            pendingSave = false;
+                            await saveData();
+                        }
+                    }, 1000);
                 }
             }
         }
@@ -505,18 +504,12 @@
         };
 
         window.confirmAddField = async function() {
-            // Forza inizializzazione se siamo arrivati qui
-            isInitialized = true;
-            
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "---";
             const category = document.getElementById('fieldCategoryInput').value;
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
             
-            const btn = document.getElementById('fieldConfirmBtn');
-            btn.disabled = true;
-
             try {
                 if (tempFieldId) {
                     const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
@@ -536,7 +529,6 @@
                         if(isNaN(lat) || isNaN(lon)) throw new Error("Coordinate non valide.");
                         latlng = L.latLng(lat, lon); 
                     }
-                    // ID univoco con fattore casuale per evitare sovrapposizioni
                     const newField = { id: Date.now() + Math.floor(Math.random() * 1000), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                     addFieldToMap(newField);
                 }
@@ -544,16 +536,13 @@
                 await saveData(); 
                 window.updateFieldUI();
                 closeFieldModal(); 
-                showNotification("Campo salvato.");
+                showNotification("Campo memorizzato.");
             } catch (err) {
                 showNotification("Errore: " + err.message);
-            } finally {
-                btn.disabled = false;
             }
         };
 
         window.confirmAddCheckpoint = async function() {
-            isInitialized = true;
             const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
@@ -580,7 +569,7 @@
                 }
                 await saveData(); 
                 closeCheckpointModal(); 
-                showNotification("Nota salvata.");
+                showNotification("Nota memorizzata.");
             }
         };
 
@@ -617,7 +606,6 @@
                 fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
             }
 
-            // Aggiungi all'array solo se non esiste già
             if (fields.findIndex(f => f.id.toString() === fData.id.toString()) === -1) {
                 fields.push(fData);
             }
