@@ -43,6 +43,9 @@
         #panelContent::-webkit-scrollbar { width: 4px; }
         #panelContent::-webkit-scrollbar-track { background: transparent; }
         #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        
+        .saving-pulse { animation: pulse-blue 1s infinite; }
+        @keyframes pulse-blue { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -73,7 +76,7 @@
                 <div class="bg-green-600 p-2 rounded-lg"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
                 <div class="hidden sm:block">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">Isolamenti</h1>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Connessione...</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Pronto</span>
                 </div>
             </div>
             <div class="flex-1 flex gap-2">
@@ -256,7 +259,6 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurazione Firebase
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -319,7 +321,6 @@
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
                 const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', name);
                 
-                // RESET STATO LOCALE per evitare conflitti con sessioni precedenti
                 isInitialized = false; 
                 lastCloudSyncTime = 0;
 
@@ -329,10 +330,9 @@
                     const data = docSnap.data();
                     if (data.password !== pass) throw new Error("Password errata.");
                     
-                    // CARICAMENTO IMMEDIATO: I dati del Cloud hanno priorità assoluta
                     mergeData(data.fields || []);
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
-                    isInitialized = true; // Sblocca l'app SOLO dopo aver caricato i dati reali
+                    isInitialized = true; 
                     showNotification("Ultimo salvataggio caricato.");
                 } else {
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
@@ -391,12 +391,10 @@
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                     
-                    // Solo se il dato in arrivo è REALMENTE più nuovo di quello che abbiamo visualizzato
                     if (incomingSyncTime > lastCloudSyncTime) {
                         mergeData(data.fields || []);
                         lastCloudSyncTime = incomingSyncTime;
                         
-                        // Centra la mappa se è la prima volta che carichiamo i dati
                         const validFields = fields.filter(f => f.id !== 'field_generiche');
                         if (validFields.length > 0 && map.getCenter().lat === 44.5) {
                             map.setView(validFields[validFields.length - 1].latlng, 15);
@@ -415,7 +413,6 @@
         function mergeData(newData) {
             if (!mapReady) return;
             
-            // Pulisci mappa
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle);
@@ -434,7 +431,8 @@
         }
 
         async function saveData() {
-            // PROTEZIONE MASSIMA: Non salvare MAI se l'inizializzazione non è completa
+            // FIX: Rimossa isLocalMode dal blocco iniziale. 
+            // Dobbiamo SEMPRE salvare in localStorage, indipendentemente dalla modalità.
             if (!isInitialized || isSyncing) return;
             
             const now = new Date().toISOString();
@@ -460,23 +458,26 @@
                 };
             });
 
-            // Cache locale
+            // Cache locale (Sempre presente)
             localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
 
+            // Salvataggio Cloud (Solo se abilitato)
             if (!isLocalMode && auth.currentUser) {
                 try {
                     isSyncing = true;
+                    document.getElementById('syncIndicator').classList.add('saving-pulse');
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
                     
-                    // Aggiorniamo il timestamp locale PRIMA dell'invio per evitare loop
                     lastCloudSyncTime = new Date(now).getTime();
                     
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
+                    console.error("Errore salvataggio:", e);
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
-                    isSyncing = false; 
+                    document.getElementById('syncIndicator').classList.remove('saving-pulse');
+                    setTimeout(() => { isSyncing = false; }, 800);
                 }
             }
         }
@@ -499,7 +500,7 @@
         };
 
         window.confirmAddField = async function() {
-            if (!isInitialized) return showNotification("Sincronizzazione incorso...");
+            if (!isInitialized) return showNotification("Attendere...");
             
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "---";
@@ -532,10 +533,12 @@
                     const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                     addFieldToMap(newField);
                 }
+                
+                // Forza il salvataggio immediato
                 await saveData(); 
                 window.updateFieldUI();
                 closeFieldModal(); 
-                showNotification("Salvato.");
+                showNotification("Campo salvato correttamente.");
             } catch (err) {
                 showNotification("Errore: " + err.message);
             } finally {
@@ -569,7 +572,9 @@
                     const cpData = { id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                     if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
                 }
-                await saveData(); closeCheckpointModal(); showNotification("Nota salvata.");
+                await saveData(); 
+                closeCheckpointModal(); 
+                showNotification("Nota registrata.");
             }
         };
 
@@ -763,14 +768,21 @@
                 if (file.name.endsWith('.json')) {
                     try { 
                         const imported = JSON.parse(e.target.result); 
-                        // Sblocca forzatamente il sistema di salvataggio
+                        
+                        // FIX: Azzeramento timestamp locale per forzare il master
                         isInitialized = true; 
-                        // Forza il reset del timestamp locale affinché il salvataggio sia visto come "nuovo"
-                        lastCloudSyncTime = 0;
+                        lastCloudSyncTime = 0; 
+                        isSyncing = false;
+                        
                         mergeData(imported); 
+                        
+                        // Forza salvataggio immediato
                         await saveData(); 
-                        showNotification("Backup ripristinato e sincronizzato!"); 
-                    } catch (err) { showNotification("Errore nel file JSON."); }
+                        showNotification("Backup ripristinato correttamente!"); 
+                        
+                    } catch (err) { 
+                        showNotification("Errore nel file JSON."); 
+                    }
                 } else {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
@@ -825,7 +837,7 @@
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); }
         window.expandPanel = () => { isExpanded = true; updatePanel(); };
         window.onload = () => { 
-            document.getElementById('configInfo').innerText = "Piattaforma pronta.";
+            document.getElementById('configInfo').innerText = "Sistema pronto.";
             initMap(); 
             setTimeout(updatePanel, 600); 
         };
