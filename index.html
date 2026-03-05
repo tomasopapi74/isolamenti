@@ -44,8 +44,8 @@
         #panelContent::-webkit-scrollbar-track { background: transparent; }
         #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
         
-        .saving-pulse { animation: pulse-blue 1s infinite; }
-        @keyframes pulse-blue { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .saving-pulse { animation: pulse-blue 1.5s infinite; }
+        @keyframes pulse-blue { 0% { color: #3b82f6; } 50% { color: #94a3b8; } 100% { color: #3b82f6; } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -259,6 +259,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Configurazione Firebase
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -387,7 +388,10 @@
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             
             onSnapshot(projRef, (doc) => {
-                if (!isSyncing && doc.exists()) {
+                // Se stiamo scrivendo noi (isSyncing), ignoriamo il ritorno per non sovrascrivere i dati appena creati
+                if (isSyncing) return;
+
+                if (doc.exists()) {
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                     
@@ -431,9 +435,8 @@
         }
 
         async function saveData() {
-            // FIX: Rimossa isLocalMode dal blocco iniziale. 
-            // Dobbiamo SEMPRE salvare in localStorage, indipendentemente dalla modalità.
-            if (!isInitialized || isSyncing) return;
+            // Se non siamo inizializzati, non facciamo nulla
+            if (!isInitialized) return;
             
             const now = new Date().toISOString();
             const cleanFields = fields.map(f => {
@@ -458,26 +461,28 @@
                 };
             });
 
-            // Cache locale (Sempre presente)
+            // SALVATAGGIO LOCALE: SEMPRE PRIORITARIO E IMMEDIATO
             localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
 
-            // Salvataggio Cloud (Solo se abilitato)
-            if (!isLocalMode && auth.currentUser) {
+            // SALVATAGGIO CLOUD: Solo se necessario e non già in corso
+            if (!isLocalMode && auth.currentUser && !isSyncing) {
                 try {
                     isSyncing = true;
                     document.getElementById('syncIndicator').classList.add('saving-pulse');
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
                     
+                    // Aggiorniamo il timestamp locale PRIMA dell'invio
                     lastCloudSyncTime = new Date(now).getTime();
                     
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
-                    console.error("Errore salvataggio:", e);
+                    console.error("Errore salvataggio Cloud:", e);
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
                     document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                    setTimeout(() => { isSyncing = false; }, 800);
+                    // Breve delay per evitare overlap di feedback
+                    setTimeout(() => { isSyncing = false; }, 1000);
                 }
             }
         }
@@ -500,7 +505,8 @@
         };
 
         window.confirmAddField = async function() {
-            if (!isInitialized) return showNotification("Attendere...");
+            // Forza inizializzazione se siamo arrivati qui
+            isInitialized = true;
             
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "---";
@@ -530,15 +536,15 @@
                         if(isNaN(lat) || isNaN(lon)) throw new Error("Coordinate non valide.");
                         latlng = L.latLng(lat, lon); 
                     }
-                    const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
+                    // ID univoco con fattore casuale per evitare sovrapposizioni
+                    const newField = { id: Date.now() + Math.floor(Math.random() * 1000), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                     addFieldToMap(newField);
                 }
                 
-                // Forza il salvataggio immediato
                 await saveData(); 
                 window.updateFieldUI();
                 closeFieldModal(); 
-                showNotification("Campo salvato correttamente.");
+                showNotification("Campo salvato.");
             } catch (err) {
                 showNotification("Errore: " + err.message);
             } finally {
@@ -547,7 +553,7 @@
         };
 
         window.confirmAddCheckpoint = async function() {
-            if (!isInitialized) return;
+            isInitialized = true;
             const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
@@ -569,12 +575,12 @@
                         if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp);
                     }
                 } else {
-                    const cpData = { id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
+                    const cpData = { id: Date.now() + Math.floor(Math.random() * 1000), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                     if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
                 }
                 await saveData(); 
                 closeCheckpointModal(); 
-                showNotification("Nota registrata.");
+                showNotification("Nota salvata.");
             }
         };
 
@@ -611,7 +617,11 @@
                 fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
             }
 
-            if (fields.findIndex(f => f.id.toString() === fData.id.toString()) === -1) fields.push(fData);
+            // Aggiungi all'array solo se non esiste già
+            if (fields.findIndex(f => f.id.toString() === fData.id.toString()) === -1) {
+                fields.push(fData);
+            }
+            
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
@@ -768,18 +778,12 @@
                 if (file.name.endsWith('.json')) {
                     try { 
                         const imported = JSON.parse(e.target.result); 
-                        
-                        // FIX: Azzeramento timestamp locale per forzare il master
                         isInitialized = true; 
                         lastCloudSyncTime = 0; 
                         isSyncing = false;
-                        
                         mergeData(imported); 
-                        
-                        // Forza salvataggio immediato
                         await saveData(); 
-                        showNotification("Backup ripristinato correttamente!"); 
-                        
+                        showNotification("Backup ripristinato."); 
                     } catch (err) { 
                         showNotification("Errore nel file JSON."); 
                     }
@@ -810,7 +814,6 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
             map.on('click', (e) => { 
-                if (!isInitialized) return showNotification("Attendi sincronizzazione...");
                 let target = fields.find(f => f.id !== 'field_generiche' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
                 tempFieldCoords = e.latlng;
                 tempCheckpointCoords = { 
