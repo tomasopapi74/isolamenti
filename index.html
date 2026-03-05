@@ -43,6 +43,9 @@
         #panelContent::-webkit-scrollbar { width: 4px; }
         #panelContent::-webkit-scrollbar-track { background: transparent; }
         #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+        
+        .sync-loading { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -73,7 +76,7 @@
                 <div class="bg-green-600 p-2 rounded-lg"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
                 <div class="hidden sm:block">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">Isolamenti</h1>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Offline</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Inizializzazione...</span>
                 </div>
             </div>
             <div class="flex-1 flex gap-2">
@@ -132,6 +135,7 @@
                 </div>
 
                 <div id="fieldsSection" class="space-y-6">
+                    <!-- Categorie Varietà -->
                     <div id="cat-cipolle" class="hidden">
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-orange-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Cipolle</h3></div>
                         <div id="list-cipolle" class="space-y-2"></div>
@@ -271,6 +275,7 @@
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false, isSyncing = false; 
+        let isInitialized = false; // FLAG CRITICO: Non salvare finché non è vero
         let lastLocalUpdate = 0; 
         let wakeLock = null;
 
@@ -327,12 +332,19 @@
         function enterApp(name, pass, local) {
             isLocalMode = local; currentProjectName = name; currentPassword = pass;
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: local ? 'local' : 'cloud', name, pass }));
-            document.getElementById('syncStatusLabel').innerText = local ? "Dati Smartphone" : "Cloud Attivo";
+            document.getElementById('syncStatusLabel').innerText = local ? "Dati Smartphone" : "Recupero Dati...";
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
+            
             const checkMap = setInterval(() => {
                 if (mapReady) {
-                    if (local) loadForensicData(); else startCloudSync();
+                    if (local) {
+                        loadForensicData();
+                        isInitialized = true;
+                        document.getElementById('syncStatusLabel').innerText = "Dati Smartphone";
+                    } else {
+                        startCloudSync();
+                    }
                     setTimeout(() => toggleTracking(true), 300);
                     clearInterval(checkMap);
                 }
@@ -350,22 +362,42 @@
                 if (doc.exists() && !isSyncing) {
                     const data = doc.data();
                     const cloudTimestamp = data.lastSync ? new Date(data.lastSync).getTime() : 0;
-                    if (cloudTimestamp >= lastLocalUpdate) {
+                    
+                    // Se non siamo inizializzati, prendiamo i dati dal cloud a prescindere
+                    if (!isInitialized || cloudTimestamp >= lastLocalUpdate) {
                         mergeData(data.fields || []);
+                        
+                        // Centra la mappa sull'ultimo isolamento registrato se non stiamo già tracciando
+                        if (!isInitialized && fields.length > 0) {
+                            const lastField = fields[fields.length - 1];
+                            if (lastField.latlng[0] !== 0) map.setView(lastField.latlng, 15);
+                        }
+                        
+                        isInitialized = true;
+                        document.getElementById('syncStatusLabel').innerText = "Cloud Attivo";
                         document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                     }
+                } else if (!doc.exists()) {
+                    isInitialized = true; // Progetto nuovo
                 }
-            }, (err) => { document.getElementById('syncIndicator').className = "text-red-500 transition-all"; });
+            }, (err) => { 
+                showNotification("Errore di sincronizzazione.");
+                document.getElementById('syncIndicator').className = "text-red-500 transition-all"; 
+            });
         }
 
         function mergeData(newData) {
             if (!mapReady) return;
+            
+            // Pulizia preventiva
             fields.forEach(f => {
-                if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle);
+                if(f.marker) map.removeLayer(f.marker); 
+                if(f.circle) map.removeLayer(f.circle);
                 if(f.polyline) map.removeLayer(f.polyline);
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
             fields = []; 
+            
             newData.forEach(fData => {
                 if (fData.pathCoords && typeof fData.pathCoords === 'string') {
                     try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
@@ -376,30 +408,48 @@
         }
 
         async function saveData() {
-            if (isSyncing) return;
+            // REGOLA D'ORO: Non salvare nulla se l'app non ha finito di caricare i dati precedenti
+            if (!isInitialized || isSyncing) return;
+            
             const now = new Date().toISOString();
             lastLocalUpdate = new Date(now).getTime();
+
             const cleanFields = fields.map(f => {
                 const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
                 return { 
-                    id: f.id, name: f.name || "Campo", code: f.code || "---", category: (f.category || "cipolle").toLowerCase(), latlng: latlng, radius: Number(f.radius) || 1000, 
+                    id: f.id, 
+                    name: f.name || "Campo", 
+                    code: f.code || "---", 
+                    category: (f.category || "cipolle").toLowerCase(), 
+                    latlng: latlng, 
+                    radius: Number(f.radius) || 1000, 
                     photo: f.photo || null,
                     pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
                     checkpoints: (f.checkpoints || []).map(cp => ({ 
-                        id: cp.id, latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], note: cp.note || "", date: cp.date || "", checked: cp.checked || false,
+                        id: cp.id, 
+                        latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
+                        note: cp.note || "", 
+                        date: cp.date || "", 
+                        checked: cp.checked || false,
                         photo: cp.photo || null
                     })) 
                 };
             });
-            if (isLocalMode) { localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); } 
-            else if (fb.auth?.currentUser) {
+
+            // Salvataggio locale sempre eseguito
+            localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
+
+            if (!isLocalMode && fb.auth?.currentUser) {
                 try {
                     isSyncing = true;
                     const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600 font-black";
-                } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; }
-                finally { isSyncing = false; }
+                } catch (e) { 
+                    document.getElementById('syncIndicator').className = "text-red-500"; 
+                } finally { 
+                    isSyncing = false; 
+                }
             }
         }
 
@@ -421,13 +471,17 @@
         };
 
         window.confirmAddField = async function() {
+            if (!isInitialized) return showNotification("Attendi caricamento...");
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "001";
             const category = document.getElementById('fieldCategoryInput').value.toLowerCase();
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
+            
             const confirmBtn = document.getElementById('fieldConfirmBtn');
-            confirmBtn.disabled = true; confirmBtn.innerText = "Salvataggio...";
+            confirmBtn.disabled = true;
+            confirmBtn.innerText = "Salvataggio...";
+
             try {
                 if (tempFieldId) {
                     const idx = fields.findIndex(f => f.id === tempFieldId);
@@ -450,19 +504,25 @@
                     const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                     addFieldToMap(newField);
                 }
-                await saveData(); window.updateFieldUI(); closeFieldModal(); showNotification("Isolamento salvato correttamente!");
-            } catch (err) { showNotification("Errore: " + err.message); } finally { confirmBtn.disabled = false; confirmBtn.innerText = "SALVA"; }
+                await saveData(); 
+                window.updateFieldUI();
+                closeFieldModal(); 
+                showNotification("Dati salvati sul Cloud.");
+            } catch (err) {
+                showNotification("Errore: " + err.message);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerText = "SALVA";
+            }
         };
 
         window.confirmAddCheckpoint = async function() {
+            if (!isInitialized) return;
             const note = document.getElementById('checkpointNoteInput').value.trim(); if (!note) return;
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
             
-            // Cerca il campo di appartenenza
             let field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
-            
-            // Se non c'è campo (click fuori), usa o crea un campo virtuale "Note Libere"
             if (!field || tempCheckpointCoords.fieldId === 'generiche') {
                 field = fields.find(f => f.id === 'field_generiche');
                 if (!field) {
@@ -487,7 +547,6 @@
         };
 
         window.deleteCheckpoint = async function() {
-            if (!tempCheckpointCoords || !tempCheckpointCoords.checkpointId) return;
             if (confirm("Vuoi davvero eliminare questa nota?")) {
                 let found = false;
                 fields.forEach(field => {
@@ -509,7 +568,6 @@
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[(fData.category || "cipolle").toLowerCase()] || '#64748b';
             
-            // Non aggiungere marker per il campo "Note Generiche" virtuale che ha coordinate 0,0
             if (fData.id !== 'field_generiche') {
                 const marker = L.marker(fData.latlng, { icon: L.divIcon({ html: `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
                 const circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
@@ -633,8 +691,8 @@
                         item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm active:scale-[0.98]";
                         item.onclick = () => { if(f.latlng[0]!==0) map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
                         const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="${f.id==='field_generiche'?'clipboard-list':'image'}" class="w-4 h-4 text-slate-300"></i></div>`;
-                        const delBtn = f.id !== 'field_generiche' ? `<button onclick="event.stopPropagation(); deleteField(${f.id})" class="p-2 text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
-                        const editBtn = f.id !== 'field_generiche' ? `<button onclick="event.stopPropagation(); openEditField(${f.id})" class="p-2 text-slate-300 hover:text-blue-500"><i data-lucide="edit-3" class="w-4 h-4"></i></button>` : '';
+                        const delBtn = f.id !== 'field_generiche' ? `<button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-slate-300 hover:text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '';
+                        const editBtn = f.id !== 'field_generiche' ? `<button onclick="event.stopPropagation(); openEditField('${f.id}')" class="p-2 text-slate-300 hover:text-blue-500"><i data-lucide="edit-3" class="w-4 h-4"></i></button>` : '';
                         item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase leading-none truncate">${f.name}</p><p class="text-[9px] font-mono text-slate-400 mt-1">${f.code}</p></div><div class="flex gap-1">${editBtn}${delBtn}</div>`;
                         list.appendChild(item);
                     });
@@ -672,7 +730,7 @@
             if (file.name.endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
         };
 
-        window.deleteField = async (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id === id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id !== id); await saveData(); window.updateFieldUI(); } } };
+        window.deleteField = async (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id == id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id != id); await saveData(); window.updateFieldUI(); } } };
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.closeFieldModal = () => { tempFieldId = null; tempFieldCoords = null; document.getElementById('fieldModal').classList.replace('flex', 'hidden'); document.getElementById('fieldPhotoPreview').src = ""; document.getElementById('fieldPhotoPreview').classList.add('hidden'); };
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
@@ -687,7 +745,7 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             L.control.zoom({ position: 'topright' }).addTo(map);
             map.on('click', (e) => { 
-                if (!currentProjectName && !isLocalMode) return; 
+                if (!isInitialized) return showNotification("Attendi sincronizzazione...");
                 let target = fields.find(f => f.id !== 'field_generiche' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
                 tempFieldCoords = e.latlng;
                 tempCheckpointCoords = { 
