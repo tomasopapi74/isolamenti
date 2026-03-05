@@ -43,9 +43,6 @@
         #panelContent::-webkit-scrollbar { width: 4px; }
         #panelContent::-webkit-scrollbar-track { background: transparent; }
         #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        
-        .sync-loading { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -56,13 +53,13 @@
             <div class="text-center space-y-2">
                 <div class="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"><i data-lucide="shield-check" class="text-blue-600 w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">Accesso Isolamenti</h1>
-                <p class="text-slate-500 text-sm italic leading-tight">Progetto Cloud: isolamenti-923d0</p>
+                <p class="text-slate-500 text-sm italic leading-tight" id="configInfo">Verifica sistema in corso...</p>
             </div>
             <div class="space-y-4">
                 <div class="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
                     <input type="text" id="projectInput" placeholder="ID Gruppo (Team)" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
                     <input type="password" id="passwordInput" placeholder="Password" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
-                    <button onclick="handleLogin()" id="loginBtn" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all"><span id="btnLabel">ACCEDI AL CLOUD</span></button>
+                    <button id="loginBtn" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 active:scale-95 transition-all">ACCEDI AL CLOUD</button>
                 </div>
                 <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"><i data-lucide="smartphone" class="w-4 h-4"></i> MODALITÀ LOCALE</button>
             </div>
@@ -76,7 +73,7 @@
                 <div class="bg-green-600 p-2 rounded-lg"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
                 <div class="hidden sm:block">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">Isolamenti</h1>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Inizializzazione...</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Connessione...</span>
                 </div>
             </div>
             <div class="flex-1 flex gap-2">
@@ -113,7 +110,7 @@
                     </div>
                     <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 transition-all">
                         <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                        <span id="statusText">GPS Off</span>
+                        <span id="statusText">GPS Spento</span>
                     </div>
                 </div>
             </div>
@@ -135,7 +132,6 @@
                 </div>
 
                 <div id="fieldsSection" class="space-y-6">
-                    <!-- Categorie Varietà -->
                     <div id="cat-cipolle" class="hidden">
                         <div class="flex items-center gap-2 mb-3"><div class="w-1 h-4 bg-orange-500 rounded-full"></div><h3 class="text-xs font-black uppercase text-slate-600 tracking-wider">Cipolle</h3></div>
                         <div id="list-cipolle" class="space-y-2"></div>
@@ -260,36 +256,29 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const myFirebaseConfig = {
+        // Variabili Globali fornite dall'ambiente
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
           projectId: "isolamenti-923d0",
           storageBucket: "isolamenti-923d0.firebasestorage.app",
           messagingSenderId: "907661900494",
-          appId: "1:907661900494:web:dbb5c4a4235ee2ada3ae9f",
-          measurementId: "G-DQ37WPPJ42"
+          appId: "1:907661900494:web:dbb5c4a4235ee2ada3ae9f"
         };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'isolamenti-923d0';
 
-        let fb = {};
+        let db, auth;
         let map, userMarker, watchId = null, fields = []; 
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false, isSyncing = false; 
-        let isInitialized = false; // FLAG CRITICO: Non salvare finché non è vero
-        let lastLocalUpdate = 0; 
+        let isInitialized = false; 
         let wakeLock = null;
 
-        async function initFirebase() {
-            try {
-                const app = initializeApp(myFirebaseConfig);
-                fb.auth = getAuth(app); fb.db = getFirestore(app);
-                fb.appId = 'isolamenti-923d0';
-                onAuthStateChanged(fb.auth, (user) => {
-                    if (user) document.getElementById('syncIndicator')?.classList.remove('text-slate-400');
-                });
-                window.fbReady = true; return true;
-            } catch (e) { return false; }
-        }
+        // Inizializzazione Firebase Subito
+        const app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
 
         const requestWakeLock = async () => {
             if ('wakeLock' in navigator) {
@@ -308,47 +297,72 @@
             const errorEl = document.getElementById('loginError');
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
-            if (!nameRaw || !pass) { errorEl.innerText = "Dati incompleti."; errorEl.classList.remove('hidden'); return; }
-            loginBtn.disabled = true; document.getElementById('btnLabel').innerHTML = '<span class="loader"></span> AUTH...';
+            
+            if (!nameRaw || !pass) { 
+                showNotification("Inserire Nome Gruppo e Password."); 
+                return; 
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="loader"></span> Connessione...';
             errorEl.classList.add('hidden');
+
             try {
-                if (!window.fbReady) await initFirebase();
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(fb.auth, __initial_auth_token); 
-                else await signInAnonymously(fb.auth);
+                // Esegue Autenticazione prima di tutto
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
-                const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', name);
+                // Path di sicurezza: /artifacts/{appId}/public/data/projects/{projectName}
+                const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', name);
                 const docSnap = await getDoc(projRef);
-                if (docSnap.exists() && docSnap.data().password !== pass) throw new Error("Password errata.");
-                if (!docSnap.exists()) await setDoc(projRef, { password: pass, fields: [] });
+
+                if (docSnap.exists() && docSnap.data().password !== pass) {
+                    throw new Error("Password errata per questo gruppo.");
+                }
+                
+                if (!docSnap.exists()) {
+                    await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
+                }
+
                 enterApp(name, pass, false);
             } catch (err) { 
-                errorEl.innerText = err.message; errorEl.classList.remove('hidden'); 
-                loginBtn.disabled = false; document.getElementById('btnLabel').innerText = "ACCEDI AL CLOUD";
+                errorEl.innerText = err.message; 
+                errorEl.classList.remove('hidden'); 
+                loginBtn.disabled = false; 
+                loginBtn.innerText = "ACCEDI AL CLOUD";
             }
         };
 
         window.handleLocalMode = () => enterApp("LOCALE", "", true);
 
         function enterApp(name, pass, local) {
-            isLocalMode = local; currentProjectName = name; currentPassword = pass;
+            isLocalMode = local; 
+            currentProjectName = name; 
+            currentPassword = pass;
+            
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: local ? 'local' : 'cloud', name, pass }));
-            document.getElementById('syncStatusLabel').innerText = local ? "Dati Smartphone" : "Recupero Dati...";
+            
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
             
+            // Attende che la mappa sia caricata prima di sincronizzare
             const checkMap = setInterval(() => {
                 if (mapReady) {
                     if (local) {
                         loadForensicData();
                         isInitialized = true;
-                        document.getElementById('syncStatusLabel').innerText = "Dati Smartphone";
+                        document.getElementById('syncStatusLabel').innerText = "Dati Locali";
                     } else {
                         startCloudSync();
                     }
-                    setTimeout(() => toggleTracking(true), 300);
+                    setTimeout(() => toggleTracking(true), 500);
                     clearInterval(checkMap);
                 }
-            }, 300);
+            }, 100);
         }
 
         function loadForensicData() {
@@ -357,39 +371,39 @@
         }
 
         function startCloudSync() {
-            const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
+            if (!auth.currentUser) return;
+            const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
+            
             onSnapshot(projRef, (doc) => {
                 if (doc.exists() && !isSyncing) {
                     const data = doc.data();
-                    const cloudTimestamp = data.lastSync ? new Date(data.lastSync).getTime() : 0;
+                    mergeData(data.fields || []);
                     
-                    // Se non siamo inizializzati, prendiamo i dati dal cloud a prescindere
-                    if (!isInitialized || cloudTimestamp >= lastLocalUpdate) {
-                        mergeData(data.fields || []);
-                        
-                        // Centra la mappa sull'ultimo isolamento registrato se non stiamo già tracciando
-                        if (!isInitialized && fields.length > 0) {
-                            const lastField = fields[fields.length - 1];
-                            if (lastField.latlng[0] !== 0) map.setView(lastField.latlng, 15);
+                    if (!isInitialized) {
+                        // Al primo avvio, se ci sono campi, centra la mappa sull'ultimo
+                        if (fields.length > 0) {
+                            const last = fields.filter(f => f.id !== 'field_generiche').pop();
+                            if (last) map.setView(last.latlng, 15);
                         }
-                        
-                        isInitialized = true;
-                        document.getElementById('syncStatusLabel').innerText = "Cloud Attivo";
-                        document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                     }
+                    
+                    isInitialized = true;
+                    document.getElementById('syncStatusLabel').innerText = "Cloud Connesso";
+                    document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                 } else if (!doc.exists()) {
-                    isInitialized = true; // Progetto nuovo
+                    isInitialized = true; // Progetto nuovo, pronto al primo salvataggio
+                    document.getElementById('syncStatusLabel').innerText = "Cloud Nuovo";
                 }
             }, (err) => { 
-                showNotification("Errore di sincronizzazione.");
                 document.getElementById('syncIndicator').className = "text-red-500 transition-all"; 
+                showNotification("Errore di connessione cloud.");
             });
         }
 
         function mergeData(newData) {
             if (!mapReady) return;
             
-            // Pulizia preventiva
+            // Pulizia totale degli oggetti grafici esistenti
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle);
@@ -408,12 +422,10 @@
         }
 
         async function saveData() {
-            // REGOLA D'ORO: Non salvare nulla se l'app non ha finito di caricare i dati precedenti
+            // BLOCCA SALVATAGGIO se non abbiamo ancora caricato i dati esistenti
             if (!isInitialized || isSyncing) return;
             
             const now = new Date().toISOString();
-            lastLocalUpdate = new Date(now).getTime();
-
             const cleanFields = fields.map(f => {
                 const latlng = Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng];
                 return { 
@@ -436,15 +448,14 @@
                 };
             });
 
-            // Salvataggio locale sempre eseguito
             localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
 
-            if (!isLocalMode && fb.auth?.currentUser) {
+            if (!isLocalMode && auth.currentUser) {
                 try {
                     isSyncing = true;
-                    const projRef = doc(fb.db, 'artifacts', fb.appId, 'public', 'data', 'projects', currentProjectName);
+                    const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
-                    document.getElementById('syncIndicator').className = "text-green-600 font-black";
+                    document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
@@ -471,20 +482,20 @@
         };
 
         window.confirmAddField = async function() {
-            if (!isInitialized) return showNotification("Attendi caricamento...");
+            if (!isInitialized) return showNotification("Sincronizzazione incorso...");
+            
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
-            const code = document.getElementById('fieldCodeInput').value.trim() || "001";
-            const category = document.getElementById('fieldCategoryInput').value.toLowerCase();
+            const code = document.getElementById('fieldCodeInput').value.trim() || "---";
+            const category = document.getElementById('fieldCategoryInput').value;
             const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
             
-            const confirmBtn = document.getElementById('fieldConfirmBtn');
-            confirmBtn.disabled = true;
-            confirmBtn.innerText = "Salvataggio...";
+            const btn = document.getElementById('fieldConfirmBtn');
+            btn.disabled = true;
 
             try {
                 if (tempFieldId) {
-                    const idx = fields.findIndex(f => f.id === tempFieldId);
+                    const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
                     if (idx !== -1) {
                         fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
                         if (photo) fields[idx].photo = photo;
@@ -507,12 +518,11 @@
                 await saveData(); 
                 window.updateFieldUI();
                 closeFieldModal(); 
-                showNotification("Dati salvati sul Cloud.");
+                showNotification("Salvato.");
             } catch (err) {
                 showNotification("Errore: " + err.message);
             } finally {
-                confirmBtn.disabled = false;
-                confirmBtn.innerText = "SALVA";
+                btn.disabled = false;
             }
         };
 
@@ -522,7 +532,7 @@
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
             
-            let field = fields.find(f => f.id === tempCheckpointCoords.fieldId);
+            let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
             if (!field || tempCheckpointCoords.fieldId === 'generiche') {
                 field = fields.find(f => f.id === 'field_generiche');
                 if (!field) {
@@ -533,7 +543,7 @@
 
             if (field) { 
                 if (tempCheckpointCoords.checkpointId) {
-                    const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId);
+                    const cp = field.checkpoints.find(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
                     if (cp) { 
                         cp.note = note; cp.checked = checked; if (photo) cp.photo = photo; cp.date = new Date().toLocaleString('it-IT') + " (Mod.)";
                         if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp);
@@ -543,24 +553,6 @@
                     if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
                 }
                 await saveData(); closeCheckpointModal(); showNotification("Nota salvata.");
-            }
-        };
-
-        window.deleteCheckpoint = async function() {
-            if (confirm("Vuoi davvero eliminare questa nota?")) {
-                let found = false;
-                fields.forEach(field => {
-                    const cpIdx = field.checkpoints?.findIndex(c => c.id === tempCheckpointCoords.checkpointId);
-                    if (cpIdx !== undefined && cpIdx !== -1) {
-                        const cp = field.checkpoints[cpIdx];
-                        if (cp.marker) map.removeLayer(cp.marker);
-                        field.checkpoints.splice(cpIdx, 1);
-                        found = true;
-                    }
-                });
-                if (found) {
-                    closeCheckpointModal(); await saveData(); showNotification("Nota eliminata.");
-                }
             }
         };
 
@@ -579,7 +571,7 @@
                 fData.marker = marker; fData.circle = circle; fData.polyline = polyline;
             }
 
-            if (fields.findIndex(f => f.id === fData.id) === -1) fields.push(fData);
+            if (fields.findIndex(f => f.id.toString() === fData.id.toString()) === -1) fields.push(fData);
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
@@ -595,7 +587,7 @@
         }
 
         window.openEditField = (id) => {
-            const f = fields.find(f => f.id === id); if (!f || id === 'field_generiche') return;
+            const f = fields.find(f => f.id.toString() === id.toString()); if (!f || id === 'field_generiche') return;
             tempFieldId = f.id;
             document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento";
             document.getElementById('fieldNameInput').value = f.name;
@@ -610,7 +602,7 @@
 
         window.openEditCheckpoint = (cp) => {
             let fid = 'generiche'; 
-            fields.forEach(f => { if (f.checkpoints?.some(c => c.id === cp.id)) fid = f.id; });
+            fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
             tempCheckpointCoords = { latlng: L.latLng(cp.latlng[0], cp.latlng[1]), fieldId: fid, checkpointId: cp.id };
             document.getElementById('checkpointModalTitle').innerText = "Modifica Nota";
             document.getElementById('checkpointNoteInput').value = cp.note;
@@ -651,7 +643,10 @@
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Stop GPS';
                     document.getElementById('trackBtn').classList.replace('bg-slate-900', 'bg-rose-600');
                     lucide.createIcons();
-                }, (err) => { if(!auto) showNotification("GPS non disponibile."); isTracking = false; }, { enableHighAccuracy: true, timeout: 20000 });
+                }, (err) => { 
+                    if(!auto) showNotification("Permesso GPS negato o segnale assente."); 
+                    isTracking = false; 
+                }, { enableHighAccuracy: true, timeout: 20000 });
             }
         };
 
@@ -675,7 +670,7 @@
                 } else if(f.circle) f.circle.setStyle({ fillOpacity: 0.05, dashArray: '8, 8' });
             });
             document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-slate-400";
-            document.getElementById('statusText').innerText = anyInside ? "In Area" : "Monitoraggio...";
+            document.getElementById('statusText').innerText = anyInside ? "In Area" : "In Viaggio...";
         }
 
         window.updateFieldUI = function() {
@@ -703,34 +698,26 @@
         }
 
         window.exportBackup = () => {
-            if (fields.length === 0) { showNotification("Nessun dato da esportare."); return; }
+            if (fields.length === 0) { showNotification("Nessun dato."); return; }
             const backupData = fields.map(f => ({ ...f, marker: undefined, circle: undefined, polyline: undefined, checkpoints: (f.checkpoints || []).map(cp => ({ ...cp, marker: undefined })) }));
-            const dataStr = JSON.stringify(backupData, null, 2);
-            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-            const linkElement = document.createElement('a'); linkElement.setAttribute('href', dataUri); linkElement.setAttribute('download', `backup_isolamenti_${currentProjectName}.json`); linkElement.click();
+            const link = document.createElement('a');
+            link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(backupData));
+            link.download = `isolamenti_${currentProjectName}.json`;
+            link.click();
         };
 
-        window.triggerExcelImport = () => document.getElementById('excelInput').click();
-        window.triggerBackupImport = () => document.getElementById('excelInput').click();
-
-        window.handleExcelFile = (event) => {
-            const file = event.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                if (file.name.endsWith('.json')) {
-                    try { mergeData(JSON.parse(e.target.result)); saveData(); showNotification("Backup ripristinato!"); } catch (err) { showNotification("Errore JSON."); }
-                } else {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                    const newFields = json.map(item => ({ id: Date.now() + Math.random(), name: item.Nome || item.name || "Campo", code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "cipolle").toLowerCase(), latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
-                    mergeData([...fields, ...newFields]); saveData();
-                }
-            };
-            if (file.name.endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+        window.deleteField = async (id) => { 
+            if (confirm("Eliminare definitivamente questo isolamento?")) { 
+                const f = fields.find(f => f.id.toString() === id.toString()); 
+                if (f) { 
+                    if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); 
+                    fields = fields.filter(f => f.id.toString() !== id.toString()); 
+                    await saveData(); 
+                    window.updateFieldUI(); 
+                } 
+            } 
         };
 
-        window.deleteField = async (id) => { if (confirm("Eliminare definitivamente questo isolamento?")) { const f = fields.find(f => f.id == id); if (f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); fields = fields.filter(f => f.id != id); await saveData(); window.updateFieldUI(); } } };
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.closeFieldModal = () => { tempFieldId = null; tempFieldCoords = null; document.getElementById('fieldModal').classList.replace('flex', 'hidden'); document.getElementById('fieldPhotoPreview').src = ""; document.getElementById('fieldPhotoPreview').classList.add('hidden'); };
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
@@ -772,7 +759,11 @@
         window.addEventListener('touchend', (e) => { if (!dragging) return; panel.style.transition = 'transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67)'; const d = e.changedTouches[0].clientY - startY; if (Math.abs(d) > 40) isExpanded = d < 0; updatePanel(); setTimeout(() => dragging = false, 50); }, {passive: true});
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); }
         window.expandPanel = () => { isExpanded = true; updatePanel(); };
-        window.onload = () => { initMap(); initFirebase(); setTimeout(updatePanel, 600); };
+        window.onload = () => { 
+            document.getElementById('configInfo').innerText = "Sistema GPS pronto.";
+            initMap(); 
+            setTimeout(updatePanel, 600); 
+        };
     </script>
 </body>
 </html>
