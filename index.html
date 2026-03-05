@@ -256,7 +256,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variabili Globali fornite dall'ambiente
+        // Configurazione Firebase robusta
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -273,9 +273,9 @@
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false, isSyncing = false; 
         let isInitialized = false; 
+        let lastCloudSyncTime = 0; 
         let wakeLock = null;
 
-        // Inizializzazione Firebase Subito
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
@@ -299,16 +299,15 @@
             const pass = document.getElementById('passwordInput').value.trim();
             
             if (!nameRaw || !pass) { 
-                showNotification("Inserire Nome Gruppo e Password."); 
+                showNotification("Nome Gruppo e Password obbligatori."); 
                 return; 
             }
 
             loginBtn.disabled = true;
-            loginBtn.innerHTML = '<span class="loader"></span> Connessione...';
+            loginBtn.innerHTML = '<span class="loader"></span> Accesso...';
             errorEl.classList.add('hidden');
 
             try {
-                // Esegue Autenticazione prima di tutto
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -316,16 +315,21 @@
                 }
 
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
-                // Path di sicurezza: /artifacts/{appId}/public/data/projects/{projectName}
                 const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', name);
+                
+                // CARICAMENTO FORZATO INIZIALE prima di ogni altra operazione
                 const docSnap = await getDoc(projRef);
 
                 if (docSnap.exists() && docSnap.data().password !== pass) {
-                    throw new Error("Password errata per questo gruppo.");
+                    throw new Error("Password errata.");
                 }
                 
                 if (!docSnap.exists()) {
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
+                } else {
+                    // Se esistono dati, li carichiamo SUBITO
+                    mergeData(docSnap.data().fields || []);
+                    lastCloudSyncTime = docSnap.data().lastSync ? new Date(docSnap.data().lastSync).getTime() : 0;
                 }
 
                 enterApp(name, pass, false);
@@ -345,11 +349,9 @@
             currentPassword = pass;
             
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ mode: local ? 'local' : 'cloud', name, pass }));
-            
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
             
-            // Attende che la mappa sia caricata prima di sincronizzare
             const checkMap = setInterval(() => {
                 if (mapReady) {
                     if (local) {
@@ -377,11 +379,14 @@
             onSnapshot(projRef, (doc) => {
                 if (doc.exists() && !isSyncing) {
                     const data = doc.data();
-                    mergeData(data.fields || []);
+                    const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                     
-                    if (!isInitialized) {
-                        // Al primo avvio, se ci sono campi, centra la mappa sull'ultimo
-                        if (fields.length > 0) {
+                    // Solo se il dato in arrivo è più nuovo del nostro o se non abbiamo ancora finito l'init
+                    if (!isInitialized || incomingSyncTime > lastCloudSyncTime) {
+                        mergeData(data.fields || []);
+                        lastCloudSyncTime = incomingSyncTime;
+                        
+                        if (!isInitialized && fields.length > 0) {
                             const last = fields.filter(f => f.id !== 'field_generiche').pop();
                             if (last) map.setView(last.latlng, 15);
                         }
@@ -391,19 +396,16 @@
                     document.getElementById('syncStatusLabel').innerText = "Cloud Connesso";
                     document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                 } else if (!doc.exists()) {
-                    isInitialized = true; // Progetto nuovo, pronto al primo salvataggio
+                    isInitialized = true;
                     document.getElementById('syncStatusLabel').innerText = "Cloud Nuovo";
                 }
-            }, (err) => { 
-                document.getElementById('syncIndicator').className = "text-red-500 transition-all"; 
-                showNotification("Errore di connessione cloud.");
             });
         }
 
         function mergeData(newData) {
             if (!mapReady) return;
             
-            // Pulizia totale degli oggetti grafici esistenti
+            // Rimozione sicura degli oggetti grafici
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle);
@@ -422,7 +424,7 @@
         }
 
         async function saveData() {
-            // BLOCCA SALVATAGGIO se non abbiamo ancora caricato i dati esistenti
+            // BLOCCA SALVATAGGIO se l'app non è ancora pronta (pericolo sovrascrittura con dati vuoti)
             if (!isInitialized || isSyncing) return;
             
             const now = new Date().toISOString();
@@ -455,6 +457,7 @@
                     isSyncing = true;
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
+                    lastCloudSyncTime = new Date(now).getTime();
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
                     document.getElementById('syncIndicator').className = "text-red-500"; 
@@ -482,7 +485,7 @@
         };
 
         window.confirmAddField = async function() {
-            if (!isInitialized) return showNotification("Sincronizzazione incorso...");
+            if (!isInitialized) return showNotification("Attendi sincronizzazione...");
             
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "---";
@@ -553,6 +556,24 @@
                     if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
                 }
                 await saveData(); closeCheckpointModal(); showNotification("Nota salvata.");
+            }
+        };
+
+        window.deleteCheckpoint = async function() {
+            if (confirm("Eliminare questa nota?")) {
+                let found = false;
+                fields.forEach(field => {
+                    const cpIdx = field.checkpoints?.findIndex(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
+                    if (cpIdx !== undefined && cpIdx !== -1) {
+                        const cp = field.checkpoints[cpIdx];
+                        if (cp.marker) map.removeLayer(cp.marker);
+                        field.checkpoints.splice(cpIdx, 1);
+                        found = true;
+                    }
+                });
+                if (found) {
+                    closeCheckpointModal(); await saveData(); showNotification("Nota eliminata.");
+                }
             }
         };
 
@@ -718,6 +739,33 @@
             } 
         };
 
+        window.triggerExcelImport = () => document.getElementById('excelInput').click();
+        window.triggerBackupImport = () => document.getElementById('excelInput').click();
+
+        window.handleExcelFile = (event) => {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                if (file.name.endsWith('.json')) {
+                    try { 
+                        const imported = JSON.parse(e.target.result); 
+                        mergeData(imported); 
+                        // Forza il salvataggio immediato sul cloud dopo l'importazione
+                        isInitialized = true; 
+                        await saveData(); 
+                        showNotification("Backup ripristinato e sincronizzato!"); 
+                    } catch (err) { showNotification("Errore nel file JSON."); }
+                } else {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    const newFields = json.map(item => ({ id: Date.now() + Math.random(), name: item.Nome || item.name || "Campo", code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "cipolle").toLowerCase(), latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
+                    mergeData([...fields, ...newFields]); await saveData();
+                }
+            };
+            if (file.name.endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
+        };
+
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.closeFieldModal = () => { tempFieldId = null; tempFieldCoords = null; document.getElementById('fieldModal').classList.replace('flex', 'hidden'); document.getElementById('fieldPhotoPreview').src = ""; document.getElementById('fieldPhotoPreview').classList.add('hidden'); };
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
@@ -748,7 +796,6 @@
             lucide.createIcons();
         }
 
-        document.addEventListener('visibilitychange', async () => { if (wakeLock !== null && document.visibilityState === 'visible' && isTracking) await requestWakeLock(); });
         const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea'); const panelContent = document.getElementById('panelContent');
         let startY, curY = 0, dragging = false, isExpanded = false;
         window.togglePanel = () => { if (dragging) return; isExpanded = !isExpanded; updatePanel(); };
