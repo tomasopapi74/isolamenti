@@ -256,7 +256,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurazione Firebase robusta
+        // Configurazione Firebase
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -304,55 +304,55 @@
             }
 
             loginBtn.disabled = true;
-            loginBtn.innerHTML = '<span class="loader"></span> Accesso in corso...';
+            loginBtn.innerHTML = '<span class="loader"></span> Accesso...';
             errorEl.classList.add('hidden');
 
             try {
-                // REGOLA 3: Autenticazione PRIMA di qualsiasi operazione Firestore
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
 
-                // Attendi un istante che l'auth sia propagato
-                if (!auth.currentUser) {
-                    throw new Error("Impossibile inizializzare la sessione utente.");
-                }
+                if (!auth.currentUser) throw new Error("Utente non autenticato.");
 
                 const name = nameRaw.toLowerCase().replace(/[^a-z0-9_]/g, ''); 
-                // REGOLA 1: Path specifico obbligatorio
                 const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', name);
                 
-                // CARICAMENTO FORZATO INIZIALE
+                // RESET STATO LOCALE per evitare conflitti con sessioni precedenti
+                isInitialized = false; 
+                lastCloudSyncTime = 0;
+
                 const docSnap = await getDoc(projRef);
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    if (data.password !== pass) {
-                        throw new Error("Password errata per questo gruppo.");
-                    }
-                    // Carica i dati trovati SUBITO
+                    if (data.password !== pass) throw new Error("Password errata.");
+                    
+                    // CARICAMENTO IMMEDIATO: I dati del Cloud hanno priorità assoluta
                     mergeData(data.fields || []);
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
-                    showNotification("Dati Cloud recuperati con successo.");
+                    isInitialized = true; // Sblocca l'app SOLO dopo aver caricato i dati reali
+                    showNotification("Ultimo salvataggio caricato.");
                 } else {
-                    // Progetto nuovo
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
-                    showNotification("Nuovo gruppo creato sul Cloud.");
+                    isInitialized = true;
+                    showNotification("Nuovo gruppo creato.");
                 }
 
                 enterApp(name, pass, false);
             } catch (err) { 
-                console.error("Errore Login Cloud:", err);
-                errorEl.innerText = `Errore Cloud: ${err.message}`; 
+                errorEl.innerText = `Errore: ${err.message}`; 
                 errorEl.classList.remove('hidden'); 
                 loginBtn.disabled = false; 
                 loginBtn.innerText = "ACCEDI AL CLOUD";
             }
         };
 
-        window.handleLocalMode = () => enterApp("LOCALE", "", true);
+        window.handleLocalMode = () => {
+            isInitialized = true;
+            enterApp("LOCALE", "", true);
+        };
 
         function enterApp(name, pass, local) {
             isLocalMode = local; 
@@ -367,7 +367,6 @@
                 if (mapReady) {
                     if (local) {
                         loadForensicData();
-                        isInitialized = true;
                         document.getElementById('syncStatusLabel').innerText = "Dati Locali";
                     } else {
                         startCloudSync();
@@ -388,38 +387,35 @@
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             
             onSnapshot(projRef, (doc) => {
-                if (doc.exists() && !isSyncing) {
+                if (!isSyncing && doc.exists()) {
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                     
-                    // Protezione: carica solo se più nuovo o se è il primo avvio
-                    if (!isInitialized || incomingSyncTime > lastCloudSyncTime) {
+                    // Solo se il dato in arrivo è REALMENTE più nuovo di quello che abbiamo visualizzato
+                    if (incomingSyncTime > lastCloudSyncTime) {
                         mergeData(data.fields || []);
                         lastCloudSyncTime = incomingSyncTime;
                         
-                        if (!isInitialized && fields.length > 0) {
-                            const last = fields.filter(f => f.id !== 'field_generiche').pop();
-                            if (last) map.setView(last.latlng, 15);
+                        // Centra la mappa se è la prima volta che carichiamo i dati
+                        const validFields = fields.filter(f => f.id !== 'field_generiche');
+                        if (validFields.length > 0 && map.getCenter().lat === 44.5) {
+                            map.setView(validFields[validFields.length - 1].latlng, 15);
                         }
                     }
                     
                     isInitialized = true;
                     document.getElementById('syncStatusLabel').innerText = "Cloud Connesso";
                     document.getElementById('syncIndicator').className = "text-green-500 transition-all";
-                } else if (!doc.exists()) {
-                    isInitialized = true;
-                    document.getElementById('syncStatusLabel').innerText = "Cloud Nuovo";
                 }
             }, (err) => {
-                console.error("Errore onSnapshot:", err);
-                document.getElementById('syncIndicator').className = "text-red-500 transition-all";
-                showNotification("Connessione persa. Riprova più tardi.");
+                showNotification("Connessione Cloud persa.");
             });
         }
 
         function mergeData(newData) {
             if (!mapReady) return;
             
+            // Pulisci mappa
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle);
@@ -438,8 +434,8 @@
         }
 
         async function saveData() {
-            // REGOLA: Non salvare se non siamo loggati o inizializzati
-            if (!isInitialized || isSyncing) return;
+            // PROTEZIONE MASSIMA: Non salvare MAI se l'inizializzazione non è completa
+            if (!isInitialized || isSyncing || isLocalMode) return;
             
             const now = new Date().toISOString();
             const cleanFields = fields.map(f => {
@@ -464,17 +460,20 @@
                 };
             });
 
+            // Cache locale
             localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
 
-            if (!isLocalMode && auth.currentUser) {
+            if (auth.currentUser) {
                 try {
                     isSyncing = true;
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
+                    
+                    // Aggiorniamo il timestamp locale PRIMA dell'invio per evitare loop
                     lastCloudSyncTime = new Date(now).getTime();
+                    
+                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
-                    console.error("Errore Salvataggio Cloud:", e);
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
                     isSyncing = false; 
@@ -500,7 +499,7 @@
         };
 
         window.confirmAddField = async function() {
-            if (!isInitialized) return showNotification("Attendi sincronizzazione...");
+            if (!isInitialized) return showNotification("Sincronizzazione incorso...");
             
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
             const code = document.getElementById('fieldCodeInput').value.trim() || "---";
@@ -536,9 +535,9 @@
                 await saveData(); 
                 window.updateFieldUI();
                 closeFieldModal(); 
-                showNotification("Campo salvato e sincronizzato.");
+                showNotification("Salvato.");
             } catch (err) {
-                showNotification("Errore salvataggio: " + err.message);
+                showNotification("Errore: " + err.message);
             } finally {
                 btn.disabled = false;
             }
