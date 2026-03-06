@@ -322,7 +322,7 @@
             if (mapReady) {
                 if (local) { loadForensicData(); } 
                 else { startCloudSync(); }
-                setTimeout(() => toggleTracking(true), 500);
+                setTimeout(() => toggleTracking(true), 800); // Leggero ritardo per permettere al browser di svegliarsi
             }
         }
 
@@ -335,7 +335,7 @@
             if (!auth.currentUser) return;
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                if (isSyncing) return; // Se stiamo scrivendo noi, ignora l'echo del server
+                if (isSyncing) return; 
                 if (doc.exists()) {
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
@@ -377,25 +377,22 @@
                 }))
             }));
 
-            // SALVATAGGIO LOCALE IMMEDIATO (Sempre e comunque)
             localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
             window.updateFieldUI();
 
             if (!isLocalMode && auth.currentUser) {
                 try {
-                    isSyncing = true; // Attiva protezione da conflitti
+                    isSyncing = true; 
                     document.getElementById('syncIndicator').classList.add('saving-pulse');
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                    
-                    lastCloudSyncTime = new Date(now).getTime(); // Blocca l'echo del server
+                    lastCloudSyncTime = new Date(now).getTime(); 
                     await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
-                    showNotification("Errore Cloud: dati salvati solo localmente.");
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
                     document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                    setTimeout(() => { isSyncing = false; }, 2000); // Sblocca sincronizzazione cloud dopo 2 secondi
+                    setTimeout(() => { isSyncing = false; }, 2000);
                 }
             }
         }
@@ -421,14 +418,14 @@
                 const newField = { id: Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                 addFieldToMap(newField);
             }
-            await saveData(); closeFieldModal(); showNotification("Salvataggio riuscito.");
+            await saveData(); closeFieldModal(); showNotification("Registrato.");
         };
 
         window.confirmAddCheckpoint = async function() {
             const note = document.getElementById('checkpointNoteInput').value.trim();
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
-            if (!note && !photo) return showNotification("Inserisci una nota.");
+            if (!note && !photo) return showNotification("Nota vuota.");
 
             let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
             if (!field) {
@@ -450,7 +447,7 @@
         };
 
         window.deleteCheckpoint = async function() {
-            if (confirm("Eliminare nota?")) {
+            if (confirm("Eliminare?")) {
                 fields.forEach(f => {
                     const idx = f.checkpoints?.findIndex(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
                     if (idx !== undefined && idx !== -1) {
@@ -504,31 +501,59 @@
                 if (watchId) navigator.geolocation.clearWatch(watchId);
                 watchId = null; isTracking = false; releaseWakeLock();
                 document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS';
+                document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
+                document.getElementById('statusText').innerText = "GPS Spento";
             } else if (!isTracking) {
+                // UI IMMEDIATA
+                document.getElementById('statusText').innerText = "Ricerca segnale...";
+                document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-orange-400 animate-pulse";
+                document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
+                
                 requestWakeLock();
+                
+                const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+                
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
+                    
                     if (!userMarker) { 
                         userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg>` }) }).addTo(map); 
                         map.flyTo(latlng, 17); 
                     } else userMarker.setLatLng(latlng);
+                    
                     updateTrajectory(latlng);
-                    isTracking = true; document.getElementById('telemetryPanel').classList.remove('hidden');
+                    isTracking = true; 
+                    document.getElementById('telemetryPanel').classList.remove('hidden');
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Stop GPS';
-                }, () => showNotification("Errore GPS."), { enableHighAccuracy: true });
+                    lucide.createIcons();
+                }, (err) => { 
+                    let msg = "Errore GPS.";
+                    if (err.code === 1) msg = "GPS negato.";
+                    else if (err.code === 2) msg = "Segnale assente.";
+                    else if (err.code === 3) msg = "Timeout GPS.";
+                    
+                    document.getElementById('statusText').innerText = msg;
+                    document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-red-500";
+                    if(!auto) showNotification(msg);
+                    isTracking = false;
+                }, options);
             }
         };
 
         function updateTrajectory(userPos) {
+            let anyInside = false;
             fields.forEach(f => {
                 if (f.id === 'field_generiche') return;
                 if (userPos.distanceTo(L.latLng(f.latlng)) <= f.radius) {
+                    anyInside = true;
                     let path = typeof f.pathCoords === 'string' ? JSON.parse(f.pathCoords) : f.pathCoords || [];
                     const last = path[path.length - 1];
                     if (!last || Math.abs(last[0] - userPos.lat) > 0.00005) { path.push([userPos.lat, userPos.lng]); f.pathCoords = path; f.polyline.setLatLngs(path); saveData(); }
                 }
             });
+            document.getElementById('statusText').innerText = anyInside ? "In Area" : "In Viaggio...";
+            document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse";
         }
 
         window.updateFieldUI = function() {
@@ -589,8 +614,7 @@
                 tempCheckpointCoords = { latlng: e.latlng, fieldId: target ? target.id : 'generiche', checkpointId: null };
                 document.getElementById('actionChoiceModal').classList.remove('hidden');
             });
-            mapReady = true; 
-            lucide.createIcons();
+            mapReady = true; lucide.createIcons();
         }
 
         const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea');
@@ -611,15 +635,8 @@
             initMap();
             const configInfo = document.getElementById('configInfo');
             if (configInfo) configInfo.innerText = "Sistema pronto.";
-            
-            // Verifica sessione esistente
             const s = localStorage.getItem('isolamenti_last_session');
-            if (s) { 
-                try { 
-                    const d = JSON.parse(s); 
-                    enterApp(d.name, d.pass, d.mode === 'local'); 
-                } catch(e) {} 
-            }
+            if (s) { try { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); } catch(e) {} }
         };
 
         window.previewPhoto = (e, id) => {
