@@ -16,10 +16,6 @@
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; }
         
         .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
-        .gps-arrow-icon { 
-            transition: transform 0.3s ease-out; 
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-        }
         
         #statusPanel { 
             transition: transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); 
@@ -40,10 +36,6 @@
         .chevron-rotate { transition: transform 0.4s ease; }
         .is-expanded .chevron-rotate { transform: rotate(180deg); }
 
-        #panelContent::-webkit-scrollbar { width: 4px; }
-        #panelContent::-webkit-scrollbar-track { background: transparent; }
-        #panelContent::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        
         .saving-pulse { animation: pulse-blue 1.5s infinite; }
         @keyframes pulse-blue { 0% { color: #3b82f6; } 50% { color: #94a3b8; } 100% { color: #3b82f6; } }
     </style>
@@ -307,14 +299,21 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.password !== pass) throw new Error("Password errata.");
+                    
+                    // Salviamo prima i parametri della sessione
+                    currentProjectName = name;
+                    currentPassword = pass;
+                    localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
+
+                    // Poi carichiamo i dati
                     mergeData(data.fields || []);
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                 } else {
+                    currentProjectName = name;
+                    currentPassword = pass;
+                    localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
                 }
-                
-                // Salva sessione per logout/login
-                localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                 
                 isInitialized = true;
                 enterApp(name, pass, false);
@@ -326,6 +325,7 @@
 
         window.handleLocalMode = () => { 
             isInitialized = true; 
+            currentProjectName = "LOCALE";
             localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: "LOCALE", pass: "", mode: 'local' }));
             enterApp("LOCALE", "", true); 
         };
@@ -343,22 +343,14 @@
 
         function loadForensicData() {
             const raw = localStorage.getItem('isolamenti_local_db');
-            if (raw) {
-                try {
-                    mergeData(JSON.parse(raw));
-                } catch(e) {
-                    console.error("Errore caricamento locale", e);
-                }
-            }
+            if (raw) mergeData(JSON.parse(raw));
         }
 
         function startCloudSync() {
-            if (!auth.currentUser) return;
+            if (!auth.currentUser || !currentProjectName) return;
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                // Non aggiornare dal cloud se abbiamo appena salvato noi (entro 8 secondi per dare tempo al backup)
                 if (Date.now() - lastLocalEditTime < 8000) return;
-                
                 if (doc.exists()) {
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
@@ -373,15 +365,12 @@
 
         function mergeData(newData) {
             if (!mapReady) return;
-            
-            // Pulisce mappa
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle); 
                 if(f.polyline) map.removeLayer(f.polyline);
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
-            
             fields = []; 
             if (Array.isArray(newData)) {
                 newData.forEach(fData => {
@@ -418,35 +407,20 @@
                 }))
             }));
 
-            // SALVATAGGIO LOCALE
-            try {
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
-            } catch(e) {
-                console.error("Errore Local Storage", e);
-                showNotification("Memoria piena! Riduci le foto.");
-            }
-            
+            // LOCALE
+            localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
             window.updateFieldUI();
 
-            // SALVATAGGIO CLOUD
-            if (!isLocalMode && auth.currentUser && currentProjectName) {
+            // CLOUD
+            if (!isLocalMode && auth.currentUser && currentProjectName && currentProjectName !== "LOCALE") {
                 try {
                     isSyncing = true; 
                     document.getElementById('syncIndicator').classList.add('saving-pulse');
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                    
-                    const syncTimestamp = new Date(now).getTime();
-                    lastCloudSyncTime = syncTimestamp; 
-                    
-                    await setDoc(projRef, { 
-                        password: currentPassword, 
-                        fields: cleanFields, 
-                        lastSync: now 
-                    }, { merge: true });
-                    
+                    lastCloudSyncTime = new Date(now).getTime(); 
+                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
-                    console.error("Errore Cloud", e);
                     document.getElementById('syncIndicator').className = "text-red-500"; 
                 } finally { 
                     document.getElementById('syncIndicator').classList.remove('saving-pulse');
@@ -465,36 +439,20 @@
             if (tempFieldId) {
                 const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
                 if (idx !== -1) {
-                    fields[idx].name = name; 
-                    fields[idx].code = code; 
-                    fields[idx].category = category; 
-                    fields[idx].radius = radius;
+                    fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
                     if (photo) fields[idx].photo = photo;
-                    
                     if (fields[idx].marker) map.removeLayer(fields[idx].marker); 
                     if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
                     if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
                     addFieldToMap(fields[idx]);
                 }
             } else {
-                let latlng = tempFieldCoords;
-                if (!latlng) {
-                    const lat = parseFloat(document.getElementById('fieldLatInput').value);
-                    const lon = parseFloat(document.getElementById('fieldLonInput').value);
-                    if (!isNaN(lat) && !isNaN(lon)) latlng = L.latLng(lat, lon);
-                }
-                if (!latlng) return showNotification("Scegli un punto sulla mappa.");
-                const newField = { 
-                    id: Date.now().toString(), 
-                    name, code, category, 
-                    latlng: [latlng.lat, latlng.lng], 
-                    radius, photo, pathCoords: [], checkpoints: [] 
-                };
+                let latlng = tempFieldCoords || L.latLng(parseFloat(document.getElementById('fieldLatInput').value), parseFloat(document.getElementById('fieldLonInput').value));
+                if (!latlng || isNaN(latlng.lat)) return showNotification("Punto non valido.");
+                const newField = { id: Date.now().toString(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                 addFieldToMap(newField);
             }
-            await saveData(); 
-            closeFieldModal(); 
-            showNotification("Punto memorizzato.");
+            await saveData(); closeFieldModal(); showNotification("Memorizzato.");
         };
 
         window.confirmAddCheckpoint = async function() {
@@ -503,68 +461,32 @@
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
             if (!note && !photo) return showNotification("Nota vuota.");
 
-            if (!tempCheckpointCoords) return showNotification("Errore coordinate.");
-
             let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
             if (!field) {
-                field = fields.find(f => f.id === 'field_generiche');
-                if (!field) {
-                    field = { id: 'field_generiche', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, photo: null, pathCoords: [], checkpoints: [] };
-                    fields.push(field);
-                }
+                field = fields.find(f => f.id === 'field_generiche') || { id: 'field_generiche', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, photo: null, pathCoords: [], checkpoints: [] };
+                if (!fields.some(f => f.id === 'field_generiche')) fields.push(field);
             }
 
             if (tempCheckpointCoords.checkpointId) {
                 const cp = field.checkpoints.find(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
-                if (cp) { 
-                    cp.note = note; 
-                    cp.checked = checked; 
-                    if (photo) cp.photo = photo; 
-                    if (cp.marker) map.removeLayer(cp.marker); 
-                    renderCheckpointOnMap(cp); 
-                }
+                if (cp) { cp.note = note; cp.checked = checked; if (photo) cp.photo = photo; if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp); }
             } else {
-                const cpData = { 
-                    id: (Date.now() + Math.random()).toString(), 
-                    latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], 
-                    note, date: new Date().toLocaleString('it-IT'), checked, photo 
-                }; 
+                const cpData = { id: (Date.now() + Math.random()).toString(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                 if (!field.checkpoints) field.checkpoints = [];
-                field.checkpoints.push(cpData); 
-                renderCheckpointOnMap(cpData); 
+                field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
             }
-            await saveData(); 
-            closeCheckpointModal(); 
-            showNotification("Nota salvata.");
-        };
-
-        window.deleteCheckpoint = async function() {
-            if (confirm("Eliminare questa nota?")) {
-                fields.forEach(f => {
-                    const idx = f.checkpoints?.findIndex(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
-                    if (idx !== undefined && idx !== -1) {
-                        if (f.checkpoints[idx].marker) map.removeLayer(f.checkpoints[idx].marker);
-                        f.checkpoints.splice(idx, 1);
-                    }
-                });
-                await saveData(); 
-                closeCheckpointModal();
-                showNotification("Nota eliminata.");
-            }
+            await saveData(); closeCheckpointModal(); showNotification("Salvato.");
         };
 
         window.deleteField = async (id) => { 
-            if (confirm("Eliminare definitivamente questo campo e tutte le note?")) { 
+            if (confirm("Eliminare definitivamente?")) { 
                 const fIdx = fields.findIndex(f => f.id.toString() === id.toString()); 
                 if (fIdx !== -1) { 
                     const f = fields[fIdx];
-                    if(f.marker) map.removeLayer(f.marker); 
-                    if(f.circle) map.removeLayer(f.circle); 
-                    if(f.polyline) map.removeLayer(f.polyline); 
+                    if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); 
                     if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                     fields.splice(fIdx, 1);
                     await saveData(); 
-                    showNotification("Campo eliminato.");
                 } 
             } 
         };
@@ -572,39 +494,16 @@
         function addFieldToMap(fData) {
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[fData.category] || '#64748b';
-            
             if (fData.id !== 'field_generiche') {
                 const iconHtml = `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`;
-                
-                fData.marker = L.marker(fData.latlng, { 
-                    icon: L.divIcon({ html: iconHtml, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) 
-                }).addTo(map);
-                
-                fData.circle = L.circle(fData.latlng, { 
-                    radius: fData.radius || 1000, 
-                    color, 
-                    fillOpacity: 0.1, 
-                    dashArray: '8, 8' 
-                }).addTo(map);
-                
-                let path = fData.pathCoords;
-                if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
-                
-                fData.polyline = L.polyline(path || [], { 
-                    color: '#334155', 
-                    weight: 3, 
-                    opacity: 0.7, 
-                    dashArray: '5, 10' 
-                }).addTo(map);
-                
+                fData.marker = L.marker(fData.latlng, { icon: L.divIcon({ html: iconHtml, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
+                fData.circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
+                let path = fData.pathCoords; if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
+                fData.polyline = L.polyline(path || [], { color: '#334155', weight: 3, opacity: 0.7, dashArray: '5, 10' }).addTo(map);
                 const p = fData.photo ? `<img src="${fData.photo}" class="w-full rounded-lg mt-2 cursor-pointer" onclick="window.open('${fData.photo}')">` : '';
                 fData.marker.bindPopup(`<div class="text-[11px] font-bold">${fData.name}</div><div class="text-[9px] text-slate-400">${fData.code}</div>${p}`, { className: 'custom-popup' });
             }
-            
-            if (!fields.some(f => f.id.toString() === fData.id.toString())) {
-                fields.push(fData);
-            }
-            
+            if (!fields.some(f => f.id.toString() === fData.id.toString())) fields.push(fData);
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             lucide.createIcons();
         }
@@ -612,44 +511,29 @@
         function renderCheckpointOnMap(cp) {
             const x = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="4" stroke-linecap="round" />' : '';
             const svg = `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}</svg>`;
-            
-            cp.marker = L.marker(cp.latlng, { 
-                icon: L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 28] }), 
-                zIndexOffset: 500 
-            }).addTo(map);
-            
+            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 28] }), zIndexOffset: 500 }).addTo(map);
             const p = cp.photo ? `<img src="${cp.photo}" class="w-full rounded-lg mt-2 cursor-pointer" onclick="window.open('${cp.photo}')">` : '';
             cp.marker.bindPopup(`<div class="text-[10px]"><b>RILEVAMENTO</b><br><span class="text-slate-400">${cp.date}</span><br><br>${cp.note}${p}</div>`);
-            cp.marker.on('click', (e) => { 
-                L.DomEvent.stopPropagation(e); 
-                openEditCheckpoint(cp); 
-            });
+            cp.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); openEditCheckpoint(cp); });
         }
 
         window.openEditField = (id) => {
-            const f = fields.find(f => f.id.toString() === id.toString()); 
-            if (!f || id === 'field_generiche') return;
-            tempFieldId = f.id; 
-            document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento";
-            document.getElementById('fieldNameInput').value = f.name; 
-            document.getElementById('fieldCodeInput').value = f.code;
-            document.getElementById('fieldCategoryInput').value = f.category; 
-            document.getElementById('fieldRadiusInput').value = f.radius;
+            const f = fields.find(f => f.id.toString() === id.toString()); if (!f || id === 'field_generiche') return;
+            tempFieldId = f.id; document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento";
+            document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code;
+            document.getElementById('fieldCategoryInput').value = f.category; document.getElementById('fieldRadiusInput').value = f.radius;
             const preview = document.getElementById('fieldPhotoPreview');
             if (f.photo) { preview.src = f.photo; preview.classList.remove('hidden'); } else { preview.classList.add('hidden'); }
             document.getElementById('fieldModal').classList.replace('hidden', 'flex');
         };
 
         window.openEditCheckpoint = (cp) => {
-            let fid = 'generiche'; 
-            fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
+            let fid = 'generiche'; fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
             tempCheckpointCoords = { latlng: L.latLng(cp.latlng[0], cp.latlng[1]), fieldId: fid, checkpointId: cp.id };
-            document.getElementById('checkpointNoteInput').value = cp.note; 
-            document.getElementById('checkpointCheckedInput').checked = !!cp.checked;
+            document.getElementById('checkpointNoteInput').value = cp.note; document.getElementById('checkpointCheckedInput').checked = !!cp.checked;
             const preview = document.getElementById('checkpointPhotoPreview');
             if (cp.photo) { preview.src = cp.photo; preview.classList.remove('hidden'); } else { preview.classList.add('hidden'); }
-            document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); 
-            document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
+            document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
         };
 
         window.toggleTracking = (auto = false) => {
@@ -660,11 +544,10 @@
                 document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
                 document.getElementById('statusText').innerText = "GPS Spento";
             } else if (!isTracking) {
-                document.getElementById('statusText').innerText = "Ricerca segnale...";
+                document.getElementById('statusText').innerText = "In attesa segnale...";
                 document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-orange-400 animate-pulse";
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
                 requestWakeLock();
-                const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
@@ -677,10 +560,7 @@
                     document.getElementById('telemetryPanel').classList.remove('hidden');
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Stop GPS';
                     lucide.createIcons();
-                }, (err) => { 
-                    isTracking = false;
-                    document.getElementById('statusText').innerText = "Errore GPS";
-                }, options);
+                }, (err) => { isTracking = false; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
             }
         };
 
@@ -690,15 +570,10 @@
                 if (f.id === 'field_generiche') return;
                 if (userPos.distanceTo(L.latLng(f.latlng)) <= f.radius) {
                     anyInside = true;
-                    let path = f.pathCoords;
-                    if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
-                    if (!path) path = [];
-                    const last = path[path.length - 1];
-                    if (!last || Math.abs(last[0] - userPos.lat) > 0.0001 || Math.abs(last[1] - userPos.lng) > 0.0001) { 
-                        path.push([userPos.lat, userPos.lng]); 
-                        f.pathCoords = path; 
-                        f.polyline.setLatLngs(path); 
-                        saveData(); 
+                    let path = f.pathCoords; if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
+                    const last = (path || [])[(path || []).length - 1];
+                    if (!last || Math.abs(last[0] - userPos.lat) > 0.0001) { 
+                        if(!path) path = []; path.push([userPos.lat, userPos.lng]); f.pathCoords = path; f.polyline.setLatLngs(path); saveData(); 
                     }
                 }
             });
@@ -717,13 +592,12 @@
                         item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm mb-2 cursor-pointer active:bg-slate-50";
                         item.onclick = () => { if(f.latlng[0]!==0) { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); } };
                         const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-300"></i></div>`;
-                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name}</p><p class="text-[9px] text-slate-400 truncate">${f.code}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); openEditField('${f.id}')" class="p-2 text-slate-300 hover:text-blue-500"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name}</p><p class="text-[9px] text-slate-400 truncate">${f.code}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-slate-300 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
                         list.appendChild(item);
                     });
                 } else sec.classList.add('hidden');
             });
-            document.getElementById('emptyMsg').classList.toggle('hidden', fields.length > 0); 
-            lucide.createIcons();
+            document.getElementById('emptyMsg').classList.toggle('hidden', fields.length > 0); lucide.createIcons();
         }
 
         window.handleSearch = () => {
@@ -736,8 +610,7 @@
             const backup = fields.map(f => ({ ...f, marker: null, circle: null, polyline: null, checkpoints: (f.checkpoints || []).map(c => ({...c, marker: null})) }));
             const link = document.createElement('a');
             link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(backup));
-            link.download = `backup_${currentProjectName}_${new Date().toLocaleDateString().replace(/\//g,'-')}.json`; 
-            link.click();
+            link.download = `backup_${currentProjectName}_${new Date().toLocaleDateString().replace(/\//g,'-')}.json`; link.click();
         };
 
         window.triggerExcelImport = () => document.getElementById('excelInput').click();
@@ -750,52 +623,31 @@
                 if (file.name.toLowerCase().endsWith('.json')) {
                     try { 
                         const imported = JSON.parse(e.target.result); 
-                        if (!Array.isArray(imported)) throw new Error("Formato backup non valido");
-                        
-                        // IMPOSTA COME NUOVO PUNTO DI PARTENZA ASSOLUTO
-                        isInitialized = true;
-                        
-                        // Forza il blocco delle sincronizzazioni cloud in entrata
-                        lastLocalEditTime = Date.now(); 
-                        lastCloudSyncTime = 0; 
-                        
-                        // Sostituzione totale dei dati locali
+                        if (!Array.isArray(imported)) throw new Error("Formato non valido");
+                        isInitialized = true; lastLocalEditTime = Date.now(); lastCloudSyncTime = 0; 
                         mergeData(imported); 
-                        
-                        // Memorizzazione immediata e forzata (sia Locale che Cloud)
                         await saveData(); 
-                        
-                        showNotification("Backup ripristinato e salvato come stato attuale."); 
+                        showNotification("Backup importato e memorizzato nel Cloud."); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
-                    } catch (err) { 
-                        console.error(err);
-                        showNotification("Errore nel file di backup JSON."); 
-                    }
+                    } catch (err) { showNotification("Errore nel file JSON."); }
                 } else {
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
                         const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                         const newFields = json.map(item => ({ 
-                            id: (Date.now() + Math.random()).toString(), 
-                            name: item.Nome || item.name || "Importato", 
-                            code: item.Codice || item.code || "---", 
-                            category: (item.Categoria || item.category || "altro").toLowerCase(), 
+                            id: (Date.now() + Math.random()).toString(), name: item.Nome || item.name || "Importato", 
+                            code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "altro").toLowerCase(), 
                             latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], 
-                            radius: parseInt(item.Raggio || item.radius) || 1000, 
-                            photo: null, pathCoords: [], checkpoints: [] 
+                            radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] 
                         })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
-                        
-                        isInitialized = true;
-                        mergeData([...fields, ...newFields]); 
-                        await saveData();
+                        isInitialized = true; mergeData([...fields, ...newFields]); await saveData();
                         showNotification(`Importati ${newFields.length} punti.`);
                     } catch (err) { showNotification("Errore file Excel."); }
                 }
                 event.target.value = '';
             };
-            if (file.name.toLowerCase().endsWith('.json')) reader.readAsText(file); 
-            else reader.readAsArrayBuffer(file);
+            if (file.name.toLowerCase().endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
         };
 
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
@@ -809,7 +661,6 @@
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            
             map.on('click', (e) => {
                 if (!isInitialized) return;
                 const target = fields.find(f => f.id !== 'field_generiche' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius);
@@ -817,7 +668,6 @@
                 tempCheckpointCoords = { latlng: e.latlng, fieldId: target ? target.id : 'generiche', checkpointId: null };
                 document.getElementById('actionChoiceModal').classList.remove('hidden');
             });
-            
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
             if (s) { try { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); } catch(e) {} }
@@ -834,26 +684,16 @@
             if (isExpanded) panel.classList.add('is-expanded'); else panel.classList.remove('is-expanded');
         }
         dragArea.addEventListener('click', togglePanel);
-        
         function showNotification(t) { 
             const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; 
             el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); 
             setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); 
         }
 
-        window.onload = () => {
-            initMap();
-            document.getElementById('configInfo').innerText = "Sistema pronto.";
-        };
-
+        window.onload = () => { initMap(); document.getElementById('configInfo').innerText = "Sistema pronto."; };
         window.previewPhoto = (e, id) => {
             const f = e.target.files[0]; if(!f) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => { 
-                const preview = document.getElementById(id);
-                preview.src = ev.target.result; 
-                preview.classList.remove('hidden'); 
-            };
+            const reader = new FileReader(); reader.onload = (ev) => { const p = document.getElementById(id); p.src = ev.target.result; p.classList.remove('hidden'); };
             reader.readAsDataURL(f);
         };
     </script>
