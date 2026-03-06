@@ -273,7 +273,7 @@
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false;
-        let isSaving = false; // Flag per prevenire rollbacks durante il salvataggio
+        let isSaving = false; 
         let isInitialized = false; 
         let lastCloudSyncTime = 0; 
         let lastLocalEditTime = 0; 
@@ -378,6 +378,7 @@
 
         function mergeData(newData) {
             if (!mapReady) return;
+            // Pulisce tutto prima di caricare
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle); 
@@ -408,7 +409,7 @@
             try {
                 const cleanFields = fields.map(f => prepareFieldForSave(f));
                 
-                // Salvataggio locale prioritario
+                // Salvataggio locale
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
                 window.updateFieldUI();
 
@@ -422,12 +423,10 @@
             } catch (e) { 
                 console.error("Save error:", e);
                 document.getElementById('syncIndicator').className = "text-red-500";
-                if (e.code === 'permission-denied') showNotification("Errore permessi Cloud.");
-                else if (e.message.includes('too large')) showNotification("Troppi dati! Riduci le foto.");
-                else showNotification("Errore nel salvataggio Cloud.");
+                showNotification("Errore sincronizzazione Cloud.");
             } finally { 
                 document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                setTimeout(() => { isSaving = false; }, 2000);
+                setTimeout(() => { isSaving = false; }, 3000); // Blocco prolungato per sicurezza
             }
         }
 
@@ -478,10 +477,9 @@
                 }
                 await saveData(); 
                 closeFieldModal(); 
-                showNotification("Punto registrato con successo.");
+                showNotification("Punto registrato.");
             } catch (err) {
-                console.error(err);
-                showNotification("Errore durante l'aggiunta.");
+                showNotification("Errore salvataggio.");
             }
         };
 
@@ -509,7 +507,7 @@
         };
 
         window.deleteField = async (id) => { 
-            if (confirm("Eliminare definitivamente questo campo e tutti i relativi dati?")) { 
+            if (confirm("Eliminare definitivamente?")) { 
                 const fIdx = fields.findIndex(f => f.id.toString() === id.toString()); 
                 if (fIdx !== -1) { 
                     const f = fields[fIdx];
@@ -654,9 +652,19 @@
                     try { 
                         const imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato non valido");
-                        isInitialized = true; lastLocalEditTime = Date.now(); lastCloudSyncTime = 0; 
+                        
+                        // Stato critico: stiamo importando un nuovo punto di partenza
+                        isInitialized = true; 
+                        lastLocalEditTime = Date.now(); 
+                        lastCloudSyncTime = 0; 
+                        
+                        // Sostituzione totale
                         mergeData(imported); 
+                        
+                        // Attesa obbligatoria del salvataggio Cloud per evitare perdite al logout
+                        showNotification("Salvataggio backup nel Cloud...");
                         await saveData(); 
+                        
                         showNotification("Backup ripristinato e sincronizzato."); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
                     } catch (err) { showNotification("Errore nel file JSON."); }
@@ -681,13 +689,12 @@
         };
 
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.closeFieldModal = () => { tempFieldId = null; tempFieldCoords = null; document.getElementById('fieldModal').classList.replace('flex', 'hidden'); };
-        window.closeCheckpointModal = () => { tempCheckpointCoords = null; document.getElementById('checkpointModal').classList.replace('flex', 'hidden'); };
+        window.closeFieldModal = () => { tempFieldId = null; tempFieldCoords = null; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
+        window.closeCheckpointModal = () => { tempCheckpointCoords = null; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); tempFieldId = null; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
         
-        // Funzioni per Coordinate Manuali
         window.openManualCoordModal = () => document.getElementById('manualCoordModal').classList.replace('hidden', 'flex');
         window.closeManualCoordModal = () => {
             document.getElementById('manualLat').value = '';
@@ -703,7 +710,7 @@
             selectNewField();
         };
 
-        window.logoutProject = () => { if (confirm("Esci dal gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Vuoi uscire? I dati non salvati sul cloud andranno persi.")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
