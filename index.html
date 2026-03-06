@@ -258,7 +258,8 @@
         let map, userMarker, watchId = null, fields = []; 
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
-        let isLocalMode = false, mapReady = false, isSyncing = false; 
+        let isLocalMode = false, mapReady = false;
+        let isSaving = false; // Flag critico per prevenire rollbacks
         let isInitialized = false; 
         let lastCloudSyncTime = 0; 
         let lastLocalEditTime = 0; 
@@ -299,18 +300,12 @@
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.password !== pass) throw new Error("Password errata.");
-                    
-                    // Salviamo prima i parametri della sessione
-                    currentProjectName = name;
-                    currentPassword = pass;
+                    currentProjectName = name; currentPassword = pass;
                     localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
-
-                    // Poi carichiamo i dati
                     mergeData(data.fields || []);
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                 } else {
-                    currentProjectName = name;
-                    currentPassword = pass;
+                    currentProjectName = name; currentPassword = pass;
                     localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
                 }
@@ -347,10 +342,12 @@
         }
 
         function startCloudSync() {
-            if (!auth.currentUser || !currentProjectName) return;
+            if (!auth.currentUser || !currentProjectName || isLocalMode) return;
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                if (Date.now() - lastLocalEditTime < 8000) return;
+                // Se stiamo salvando o abbiamo modificato localmente da poco, ignoriamo il ritorno del server
+                if (isSaving || (Date.now() - lastLocalEditTime < 8000)) return;
+                
                 if (doc.exists()) {
                     const data = doc.data();
                     const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
@@ -360,6 +357,9 @@
                     }
                     document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                 }
+            }, (error) => {
+                console.error("Snapshot error:", error);
+                document.getElementById('syncIndicator').className = "text-red-500";
             });
         }
 
@@ -385,11 +385,45 @@
         }
 
         async function saveData() {
-            const now = new Date().toISOString();
+            if (isLocalMode && currentProjectName === "LOCALE") {
+                const cleanFields = fields.map(f => prepareFieldForSave(f));
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
+                window.updateFieldUI();
+                return;
+            }
+
+            if (!auth.currentUser || !currentProjectName) return;
+
+            isSaving = true;
             lastLocalEditTime = Date.now();
+            document.getElementById('syncIndicator').classList.add('saving-pulse');
             
-            const cleanFields = fields.map(f => ({
-                id: f.id ? f.id.toString() : Date.now().toString(), 
+            try {
+                const cleanFields = fields.map(f => prepareFieldForSave(f));
+                
+                // Salvataggio locale immediato
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
+                window.updateFieldUI();
+
+                const now = new Date().toISOString();
+                const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
+                lastCloudSyncTime = new Date(now).getTime(); 
+                
+                await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
+                document.getElementById('syncIndicator').className = "text-green-600";
+            } catch (e) { 
+                console.error("Save error:", e);
+                document.getElementById('syncIndicator').className = "text-red-500"; 
+            } finally { 
+                document.getElementById('syncIndicator').classList.remove('saving-pulse');
+                // Teniamo isSaving vero ancora per un secondo per far "smaltire" eventuali snapshot ritardatari
+                setTimeout(() => { isSaving = false; }, 1500);
+            }
+        }
+
+        function prepareFieldForSave(f) {
+            return {
+                id: f.id ? f.id.toString() : Math.random().toString(36).substr(2, 9), 
                 name: f.name || "Senza Nome", 
                 code: f.code || "---", 
                 category: f.category || "altro", 
@@ -398,35 +432,14 @@
                 photo: f.photo || null,
                 pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
                 checkpoints: (f.checkpoints || []).map(cp => ({ 
-                    id: cp.id ? cp.id.toString() : Math.random().toString(), 
+                    id: cp.id ? cp.id.toString() : Math.random().toString(36).substr(2, 9), 
                     latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
                     note: cp.note || "", 
                     date: cp.date || new Date().toLocaleString(), 
                     checked: !!cp.checked, 
                     photo: cp.photo || null
                 }))
-            }));
-
-            // LOCALE
-            localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
-            window.updateFieldUI();
-
-            // CLOUD
-            if (!isLocalMode && auth.currentUser && currentProjectName && currentProjectName !== "LOCALE") {
-                try {
-                    isSyncing = true; 
-                    document.getElementById('syncIndicator').classList.add('saving-pulse');
-                    const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                    lastCloudSyncTime = new Date(now).getTime(); 
-                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
-                    document.getElementById('syncIndicator').className = "text-green-600";
-                } catch (e) { 
-                    document.getElementById('syncIndicator').className = "text-red-500"; 
-                } finally { 
-                    document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                    setTimeout(() => { isSyncing = false; }, 2000);
-                }
-            }
+            };
         }
 
         window.confirmAddField = async function() {
@@ -624,10 +637,12 @@
                     try { 
                         const imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato non valido");
-                        isInitialized = true; lastLocalEditTime = Date.now(); lastCloudSyncTime = 0; 
+                        isInitialized = true; 
+                        lastLocalEditTime = Date.now(); 
+                        lastCloudSyncTime = 0; 
                         mergeData(imported); 
                         await saveData(); 
-                        showNotification("Backup importato e memorizzato nel Cloud."); 
+                        showNotification("Backup ripristinato e sincronizzato."); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
                     } catch (err) { showNotification("Errore nel file JSON."); }
                 } else {
