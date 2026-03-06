@@ -13,8 +13,8 @@
     
     <style>
         #map { height: calc(100vh - 80px); width: 100%; z-index: 1; background: #cbd5e1; }
-        .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; }
-        .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; }
+        .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; min-height: 50px; }
         .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
         #statusPanel { transition: transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); touch-action: none; padding-bottom: env(safe-area-inset-bottom); z-index: 1001; max-height: 85vh; }
         .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 4px auto; }
@@ -57,7 +57,7 @@
                 <div class="bg-green-600 p-2 rounded-lg"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
                 <div class="hidden sm:block">
                     <h1 class="text-lg font-bold text-slate-800 leading-none" id="displayProjName">IsolamenTom</h1>
-                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">Connesso</span>
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400" id="syncStatusLabel">In attesa...</span>
                 </div>
             </div>
             <div class="flex-1 flex gap-2">
@@ -238,7 +238,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configurazione Firebase Pubblica
         const firebaseConfig = {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
           authDomain: "isolamenti-923d0.firebaseapp.com",
@@ -250,7 +249,8 @@
         const appId = 'isolamenti-923d0';
 
         let db, auth;
-        let map, userMarker, watchId = null, fields = []; 
+        let map, userMarker, watchId = null;
+        let fields = []; // Questo è l'array globale dello stato
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false;
@@ -264,7 +264,6 @@
         const requestWakeLock = async () => { if ('wakeLock' in navigator) try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {} };
         const releaseWakeLock = async () => { if (wakeLock !== null) { try { await wakeLock.release(); wakeLock = null; } catch (err) {} } };
 
-        // Funzione per comprimere le foto prima del caricamento
         async function compressImage(base64Str, maxWidth = 600) {
             if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
             return new Promise((resolve) => {
@@ -316,18 +315,18 @@
         function enterApp(name, pass, local) {
             isLocalMode = local; currentProjectName = name; currentPassword = pass;
             document.getElementById('displayProjName').innerText = name.toUpperCase();
+            document.getElementById('syncStatusLabel').innerText = "In linea";
             document.getElementById('loginOverlay').style.display = 'none';
             if (mapReady) { if (local) loadForensicData(); else startCloudSync(); setTimeout(() => toggleTracking(true), 800); }
         }
 
         function loadForensicData() { const raw = localStorage.getItem('isolamenti_local_db'); if (raw) mergeData(JSON.parse(raw)); }
 
-        // SINCRONIZZAZIONE DISTRIBUITA: Carica ogni isolamento come documento indipendente
         function startCloudSync() {
             if (!auth.currentUser || !currentProjectName || isLocalMode) return;
             const fieldsCol = collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName);
             onSnapshot(fieldsCol, (snapshot) => {
-                if (isSaving || (Date.now() - lastLocalEditTime < 5000)) return;
+                if (isSaving || (Date.now() - lastLocalEditTime < 4000)) return;
                 const incomingFields = snapshot.docs.map(doc => doc.data());
                 mergeData(incomingFields);
                 document.getElementById('syncIndicator').className = "text-green-500 transition-all";
@@ -336,38 +335,50 @@
 
         function mergeData(newData) {
             if (!mapReady) return;
+            // Rimuoviamo TUTTI i marker esistenti per evitare duplicati "fantasma"
             fields.forEach(f => {
-                if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline);
+                if(f.marker) map.removeLayer(f.marker); 
+                if(f.circle) map.removeLayer(f.circle); 
+                if(f.polyline) map.removeLayer(f.polyline);
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
+            
             fields = []; 
             if (newData && Array.isArray(newData)) {
                 newData.forEach(fData => {
-                    if (fData.id) fData.id = fData.id.toString();
-                    if (fData.pathCoords && typeof fData.pathCoords === 'string') { try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; } }
+                    // Normalizzazione dati per compatibilità
+                    fData.id = fData.id ? fData.id.toString() : "f_" + Date.now();
+                    if (fData.pathCoords && typeof fData.pathCoords === 'string') { 
+                        try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; } 
+                    }
                     addFieldToMap(fData);
                 });
             }
             window.updateFieldUI();
         }
 
-        // SALVATAGGIO DISTRIBUITO: Ogni isolamento viene salvato separatamente
         async function saveField(field) {
             if (!isInitialized) return;
             lastLocalEditTime = Date.now(); isSaving = true;
             document.getElementById('syncIndicator').classList.add('saving-pulse');
             try {
                 const prepared = await prepareFieldForSave(field);
-                const allPrepared = await Promise.all(fields.map(f => prepareFieldForSave(f)));
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(allPrepared));
-                window.updateFieldUI();
+                const allToStore = fields.map(f => {
+                    const clean = {...f};
+                    delete clean.marker; delete clean.circle; delete clean.polyline;
+                    if(clean.checkpoints) clean.checkpoints = clean.checkpoints.map(cp => { const c = {...cp}; delete c.marker; return c; });
+                    return clean;
+                });
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(allToStore));
+                
                 if (!isLocalMode && auth.currentUser && currentProjectName) {
                     const fieldDoc = doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id);
                     await setDoc(fieldDoc, prepared);
                     document.getElementById('syncIndicator').className = "text-green-600";
                 }
-            } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; showNotification("Errore di sincronizzazione."); }
-            finally { document.getElementById('syncIndicator').classList.remove('saving-pulse'); setTimeout(() => { isSaving = false; }, 2000); }
+                window.updateFieldUI();
+            } catch (e) { document.getElementById('syncIndicator').className = "text-red-500"; showNotification("Errore sincronizzazione."); }
+            finally { document.getElementById('syncIndicator').classList.remove('saving-pulse'); setTimeout(() => { isSaving = false; }, 1500); }
         }
 
         async function saveData() { if (!isInitialized) return; for (const f of fields) await saveField(f); }
@@ -380,8 +391,8 @@
                 note: cp.note || "", date: cp.date || new Date().toLocaleString(), checked: !!cp.checked, photo: await compressImage(cp.photo)
             })));
             return {
-                id: f.id ? f.id.toString() : "f_" + Date.now(), name: f.name || "Senza Nome", code: f.code || "---", 
-                category: f.category || "altro", latlng: Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng], 
+                id: f.id.toString(), name: f.name || "Isolamento", code: f.code || "---", 
+                category: (f.category || "altro").toLowerCase(), latlng: Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng], 
                 radius: Number(f.radius) || 1000, photo: photoComp,
                 pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
                 checkpoints: checkpointsComp
@@ -390,26 +401,31 @@
 
         window.confirmAddField = async function() {
             try {
-                const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
+                const name = document.getElementById('fieldNameInput').value.trim() || "Punto";
                 const code = document.getElementById('fieldCodeInput').value.trim() || "---";
-                const category = document.getElementById('fieldCategoryInput').value;
+                const category = document.getElementById('fieldCategoryInput').value.toLowerCase();
                 const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
                 const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
+                
                 let targetField;
                 if (tempFieldId) {
                     const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
                     if (idx !== -1) {
                         fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
                         if (photo) fields[idx].photo = photo;
-                        if (fields[idx].marker) map.removeLayer(fields[idx].marker); if (fields[idx].circle) map.removeLayer(fields[idx].circle); if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
-                        addFieldToMap(fields[idx]); targetField = fields[idx];
+                        if (fields[idx].marker) map.removeLayer(fields[idx].marker); 
+                        if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
+                        if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
+                        addFieldToMap(fields[idx]); 
+                        targetField = fields[idx];
                     }
                 } else {
-                    let latlng = tempFieldCoords; if (!latlng) return showNotification("Seleziona punto.");
+                    let latlng = tempFieldCoords; if (!latlng) return showNotification("Seleziona un punto sulla mappa.");
                     targetField = { id: "f_" + Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
+                    fields.push(targetField);
                     addFieldToMap(targetField);
                 }
-                await saveField(targetField); closeFieldModal(); showNotification("Dati Sincronizzati.");
+                await saveField(targetField); closeFieldModal(); showNotification("Punto salvato.");
             } catch (err) { console.error(err); }
         };
 
@@ -417,31 +433,37 @@
             const note = document.getElementById('checkpointNoteInput').value.trim();
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
-            if (!note && !photo) return showNotification("Nota vuota.");
+            if (!note && !photo) return showNotification("Inserisci almeno una nota o una foto.");
+            
             let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
             if (!field) {
                 field = fields.find(f => f.id === 'field_gen') || { id: 'field_gen', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, photo: null, pathCoords: [], checkpoints: [] };
                 if (!fields.some(f => f.id === 'field_gen')) fields.push(field);
             }
+            
             if (tempCheckpointCoords.checkpointId) {
                 const cp = field.checkpoints.find(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
                 if (cp) { cp.note = note; cp.checked = checked; if (photo) cp.photo = photo; if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp); }
             } else {
-                const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString(), checked, photo }; 
-                if (!field.checkpoints) field.checkpoints = []; field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
+                const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
+                if (!field.checkpoints) field.checkpoints = []; 
+                field.checkpoints.push(cpData); 
+                renderCheckpointOnMap(cpData); 
             }
-            await saveField(field); closeCheckpointModal(); showNotification("Sincronizzato.");
+            await saveField(field); closeCheckpointModal(); showNotification("Nota salvata.");
         };
 
         window.deleteField = async (id) => { 
-            if (confirm("Eliminare definitivamente?")) { 
+            if (confirm("Eliminare definitivamente questo isolamento?")) { 
                 const fIdx = fields.findIndex(f => f.id.toString() === id.toString()); 
                 if (fIdx !== -1) { 
                     const f = fields[fIdx];
                     if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); 
                     if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                     fields.splice(fIdx, 1);
-                    if (!isLocalMode && auth.currentUser && currentProjectName) { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); } catch(e) {} }
+                    if (!isLocalMode && auth.currentUser && currentProjectName) { 
+                        try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); } catch(e) {} 
+                    }
                     window.updateFieldUI();
                 } 
             } 
@@ -449,29 +471,65 @@
 
         function addFieldToMap(fData) {
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
-            const color = cats[fData.category] || '#64748b';
-            if (fData.id !== 'field_gen') {
-                const iconHtml = `<div style="background: ${color}; color: white; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid white;"><i data-lucide="sprout" style="width: 14px; height: 14px;"></i></div>`;
-                fData.marker = L.marker(fData.latlng, { icon: L.divIcon({ html: iconHtml, className: '', iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
-                fData.circle = L.circle(fData.latlng, { radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8' }).addTo(map);
-                let path = fData.pathCoords; if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
-                fData.polyline = L.polyline(path || [], { color: '#334155', weight: 3, opacity: 0.7 }).addTo(map);
+            const color = cats[(fData.category || "altro").toLowerCase()] || '#64748b';
+            
+            if (fData.id !== 'field_gen' && fData.latlng[0] !== 0) {
+                const iconHtml = `<div style="background: ${color}; color: white; border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 4px 6px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width: 16px; height: 16px;"></i></div>`;
+                
+                fData.marker = L.marker(fData.latlng, { 
+                    icon: L.divIcon({ html: iconHtml, className: '', iconSize: [34, 34], iconAnchor: [17, 17] }) 
+                }).addTo(map);
+                
+                fData.circle = L.circle(fData.latlng, { 
+                    radius: fData.radius || 1000, color, fillOpacity: 0.1, dashArray: '8, 8', weight: 2 
+                }).addTo(map);
+                
+                let path = fData.pathCoords; 
+                if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
+                fData.polyline = L.polyline(path || [], { color: '#334155', weight: 3, opacity: 0.6 }).addTo(map);
+                
+                const pImg = fData.photo ? `<img src="${fData.photo}" class="w-full h-24 object-cover rounded-lg mt-2 cursor-pointer" onclick="window.open('${fData.photo}')">` : '';
+                fData.marker.bindPopup(`
+                    <div class="p-1">
+                        <div class="text-[12px] font-black uppercase text-slate-800">${fData.name || 'Isolamento'}</div>
+                        <div class="text-[10px] text-slate-500 font-bold mb-1">${fData.code || '---'}</div>
+                        ${pImg}
+                        <button onclick="window.openEditField('${fData.id}')" class="w-full mt-2 bg-slate-100 text-slate-600 text-[10px] py-1.5 rounded-lg font-bold">Modifica</button>
+                    </div>
+                `, { className: 'custom-popup' });
             }
+            
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp) {
             const x = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="4" stroke-linecap="round" />' : '';
-            const svg = `<svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}</svg>`;
-            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: svg, className: '', iconSize: [28, 28], iconAnchor: [14, 28] }), zIndexOffset: 500 }).addTo(map);
+            const svg = `<svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}</svg>`;
+            cp.marker = L.marker(cp.latlng, { 
+                icon: L.divIcon({ html: svg, className: '', iconSize: [30, 30], iconAnchor: [15, 30] }),
+                zIndexOffset: 1000 
+            }).addTo(map);
+            
+            const p = cp.photo ? `<img src="${cp.photo}" class="w-full h-20 object-cover rounded-lg mt-2 cursor-pointer" onclick="window.open('${cp.photo}')">` : '';
+            cp.marker.bindPopup(`
+                <div class="p-1">
+                    <div class="text-[11px] font-black text-red-600">RILEVAMENTO</div>
+                    <div class="text-[9px] text-slate-400 mb-2">${cp.date}</div>
+                    <div class="text-[11px] leading-tight text-slate-700">${cp.note || 'Senza descrizione'}</div>
+                    ${p}
+                </div>
+            `);
             cp.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); openEditCheckpoint(cp); });
         }
 
         window.openEditField = (id) => {
             const f = fields.find(f => f.id.toString() === id.toString()); if (!f || id === 'field_gen') return;
-            tempFieldId = f.id; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code;
-            document.getElementById('fieldCategoryInput').value = f.category; document.getElementById('fieldRadiusInput').value = f.radius;
+            tempFieldId = f.id; 
+            document.getElementById('fieldNameInput').value = f.name; 
+            document.getElementById('fieldCodeInput').value = f.code;
+            document.getElementById('fieldCategoryInput').value = (f.category || "altro").toLowerCase(); 
+            document.getElementById('fieldRadiusInput').value = f.radius;
             const preview = document.getElementById('fieldPhotoPreview');
             if (f.photo) { preview.src = f.photo; preview.classList.remove('hidden'); } else { preview.classList.add('hidden'); }
             document.getElementById('fieldModal').classList.replace('hidden', 'flex');
@@ -480,15 +538,40 @@
         window.openEditCheckpoint = (cp) => {
             let fid = 'gen'; fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
             tempCheckpointCoords = { latlng: L.latLng(cp.latlng[0], cp.latlng[1]), fieldId: fid, checkpointId: cp.id };
-            document.getElementById('checkpointNoteInput').value = cp.note; document.getElementById('checkpointCheckedInput').checked = !!cp.checked;
+            document.getElementById('checkpointNoteInput').value = cp.note; 
+            document.getElementById('checkpointCheckedInput').checked = !!cp.checked;
             const preview = document.getElementById('checkpointPhotoPreview');
             if (cp.photo) { preview.src = cp.photo; preview.classList.remove('hidden'); } else { preview.classList.add('hidden'); }
+            document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); 
             document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
         };
 
         window.toggleTracking = (auto = false) => {
-            if (isTracking && !auto) { if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; releaseWakeLock(); document.getElementById('trackBtn').innerHTML = 'Attiva GPS'; }
-            else if (!isTracking) { document.getElementById('trackBtn').innerHTML = 'Ricerca...'; requestWakeLock(); watchId = navigator.geolocation.watchPosition((pos) => { const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude); document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; if (!userMarker) { userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg>` }) }).addTo(map); map.flyTo(latlng, 17); } else userMarker.setLatLng(latlng); updateTrajectory(latlng); isTracking = true; document.getElementById('telemetryPanel').classList.remove('hidden'); document.getElementById('trackBtn').innerHTML = 'Spegni GPS'; }, (err) => { isTracking = false; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }); }
+            if (isTracking && !auto) { 
+                if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; 
+                releaseWakeLock(); 
+                document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS'; 
+                document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; 
+                document.getElementById('statusText').innerText = "GPS Spento"; 
+            }
+            else if (!isTracking) { 
+                document.getElementById('statusText').innerText = "Ricerca segnale..."; 
+                document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...'; 
+                requestWakeLock(); 
+                watchId = navigator.geolocation.watchPosition((pos) => { 
+                    const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude); 
+                    document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; 
+                    if (!userMarker) { 
+                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg>` }) }).addTo(map); 
+                        map.flyTo(latlng, 17); 
+                    } else userMarker.setLatLng(latlng); 
+                    updateTrajectory(latlng); 
+                    isTracking = true; 
+                    document.getElementById('telemetryPanel').classList.remove('hidden'); 
+                    document.getElementById('trackBtn').innerHTML = '<i data-lucide="square" class="w-4 h-4"></i> Spegni GPS'; 
+                    lucide.createIcons(); 
+                }, (err) => { isTracking = false; }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }); 
+            }
         };
 
         function updateTrajectory(userPos) {
@@ -499,53 +582,80 @@
                     anyInside = true;
                     let path = f.pathCoords; if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
                     const last = (path || [])[(path || []).length - 1];
-                    if (!last || userPos.distanceTo(L.latLng(last[0], last[1])) > 10) { if(!path) path = []; path.push([userPos.lat, userPos.lng]); f.pathCoords = path; if(f.polyline) f.polyline.setLatLngs(path); saveField(f); }
+                    if (!last || userPos.distanceTo(L.latLng(last[0], last[1])) > 15) { 
+                        if(!path) path = []; 
+                        path.push([userPos.lat, userPos.lng]); 
+                        f.pathCoords = path; 
+                        if(f.polyline) f.polyline.setLatLngs(path); 
+                        saveField(f); 
+                    }
                 }
             });
-            document.getElementById('statusText').innerText = anyInside ? "In Area" : "Viaggio";
-            document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500" : "w-2.5 h-2.5 rounded-full bg-blue-500";
+            document.getElementById('statusText').innerText = anyInside ? "In Area Isolamento" : "Ricerca Area...";
+            document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse";
         }
 
         window.updateFieldUI = function() {
-            ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'].forEach(c => {
-                const list = document.getElementById(`list-${c}`); const sec = document.getElementById(`cat-${c}`);
+            const categories = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
+            categories.forEach(c => {
+                const list = document.getElementById(`list-${c}`); 
+                const sec = document.getElementById(`cat-${c}`);
                 const cfs = fields.filter(f => (f.category || "altro").toLowerCase() === c);
+                
                 if (cfs.length > 0) {
                     sec.classList.remove('hidden'); list.innerHTML = "";
                     cfs.forEach(f => {
-                        const item = document.createElement('div'); item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm mb-2 cursor-pointer"; item.onclick = () => { if(f.latlng[0]!==0) map.flyTo(f.latlng, 15); };
+                        const item = document.createElement('div'); 
+                        item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm mb-2 cursor-pointer active:bg-slate-50"; 
+                        item.onclick = () => { if(f.latlng[0]!==0) { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); } };
                         const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-300"></i></div>`;
-                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name}</p><p class="text-[9px] text-slate-400 truncate">${f.code}</p></div><button onclick="event.stopPropagation(); openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name || 'Senza Nome'}</p><p class="text-[9px] text-slate-400 truncate">${f.code || '---'}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
                         list.appendChild(item);
                     });
                 } else sec.classList.add('hidden');
             });
-            document.getElementById('emptyMsg').classList.toggle('hidden', fields.length > 0); lucide.createIcons();
+            document.getElementById('emptyMsg').classList.toggle('hidden', fields.length > 0); 
+            lucide.createIcons();
         }
 
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase();
             const f = fields.find(f => (f.name || "").toLowerCase().includes(q) || (f.code || "").toLowerCase().includes(q));
-            if (f && f.latlng[0]!==0) { map.flyTo(f.latlng, 15); isExpanded = true; updatePanel(); }
+            if (f && f.latlng[0]!==0) { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); isExpanded = true; updatePanel(); }
         };
 
         window.exportBackup = () => {
-            const link = document.createElement('a'); link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(fields));
-            link.download = `backup_${currentProjectName}.json`; link.click();
+            const dataToBackup = fields.map(f => {
+                const clean = {...f};
+                delete clean.marker; delete clean.circle; delete clean.polyline;
+                if(clean.checkpoints) clean.checkpoints = clean.checkpoints.map(cp => { const c = {...cp}; delete c.marker; return c; });
+                return clean;
+            });
+            const link = document.createElement('a'); link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(dataToBackup));
+            link.download = `backup_IsolamenTom_${currentProjectName}.json`; link.click();
         };
 
         window.generatePDFReport = async () => {
             showNotification("Generazione PDF...");
             const container = document.createElement('div');
             container.style.fontFamily = 'Arial, sans-serif'; container.style.padding = '20px';
-            let html = `<h1 style="color: #16a34a;">IsolamenTom - Report Isolamenti</h1><p>Data: ${new Date().toLocaleDateString()}</p><hr>`;
+            let html = `<div style="text-align:center"><h1 style="color: #16a34a; margin-bottom:0">IsolamenTom</h1><p style="color:#64748b; font-size:12px">Report Isolamenti Agricoli - ${currentProjectName.toUpperCase()}</p></div><hr style="border:0; border-top:1px solid #eee; margin: 20px 0;">`;
+            
+            if (fields.length === 0) html += '<p style="text-align: center; color: #94a3b8;">Nessun dato registrato.</p>';
+            
             fields.forEach((f, idx) => {
                 const photoHtml = f.photo ? `<img src="${f.photo}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-top: 10px;">` : '';
-                html += `<div style="margin-bottom: 40px; border: 1px solid #eee; padding: 20px; border-radius: 12px; page-break-inside: avoid;"><h2>${idx+1}. ${f.name} (${f.code})</h2><p>Coord: ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>${photoHtml}<h3>Rilevamenti:</h3>`;
-                (f.checkpoints || []).forEach(cp => {
-                    const status = cp.checked ? '<b style="color:green"> [OK]</b>' : '<b style="color:red"> [X]</b>';
-                    html += `<div style="padding: 10px; border-bottom: 1px solid #f9f9f9;"><b>${cp.date}</b>${status}<br>${cp.note}</div>`;
-                });
+                html += `<div style="margin-bottom: 40px; border: 1px solid #eee; padding: 20px; border-radius: 12px; page-break-inside: avoid; background:#fafafa;"><h2 style="margin:0; font-size:18px">${idx+1}. ${f.name} <span style="font-size:12px; font-weight:normal; color:#64748b">(${f.category.toUpperCase()})</span></h2><p style="font-size:11px; margin:5px 0"><b>Codice:</b> ${f.code} | <b>Coord:</b> ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>${photoHtml}<h3 style="font-size: 13px; margin: 20px 0 10px 0; border-bottom: 1px solid #eee; padding-bottom:5px">Rilevamenti e Note:</h3>`;
+                
+                const notes = (f.checkpoints || []);
+                if (notes.length === 0) html += '<p style="font-size: 11px; color: #94a3b8; font-style:italic">Nessun rilievo.</p>';
+                else {
+                    notes.forEach(cp => {
+                        const status = cp.checked ? '<span style="color:green">[OK]</span>' : '<span style="color:red">[DA VERIFICARE]</span>';
+                        const cpPhoto = cp.photo ? `<br><img src="${cp.photo}" style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px; margin-top: 5px;">` : '';
+                        html += `<div style="padding: 10px; border-bottom: 1px solid #eee; font-size: 11px; background:white; margin-bottom:5px"><b>${cp.date}</b> - ${status}<br>${cp.note || '-'}${cpPhoto}</div>`;
+                    });
+                }
                 html += `</div>`;
             });
             container.innerHTML = html;
@@ -555,6 +665,7 @@
 
         window.triggerExcelImport = () => document.getElementById('excelInput').click();
         window.triggerBackupImport = () => document.getElementById('excelInput').click();
+        
         window.handleExcelFile = (event) => {
             const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
@@ -562,10 +673,13 @@
                 if (file.name.endsWith('.json')) {
                     try { 
                         let imported = JSON.parse(e.target.result); 
-                        showNotification("Ottimizzazione...");
-                        for(let f of imported) { f.photo = await compressImage(f.photo); if(f.checkpoints) for(let cp of f.checkpoints) cp.photo = await compressImage(cp.photo); }
-                        mergeData(imported); await saveData(); showNotification("Caricato!"); 
-                    } catch (err) { console.error(err); }
+                        showNotification("Ottimizzazione dati...");
+                        for(let f of imported) {
+                            f.photo = await compressImage(f.photo);
+                            if(f.checkpoints) for(let cp of f.checkpoints) cp.photo = await compressImage(cp.photo);
+                        }
+                        mergeData(imported); await saveData(); showNotification("Backup caricato!"); 
+                    } catch (err) { showNotification("Errore nel file."); }
                 }
                 event.target.value = '';
             };
@@ -579,14 +693,27 @@
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
         window.openManualCoordModal = () => document.getElementById('manualCoordModal').classList.replace('hidden', 'flex');
-        window.closeManualCoordModal = () => { document.getElementById('manualCoordModal').classList.add('hidden'); };
-        window.confirmManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value); const lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat)) { tempFieldCoords = L.latLng(lat, lon); closeManualCoordModal(); selectNewField(); } };
-        window.logoutProject = () => { if(confirm("Disconnettere?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.closeManualCoordModal = () => document.getElementById('manualCoordModal').classList.add('hidden');
+        window.confirmManualCoords = () => { 
+            const lat = parseFloat(document.getElementById('manualLat').value); 
+            const lon = parseFloat(document.getElementById('manualLon').value); 
+            if (!isNaN(lat) && !isNaN(lon)) { 
+                tempFieldCoords = L.latLng(lat, lon); 
+                closeManualCoordModal(); selectNewField(); 
+            } else { showNotification("Coordinate non valide."); }
+        };
+        window.logoutProject = () => { if(confirm("Vuoi uscire dalla sessione?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            map.on('click', (e) => { if (!isInitialized) return; tempFieldCoords = e.latlng; tempCheckpointCoords = { latlng: e.latlng, fieldId: 'gen' }; document.getElementById('actionChoiceModal').classList.remove('hidden'); });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            map.on('click', (e) => { 
+                if (!isInitialized) return; 
+                tempFieldCoords = e.latlng; 
+                const target = fields.find(f => f.id !== 'field_gen' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius);
+                tempCheckpointCoords = { latlng: e.latlng, fieldId: target ? target.id : 'field_gen', checkpointId: null }; 
+                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
+            });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
             if (s) { try { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); } catch(e) {} }
@@ -596,7 +723,11 @@
         const panel = document.getElementById('statusPanel');
         let isExpanded = false;
         window.togglePanel = () => { isExpanded = !isExpanded; updatePanel(); };
-        function updatePanel() { const hiddenY = panel.offsetHeight - 85; panel.style.transform = isExpanded ? 'translateY(0)' : `translateY(${hiddenY}px)`; document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0.4'; }
+        function updatePanel() { 
+            const hiddenY = panel.offsetHeight - 85; 
+            panel.style.transform = isExpanded ? 'translateY(0)' : `translateY(${hiddenY}px)`; 
+            document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0.4'; 
+        }
         document.getElementById('dragArea').addEventListener('click', togglePanel);
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 5000); }
         window.onload = () => { initMap(); lucide.createIcons(); };
