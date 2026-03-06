@@ -166,6 +166,24 @@
         </div>
     </div>
 
+    <!-- Modal per Inserimento Manuale Coordinate -->
+    <div id="manualCoordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
+        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
+            <h2 class="text-lg font-bold text-slate-800 mb-4 tracking-tight">Inserimento Manuale</h2>
+            <div class="space-y-4">
+                <p class="text-xs text-slate-500 leading-tight">Inserisci le coordinate geografiche per posizionare il punto sulla mappa.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="number" id="manualLat" step="any" placeholder="Latitudine" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                    <input type="number" id="manualLon" step="any" placeholder="Longitudine" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closeManualCoordModal()" class="flex-1 py-3 text-slate-400 font-bold text-sm">Annulla</button>
+                    <button onclick="confirmManualCoords()" class="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">PROSEGUI</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 id="fieldModalTitle" class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-green-700"><i data-lucide="plus-circle"></i> Registra Isolamento</h2>
@@ -182,10 +200,6 @@
                     <option value="cicoria">Cicoria</option>
                     <option value="altro">Altro</option>
                 </select>
-                <div id="coordsInputs" class="hidden grid grid-cols-2 gap-3">
-                    <input type="number" id="fieldLatInput" step="any" placeholder="Lat" class="w-full border border-slate-200 rounded-xl p-3 text-sm">
-                    <input type="number" id="fieldLonInput" step="any" placeholder="Lon" class="w-full border border-slate-200 rounded-xl p-3 text-sm">
-                </div>
                 <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm">
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto Campo</label>
@@ -259,7 +273,7 @@
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false;
-        let isSaving = false; // Flag critico per prevenire rollbacks
+        let isSaving = false; // Flag per prevenire rollbacks durante il salvataggio
         let isInitialized = false; 
         let lastCloudSyncTime = 0; 
         let lastLocalEditTime = 0; 
@@ -345,7 +359,6 @@
             if (!auth.currentUser || !currentProjectName || isLocalMode) return;
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                // Se stiamo salvando o abbiamo modificato localmente da poco, ignoriamo il ritorno del server
                 if (isSaving || (Date.now() - lastLocalEditTime < 8000)) return;
                 
                 if (doc.exists()) {
@@ -385,45 +398,42 @@
         }
 
         async function saveData() {
-            if (isLocalMode && currentProjectName === "LOCALE") {
-                const cleanFields = fields.map(f => prepareFieldForSave(f));
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
-                window.updateFieldUI();
-                return;
-            }
-
-            if (!auth.currentUser || !currentProjectName) return;
-
-            isSaving = true;
-            lastLocalEditTime = Date.now();
-            document.getElementById('syncIndicator').classList.add('saving-pulse');
+            if (!isInitialized) return;
             
+            const now = new Date().toISOString();
+            lastLocalEditTime = Date.now();
+            isSaving = true;
+            document.getElementById('syncIndicator').classList.add('saving-pulse');
+
             try {
                 const cleanFields = fields.map(f => prepareFieldForSave(f));
                 
-                // Salvataggio locale immediato
+                // Salvataggio locale prioritario
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
                 window.updateFieldUI();
 
-                const now = new Date().toISOString();
-                const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                lastCloudSyncTime = new Date(now).getTime(); 
-                
-                await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
-                document.getElementById('syncIndicator').className = "text-green-600";
+                // Salvataggio Cloud
+                if (!isLocalMode && auth.currentUser && currentProjectName && currentProjectName !== "LOCALE") {
+                    const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
+                    lastCloudSyncTime = new Date(now).getTime(); 
+                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
+                    document.getElementById('syncIndicator').className = "text-green-600";
+                }
             } catch (e) { 
                 console.error("Save error:", e);
-                document.getElementById('syncIndicator').className = "text-red-500"; 
+                document.getElementById('syncIndicator').className = "text-red-500";
+                if (e.code === 'permission-denied') showNotification("Errore permessi Cloud.");
+                else if (e.message.includes('too large')) showNotification("Troppi dati! Riduci le foto.");
+                else showNotification("Errore nel salvataggio Cloud.");
             } finally { 
                 document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                // Teniamo isSaving vero ancora per un secondo per far "smaltire" eventuali snapshot ritardatari
-                setTimeout(() => { isSaving = false; }, 1500);
+                setTimeout(() => { isSaving = false; }, 2000);
             }
         }
 
         function prepareFieldForSave(f) {
             return {
-                id: f.id ? f.id.toString() : Math.random().toString(36).substr(2, 9), 
+                id: f.id ? f.id.toString() : "f_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), 
                 name: f.name || "Senza Nome", 
                 code: f.code || "---", 
                 category: f.category || "altro", 
@@ -432,7 +442,7 @@
                 photo: f.photo || null,
                 pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
                 checkpoints: (f.checkpoints || []).map(cp => ({ 
-                    id: cp.id ? cp.id.toString() : Math.random().toString(36).substr(2, 9), 
+                    id: cp.id ? cp.id.toString() : "cp_" + Math.random().toString(36).substr(2, 9), 
                     latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
                     note: cp.note || "", 
                     date: cp.date || new Date().toLocaleString(), 
@@ -443,29 +453,36 @@
         }
 
         window.confirmAddField = async function() {
-            const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
-            const code = document.getElementById('fieldCodeInput').value.trim() || "---";
-            const category = document.getElementById('fieldCategoryInput').value;
-            const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
-            const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
-            
-            if (tempFieldId) {
-                const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
-                if (idx !== -1) {
-                    fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
-                    if (photo) fields[idx].photo = photo;
-                    if (fields[idx].marker) map.removeLayer(fields[idx].marker); 
-                    if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
-                    if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
-                    addFieldToMap(fields[idx]);
+            try {
+                const name = document.getElementById('fieldNameInput').value.trim() || "Campo";
+                const code = document.getElementById('fieldCodeInput').value.trim() || "---";
+                const category = document.getElementById('fieldCategoryInput').value;
+                const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
+                const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
+                
+                if (tempFieldId) {
+                    const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
+                    if (idx !== -1) {
+                        fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
+                        if (photo) fields[idx].photo = photo;
+                        if (fields[idx].marker) map.removeLayer(fields[idx].marker); 
+                        if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
+                        if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
+                        addFieldToMap(fields[idx]);
+                    }
+                } else {
+                    let latlng = tempFieldCoords;
+                    if (!latlng) return showNotification("Scegli un punto sulla mappa.");
+                    const newField = { id: "f_" + Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
+                    addFieldToMap(newField);
                 }
-            } else {
-                let latlng = tempFieldCoords || L.latLng(parseFloat(document.getElementById('fieldLatInput').value), parseFloat(document.getElementById('fieldLonInput').value));
-                if (!latlng || isNaN(latlng.lat)) return showNotification("Punto non valido.");
-                const newField = { id: Date.now().toString(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
-                addFieldToMap(newField);
+                await saveData(); 
+                closeFieldModal(); 
+                showNotification("Punto registrato con successo.");
+            } catch (err) {
+                console.error(err);
+                showNotification("Errore durante l'aggiunta.");
             }
-            await saveData(); closeFieldModal(); showNotification("Memorizzato.");
         };
 
         window.confirmAddCheckpoint = async function() {
@@ -484,15 +501,15 @@
                 const cp = field.checkpoints.find(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
                 if (cp) { cp.note = note; cp.checked = checked; if (photo) cp.photo = photo; if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp); }
             } else {
-                const cpData = { id: (Date.now() + Math.random()).toString(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
+                const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                 if (!field.checkpoints) field.checkpoints = [];
                 field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
             }
-            await saveData(); closeCheckpointModal(); showNotification("Salvato.");
+            await saveData(); closeCheckpointModal(); showNotification("Nota salvata.");
         };
 
         window.deleteField = async (id) => { 
-            if (confirm("Eliminare definitivamente?")) { 
+            if (confirm("Eliminare definitivamente questo campo e tutti i relativi dati?")) { 
                 const fIdx = fields.findIndex(f => f.id.toString() === id.toString()); 
                 if (fIdx !== -1) { 
                     const f = fields[fIdx];
@@ -637,9 +654,7 @@
                     try { 
                         const imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato non valido");
-                        isInitialized = true; 
-                        lastLocalEditTime = Date.now(); 
-                        lastCloudSyncTime = 0; 
+                        isInitialized = true; lastLocalEditTime = Date.now(); lastCloudSyncTime = 0; 
                         mergeData(imported); 
                         await saveData(); 
                         showNotification("Backup ripristinato e sincronizzato."); 
@@ -651,7 +666,7 @@
                         const workbook = XLSX.read(data, { type: 'array' });
                         const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                         const newFields = json.map(item => ({ 
-                            id: (Date.now() + Math.random()).toString(), name: item.Nome || item.name || "Importato", 
+                            id: "f_" + Math.random().toString(36).substr(2, 9), name: item.Nome || item.name || "Importato", 
                             code: item.Codice || item.code || "---", category: (item.Categoria || item.category || "altro").toLowerCase(), 
                             latlng: [parseFloat(item.Latitudine || item.lat), parseFloat(item.Longitudine || item.lng)], 
                             radius: parseInt(item.Raggio || item.radius) || 1000, photo: null, pathCoords: [], checkpoints: [] 
@@ -671,6 +686,23 @@
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); tempFieldId = null; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
+        
+        // Funzioni per Coordinate Manuali
+        window.openManualCoordModal = () => document.getElementById('manualCoordModal').classList.replace('hidden', 'flex');
+        window.closeManualCoordModal = () => {
+            document.getElementById('manualLat').value = '';
+            document.getElementById('manualLon').value = '';
+            document.getElementById('manualCoordModal').classList.replace('flex', 'hidden');
+        };
+        window.confirmManualCoords = () => {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lon = parseFloat(document.getElementById('manualLon').value);
+            if (isNaN(lat) || isNaN(lon)) return showNotification("Coordinate non valide.");
+            tempFieldCoords = L.latLng(lat, lon);
+            closeManualCoordModal();
+            selectNewField();
+        };
+
         window.logoutProject = () => { if (confirm("Esci dal gruppo?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         function initMap() {
