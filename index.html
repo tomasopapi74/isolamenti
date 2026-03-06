@@ -65,7 +65,7 @@
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
                     <input type="text" id="searchInput" placeholder="Cerca isolamento..." class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
                 </div>
-                <button onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold active:scale-95 shadow-md">Trova</button>
+                <button id="mainSearchBtn" onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold active:scale-95 shadow-md">Trova</button>
             </div>
         </div>
     </header>
@@ -250,7 +250,7 @@
 
         let db, auth;
         let map, userMarker, watchId = null;
-        let fields = []; // Questo è l'array globale dello stato
+        let fields = []; 
         let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false;
@@ -335,7 +335,6 @@
 
         function mergeData(newData) {
             if (!mapReady) return;
-            // Rimuoviamo TUTTI i marker esistenti per evitare duplicati "fantasma"
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle); 
@@ -346,11 +345,11 @@
             fields = []; 
             if (newData && Array.isArray(newData)) {
                 newData.forEach(fData => {
-                    // Normalizzazione dati per compatibilità
                     fData.id = fData.id ? fData.id.toString() : "f_" + Date.now();
                     if (fData.pathCoords && typeof fData.pathCoords === 'string') { 
                         try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; } 
                     }
+                    fields.push(fData); // AGGIUNTO: ripopoliamo l'array globale per la lista
                     addFieldToMap(fData);
                 });
             }
@@ -705,7 +704,7 @@
         window.logoutProject = () => { if(confirm("Vuoi uscire dalla sessione?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         function initMap() {
-            map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
+            map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             map.on('click', (e) => { 
                 if (!isInitialized) return; 
