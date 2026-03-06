@@ -291,8 +291,8 @@
             if (wakeLock !== null) { try { await wakeLock.release(); wakeLock = null; } catch (err) {} }
         };
 
-        // FUNZIONE CRITICA: Comprime le immagini per restare sotto il limite Firestore (1MB)
-        async function compressImage(base64Str, maxWidth = 800) {
+        // COMPRESSIONE AGGIORNATA: maxWidth 600px e qualità 0.5 (molto più leggero per Firestore)
+        async function compressImage(base64Str, maxWidth = 600) {
             if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
             return new Promise((resolve) => {
                 const img = new Image();
@@ -308,7 +308,7 @@
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // Qualità 70% per risparmiare spazio
+                    resolve(canvas.toDataURL('image/jpeg', 0.5)); // Qualità ridotta al 50%
                 };
                 img.src = base64Str;
             });
@@ -339,12 +339,7 @@
                     if (data.password !== pass) throw new Error("Password errata.");
                     currentProjectName = name; currentPassword = pass;
                     localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
-                    
-                    // Verifichiamo se i dati locali sono più recenti (per sicurezza)
-                    const localRaw = localStorage.getItem('isolamenti_local_db');
-                    if (!localRaw) mergeData(data.fields || []);
-                    else mergeData(data.fields || []); // Inizialmente carichiamo dal cloud
-                    
+                    mergeData(data.fields || []);
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                 } else {
                     currentProjectName = name; currentPassword = pass;
@@ -413,7 +408,7 @@
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
             });
             fields = []; 
-            if (Array.isArray(newData)) {
+            if (newData && Array.isArray(newData)) {
                 newData.forEach(fData => {
                     if (fData.id) fData.id = fData.id.toString();
                     if (fData.pathCoords && typeof fData.pathCoords === 'string') {
@@ -455,9 +450,9 @@
                 console.error("Save error:", e);
                 document.getElementById('syncIndicator').className = "text-red-500";
                 let msg = "ERRORE SALVATAGGIO CLOUD";
-                if (e.message && e.message.includes("too large")) msg = "MEMORIA CLOUD PIENA: Riduci le foto!";
+                if (e.message && e.message.includes("too large")) msg = "MEMORIA PIENA: Il file di backup è troppo grande per il cloud!";
                 showNotification(msg);
-                throw e; // Rilanciamo l'errore per gestirlo nell'importazione
+                throw e; 
             } finally { 
                 document.getElementById('syncIndicator').classList.remove('saving-pulse');
                 setTimeout(() => { isSaving = false; }, 4000); 
@@ -637,7 +632,8 @@
                     anyInside = true;
                     let path = f.pathCoords; if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
                     const last = (path || [])[(path || []).length - 1];
-                    if (!last || Math.abs(last[0] - userPos.lat) > 0.0001) { 
+                    // Ottimizzazione traiettoria: aggiunge punto solo se si sposta di almeno 10 metri
+                    if (!last || userPos.distanceTo(L.latLng(last[0], last[1])) > 10) { 
                         if(!path) path = []; path.push([userPos.lat, userPos.lng]); f.pathCoords = path; f.polyline.setLatLngs(path); saveData(); 
                     }
                 }
@@ -687,27 +683,42 @@
             reader.onload = async (e) => {
                 if (file.name.toLowerCase().endsWith('.json')) {
                     try { 
-                        const imported = JSON.parse(e.target.result); 
+                        let imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato non valido");
                         
+                        showNotification("Filtro compressione in corso...");
+                        
+                        // SANIFICAZIONE: Ricomprime forzatamente le foto del vecchio backup
+                        const sanitized = await Promise.all(imported.map(async f => {
+                            const fId = f.id ? f.id.toString() : "f_" + Math.random().toString(36).substr(2, 5);
+                            return {
+                                ...f,
+                                id: fId,
+                                photo: await compressImage(f.photo),
+                                checkpoints: await Promise.all((f.checkpoints || []).map(async cp => ({
+                                    ...cp,
+                                    photo: await compressImage(cp.photo)
+                                })))
+                            };
+                        }));
+
                         isInitialized = true; 
                         lastLocalEditTime = Date.now(); 
                         lastCloudSyncTime = 0; 
                         
-                        // Sostituzione totale
-                        mergeData(imported); 
+                        mergeData(sanitized); 
                         
-                        // Salvataggio Cloud con attesa e compressione
                         showNotification("Salvataggio backup nel Cloud...");
                         await saveData(); 
                         
-                        showNotification("Backup ripristinato e sincronizzato!"); 
+                        showNotification("Backup ottimizzato e sincronizzato!"); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
                     } catch (err) { 
                         console.error(err);
-                        showNotification("ERRORE IMPORTAZIONE: " + err.message); 
+                        showNotification("ERRORE: File troppo pesante o corrotto."); 
                     }
                 } else {
+                    // Gestione Excel Standard
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
