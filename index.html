@@ -256,7 +256,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE",
@@ -291,7 +291,7 @@
             if (wakeLock !== null) { try { await wakeLock.release(); wakeLock = null; } catch (err) {} }
         };
 
-        // COMPRESSIONE AGGIORNATA: maxWidth 600px e qualità 0.5 (molto più leggero per Firestore)
+        // COMPRESSIONE OTTIMIZZATA: 600px e qualità 0.5 per massimizzare lo spazio per documento
         async function compressImage(base64Str, maxWidth = 600) {
             if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
             return new Promise((resolve) => {
@@ -308,7 +308,7 @@
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.5)); // Qualità ridotta al 50%
+                    resolve(canvas.toDataURL('image/jpeg', 0.5));
                 };
                 img.src = base64Str;
             });
@@ -339,12 +339,11 @@
                     if (data.password !== pass) throw new Error("Password errata.");
                     currentProjectName = name; currentPassword = pass;
                     localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
-                    mergeData(data.fields || []);
-                    lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
+                    // Caricamento asincrono dei campi distribuito
                 } else {
                     currentProjectName = name; currentPassword = pass;
                     localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
-                    await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
+                    await setDoc(projRef, { password: pass, lastSync: new Date().toISOString() });
                 }
                 
                 isInitialized = true;
@@ -378,19 +377,19 @@
             if (raw) mergeData(JSON.parse(raw));
         }
 
+        // NUOVA ARCHITETTURA: Sincronizzazione tramite collezione distribuita
         function startCloudSync() {
             if (!auth.currentUser || !currentProjectName || isLocalMode) return;
-            const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-            onSnapshot(projRef, (doc) => {
-                if (isSaving || (Date.now() - lastLocalEditTime < 8000)) return;
+            
+            // Collezione specifica per i campi del team
+            const fieldsCol = collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName);
+            
+            onSnapshot(fieldsCol, (snapshot) => {
+                if (isSaving || (Date.now() - lastLocalEditTime < 5000)) return;
                 
-                if (doc.exists()) {
-                    const data = doc.data();
-                    const incomingSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
-                    if (incomingSyncTime > lastCloudSyncTime) {
-                        mergeData(data.fields || []);
-                        lastCloudSyncTime = incomingSyncTime;
-                    }
+                const incomingFields = snapshot.docs.map(doc => doc.data());
+                if (incomingFields.length > 0) {
+                    mergeData(incomingFields);
                     document.getElementById('syncIndicator').className = "text-green-500 transition-all";
                 }
             }, (error) => {
@@ -420,43 +419,54 @@
             window.updateFieldUI();
         }
 
-        async function saveData() {
+        // NUOVA LOGICA: Salva solo il campo modificato come documento separato
+        async function saveField(field) {
             if (!isInitialized) return;
-            
-            const now = new Date().toISOString();
             lastLocalEditTime = Date.now();
             isSaving = true;
             document.getElementById('syncIndicator').classList.add('saving-pulse');
 
             try {
-                // Prepariamo i campi e COMPRIMIAMO le immagini
-                const cleanFields = await Promise.all(fields.map(async f => {
-                    const prepared = await prepareFieldForSave(f);
-                    return prepared;
-                }));
+                const prepared = await prepareFieldForSave(field);
                 
-                // Salvataggio locale
+                // Backup locale completo
+                const cleanFields = await Promise.all(fields.map(f => prepareFieldForSave(f)));
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
                 window.updateFieldUI();
 
-                // Salvataggio Cloud
+                // Salvataggio Cloud distribuito
                 if (!isLocalMode && auth.currentUser && currentProjectName && currentProjectName !== "LOCALE") {
-                    const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                    lastCloudSyncTime = new Date(now).getTime(); 
-                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
+                    const fieldDoc = doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id);
+                    await setDoc(fieldDoc, prepared);
                     document.getElementById('syncIndicator').className = "text-green-600";
                 }
             } catch (e) { 
-                console.error("Save error:", e);
+                console.error("Field Save error:", e);
                 document.getElementById('syncIndicator').className = "text-red-500";
-                let msg = "ERRORE SALVATAGGIO CLOUD";
-                if (e.message && e.message.includes("too large")) msg = "MEMORIA PIENA: Il file di backup è troppo grande per il cloud!";
-                showNotification(msg);
-                throw e; 
+                showNotification("Errore sincronizzazione Cloud.");
             } finally { 
                 document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                setTimeout(() => { isSaving = false; }, 4000); 
+                setTimeout(() => { isSaving = false; }, 2000); 
             }
+        }
+
+        async function saveData() {
+            // Sostituto per operazioni di massa (backup/import)
+            if (!isInitialized) return;
+            isSaving = true;
+            try {
+                const cleanFields = await Promise.all(fields.map(f => prepareFieldForSave(f)));
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
+                window.updateFieldUI();
+
+                if (!isLocalMode && auth.currentUser && currentProjectName) {
+                    for (const f of cleanFields) {
+                        const fieldDoc = doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id);
+                        await setDoc(fieldDoc, f);
+                    }
+                }
+            } catch(e) { console.error(e); }
+            finally { isSaving = false; }
         }
 
         async function prepareFieldForSave(f) {
@@ -491,6 +501,7 @@
                 const radius = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
                 const photo = document.getElementById('fieldPhotoPreview').src.startsWith('data:') ? document.getElementById('fieldPhotoPreview').src : null;
                 
+                let targetField;
                 if (tempFieldId) {
                     const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
                     if (idx !== -1) {
@@ -500,16 +511,17 @@
                         if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
                         if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
                         addFieldToMap(fields[idx]);
+                        targetField = fields[idx];
                     }
                 } else {
                     let latlng = tempFieldCoords;
                     if (!latlng) return showNotification("Scegli un punto sulla mappa.");
-                    const newField = { id: "f_" + Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
-                    addFieldToMap(newField);
+                    targetField = { id: "f_" + Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
+                    addFieldToMap(targetField);
                 }
-                await saveData(); 
+                await saveField(targetField); 
                 closeFieldModal(); 
-                showNotification("Registrato e Sincronizzato.");
+                showNotification("Punto Sincronizzato.");
             } catch (err) {
                 console.error(err);
             }
@@ -535,7 +547,7 @@
                 if (!field.checkpoints) field.checkpoints = [];
                 field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
             }
-            await saveData(); closeCheckpointModal(); showNotification("Nota Sincronizzata.");
+            await saveField(field); closeCheckpointModal(); showNotification("Nota Sincronizzata.");
         };
 
         window.deleteField = async (id) => { 
@@ -546,7 +558,16 @@
                     if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); 
                     if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                     fields.splice(fIdx, 1);
-                    await saveData(); 
+                    
+                    // Rimozione dal Cloud distribuito
+                    if (!isLocalMode && auth.currentUser && currentProjectName) {
+                        try {
+                            const fieldDoc = doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString());
+                            await deleteDoc(fieldDoc);
+                        } catch(e) {}
+                    }
+                    localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
+                    window.updateFieldUI();
                 } 
             } 
         };
@@ -632,9 +653,8 @@
                     anyInside = true;
                     let path = f.pathCoords; if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
                     const last = (path || [])[(path || []).length - 1];
-                    // Ottimizzazione traiettoria: aggiunge punto solo se si sposta di almeno 10 metri
                     if (!last || userPos.distanceTo(L.latLng(last[0], last[1])) > 10) { 
-                        if(!path) path = []; path.push([userPos.lat, userPos.lng]); f.pathCoords = path; f.polyline.setLatLngs(path); saveData(); 
+                        if(!path) path = []; path.push([userPos.lat, userPos.lng]); f.pathCoords = path; f.polyline.setLatLngs(path); saveField(f); 
                     }
                 }
             });
@@ -686,9 +706,8 @@
                         let imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato non valido");
                         
-                        showNotification("Filtro compressione in corso...");
+                        showNotification("Filtro ottimizzazione in corso...");
                         
-                        // SANIFICAZIONE: Ricomprime forzatamente le foto del vecchio backup
                         const sanitized = await Promise.all(imported.map(async f => {
                             const fId = f.id ? f.id.toString() : "f_" + Math.random().toString(36).substr(2, 5);
                             return {
@@ -703,22 +722,18 @@
                         }));
 
                         isInitialized = true; 
-                        lastLocalEditTime = Date.now(); 
-                        lastCloudSyncTime = 0; 
-                        
                         mergeData(sanitized); 
                         
-                        showNotification("Salvataggio backup nel Cloud...");
+                        showNotification("Sincronizzazione distribuita...");
                         await saveData(); 
                         
-                        showNotification("Backup ottimizzato e sincronizzato!"); 
+                        showNotification("Backup ottimizzato e caricato!"); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
                     } catch (err) { 
                         console.error(err);
                         showNotification("ERRORE: File troppo pesante o corrotto."); 
                     }
                 } else {
-                    // Gestione Excel Standard
                     try {
                         const data = new Uint8Array(e.target.result);
                         const workbook = XLSX.read(data, { type: 'array' });
