@@ -196,6 +196,7 @@
                 </div>
                 <input type="number" id="fieldRadiusInput" value="1000" placeholder="Raggio (metri)" class="w-full border border-slate-200 rounded-xl p-3 text-sm">
                 <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto Campo</label>
                     <img id="fieldPhotoPreview" src="" class="photo-preview hidden">
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="document.getElementById('fieldCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold">SCATTA</button>
@@ -222,6 +223,7 @@
                     <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700">CONTROLLATO OK (X)</label>
                 </div>
                 <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto Nota</label>
                     <img id="checkpointPhotoPreview" src="" class="photo-preview hidden">
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="document.getElementById('checkpointCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold">SCATTA</button>
@@ -489,7 +491,7 @@
                 const p = fData.photo ? `<img src="${fData.photo}" class="w-full rounded-lg mt-2 cursor-pointer" onclick="window.open('${fData.photo}')">` : '';
                 fData.marker.bindPopup(`<div class="text-[11px] font-bold">${fData.name}</div><div class="text-[9px] text-slate-400">${fData.code}</div>${p}`, { className: 'custom-popup' });
             }
-            if (!fields.some(f => f.id === fData.id)) fields.push(fData);
+            if (!fields.some(f => f.id.toString() === fData.id.toString())) fields.push(fData);
             if (fData.checkpoints) fData.checkpoints.forEach(renderCheckpointOnMap);
             lucide.createIcons();
         }
@@ -514,7 +516,7 @@
         };
 
         window.openEditCheckpoint = (cp) => {
-            let fid = 'generiche'; fields.forEach(f => { if (f.checkpoints?.some(c => c.id === cp.id)) fid = f.id; });
+            let fid = 'generiche'; fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
             tempCheckpointCoords = { latlng: L.latLng(cp.latlng[0], cp.latlng[1]), fieldId: fid, checkpointId: cp.id };
             document.getElementById('checkpointNoteInput').value = cp.note; document.getElementById('checkpointCheckedInput').checked = cp.checked;
             const preview = document.getElementById('checkpointPhotoPreview');
@@ -596,7 +598,7 @@
             const backup = fields.map(f => ({ ...f, marker: null, circle: null, polyline: null, checkpoints: f.checkpoints.map(c => ({...c, marker: null})) }));
             const link = document.createElement('a');
             link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(backup));
-            link.download = `backup_${currentProjectName}_${new Date().toLocaleDateString()}.json`; link.click();
+            link.download = `backup_${currentProjectName}_${new Date().toLocaleDateString().replace(/\//g,'-')}.json`; link.click();
         };
 
         window.handleExcelFile = (event) => {
@@ -629,6 +631,8 @@
                         showNotification(`Importati ${newFields.length} punti.`);
                     } catch (err) { showNotification("Errore file Excel."); }
                 }
+                // RESET INPUT così da poter selezionare lo stesso file di nuovo
+                event.target.value = '';
             };
             if (file.name.endsWith('.json')) reader.readAsText(file); else reader.readAsArrayBuffer(file);
         };
@@ -677,8 +681,13 @@
         };
 
         window.previewPhoto = (e, id) => {
-            const f = e.target.files[0]; const reader = new FileReader();
-            reader.onload = (ev) => { document.getElementById(id).src = ev.target.result; document.getElementById(id).classList.remove('hidden'); };
+            const f = e.target.files[0]; if(!f) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => { 
+                const preview = document.getElementById(id);
+                preview.src = ev.target.result; 
+                preview.classList.remove('hidden'); 
+            };
             reader.readAsDataURL(f);
         };
     </script>
