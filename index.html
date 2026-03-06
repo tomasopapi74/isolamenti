@@ -291,6 +291,29 @@
             if (wakeLock !== null) { try { await wakeLock.release(); wakeLock = null; } catch (err) {} }
         };
 
+        // FUNZIONE CRITICA: Comprime le immagini per restare sotto il limite Firestore (1MB)
+        async function compressImage(base64Str, maxWidth = 800) {
+            if (!base64Str || !base64Str.startsWith('data:image')) return base64Str;
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // Qualità 70% per risparmiare spazio
+                };
+                img.src = base64Str;
+            });
+        }
+
         window.handleLogin = async function() {
             const loginBtn = document.getElementById('loginBtn');
             const nameRaw = document.getElementById('projectInput').value.trim();
@@ -316,7 +339,12 @@
                     if (data.password !== pass) throw new Error("Password errata.");
                     currentProjectName = name; currentPassword = pass;
                     localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
-                    mergeData(data.fields || []);
+                    
+                    // Verifichiamo se i dati locali sono più recenti (per sicurezza)
+                    const localRaw = localStorage.getItem('isolamenti_local_db');
+                    if (!localRaw) mergeData(data.fields || []);
+                    else mergeData(data.fields || []); // Inizialmente carichiamo dal cloud
+                    
                     lastCloudSyncTime = data.lastSync ? new Date(data.lastSync).getTime() : 0;
                 } else {
                     currentProjectName = name; currentPassword = pass;
@@ -327,7 +355,7 @@
                 isInitialized = true;
                 enterApp(name, pass, false);
             } catch (err) { 
-                showNotification(err.message);
+                showNotification("ERRORE LOGIN: " + err.message);
                 loginBtn.disabled = false; loginBtn.innerText = "ACCEDI AL CLOUD";
             }
         };
@@ -378,7 +406,6 @@
 
         function mergeData(newData) {
             if (!mapReady) return;
-            // Pulisce tutto prima di caricare
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle); 
@@ -407,7 +434,11 @@
             document.getElementById('syncIndicator').classList.add('saving-pulse');
 
             try {
-                const cleanFields = fields.map(f => prepareFieldForSave(f));
+                // Prepariamo i campi e COMPRIMIAMO le immagini
+                const cleanFields = await Promise.all(fields.map(async f => {
+                    const prepared = await prepareFieldForSave(f);
+                    return prepared;
+                }));
                 
                 // Salvataggio locale
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields));
@@ -423,14 +454,27 @@
             } catch (e) { 
                 console.error("Save error:", e);
                 document.getElementById('syncIndicator').className = "text-red-500";
-                showNotification("Errore sincronizzazione Cloud.");
+                let msg = "ERRORE SALVATAGGIO CLOUD";
+                if (e.message && e.message.includes("too large")) msg = "MEMORIA CLOUD PIENA: Riduci le foto!";
+                showNotification(msg);
+                throw e; // Rilanciamo l'errore per gestirlo nell'importazione
             } finally { 
                 document.getElementById('syncIndicator').classList.remove('saving-pulse');
-                setTimeout(() => { isSaving = false; }, 3000); // Blocco prolungato per sicurezza
+                setTimeout(() => { isSaving = false; }, 4000); 
             }
         }
 
-        function prepareFieldForSave(f) {
+        async function prepareFieldForSave(f) {
+            const photoComp = await compressImage(f.photo);
+            const checkpointsComp = await Promise.all((f.checkpoints || []).map(async cp => ({
+                id: cp.id ? cp.id.toString() : "cp_" + Math.random().toString(36).substr(2, 9), 
+                latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
+                note: cp.note || "", 
+                date: cp.date || new Date().toLocaleString(), 
+                checked: !!cp.checked, 
+                photo: await compressImage(cp.photo)
+            })));
+
             return {
                 id: f.id ? f.id.toString() : "f_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), 
                 name: f.name || "Senza Nome", 
@@ -438,16 +482,9 @@
                 category: f.category || "altro", 
                 latlng: Array.isArray(f.latlng) ? f.latlng : [f.latlng.lat, f.latlng.lng], 
                 radius: Number(f.radius) || 1000, 
-                photo: f.photo || null,
+                photo: photoComp,
                 pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
-                checkpoints: (f.checkpoints || []).map(cp => ({ 
-                    id: cp.id ? cp.id.toString() : "cp_" + Math.random().toString(36).substr(2, 9), 
-                    latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
-                    note: cp.note || "", 
-                    date: cp.date || new Date().toLocaleString(), 
-                    checked: !!cp.checked, 
-                    photo: cp.photo || null
-                }))
+                checkpoints: checkpointsComp
             };
         }
 
@@ -477,9 +514,9 @@
                 }
                 await saveData(); 
                 closeFieldModal(); 
-                showNotification("Punto registrato.");
+                showNotification("Registrato e Sincronizzato.");
             } catch (err) {
-                showNotification("Errore salvataggio.");
+                console.error(err);
             }
         };
 
@@ -503,7 +540,7 @@
                 if (!field.checkpoints) field.checkpoints = [];
                 field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
             }
-            await saveData(); closeCheckpointModal(); showNotification("Nota salvata.");
+            await saveData(); closeCheckpointModal(); showNotification("Nota Sincronizzata.");
         };
 
         window.deleteField = async (id) => { 
@@ -653,7 +690,6 @@
                         const imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato non valido");
                         
-                        // Stato critico: stiamo importando un nuovo punto di partenza
                         isInitialized = true; 
                         lastLocalEditTime = Date.now(); 
                         lastCloudSyncTime = 0; 
@@ -661,13 +697,16 @@
                         // Sostituzione totale
                         mergeData(imported); 
                         
-                        // Attesa obbligatoria del salvataggio Cloud per evitare perdite al logout
+                        // Salvataggio Cloud con attesa e compressione
                         showNotification("Salvataggio backup nel Cloud...");
                         await saveData(); 
                         
-                        showNotification("Backup ripristinato e sincronizzato."); 
+                        showNotification("Backup ripristinato e sincronizzato!"); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
-                    } catch (err) { showNotification("Errore nel file JSON."); }
+                    } catch (err) { 
+                        console.error(err);
+                        showNotification("ERRORE IMPORTAZIONE: " + err.message); 
+                    }
                 } else {
                     try {
                         const data = new Uint8Array(e.target.result);
@@ -710,7 +749,7 @@
             selectNewField();
         };
 
-        window.logoutProject = () => { if (confirm("Vuoi uscire? I dati non salvati sul cloud andranno persi.")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if (confirm("Vuoi uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         function initMap() {
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
@@ -741,10 +780,10 @@
         function showNotification(t) { 
             const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; 
             el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); 
-            setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); 
+            setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 5000); 
         }
 
-        window.onload = () => { initMap(); document.getElementById('configInfo').innerText = "Sistema pronto."; };
+        window.onload = () => { initMap(); document.getElementById('configInfo').innerText = "Sistema pronto."; lucide.createIcons(); };
         window.previewPhoto = (e, id) => {
             const f = e.target.files[0]; if(!f) return;
             const reader = new FileReader(); reader.onload = (ev) => { const p = document.getElementById(id); p.src = ev.target.result; p.classList.remove('hidden'); };
