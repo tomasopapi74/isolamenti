@@ -348,8 +348,8 @@
             if (!auth.currentUser) return;
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                // Non aggiornare dal cloud se abbiamo appena salvato noi (entro 3 secondi)
-                if (Date.now() - lastLocalEditTime < 3000) return;
+                // Non aggiornare dal cloud se abbiamo appena salvato noi (entro 5 secondi)
+                if (Date.now() - lastLocalEditTime < 5000) return;
                 
                 if (doc.exists()) {
                     const data = doc.data();
@@ -366,7 +366,7 @@
         function mergeData(newData) {
             if (!mapReady) return;
             
-            // Rimuovi tutti i marker esistenti
+            // Rimuovi tutti i marker esistenti per fare un rinfresco totale
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle); 
@@ -375,15 +375,15 @@
             });
             
             fields = []; 
-            newData.forEach(fData => {
-                // Assicuriamoci che l'ID sia trattato correttamente
-                if (fData.id) fData.id = fData.id.toString();
-                
-                if (fData.pathCoords && typeof fData.pathCoords === 'string') {
-                    try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
-                }
-                addFieldToMap(fData);
-            }); 
+            if (Array.isArray(newData)) {
+                newData.forEach(fData => {
+                    if (fData.id) fData.id = fData.id.toString();
+                    if (fData.pathCoords && typeof fData.pathCoords === 'string') {
+                        try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
+                    }
+                    addFieldToMap(fData);
+                });
+            }
             window.updateFieldUI();
         }
 
@@ -410,7 +410,7 @@
                 }))
             }));
 
-            // SALVATAGGIO LOCALE (Sempre)
+            // SALVATAGGIO LOCALE
             try {
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(cleanFields)); 
             } catch(e) {
@@ -455,7 +455,6 @@
                     fields[idx].radius = radius;
                     if (photo) fields[idx].photo = photo;
                     
-                    // Forza ridisegno
                     if (fields[idx].marker) map.removeLayer(fields[idx].marker); 
                     if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
                     if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
@@ -468,9 +467,7 @@
                     const lon = parseFloat(document.getElementById('fieldLonInput').value);
                     if (!isNaN(lat) && !isNaN(lon)) latlng = L.latLng(lat, lon);
                 }
-                
                 if (!latlng) return showNotification("Scegli un punto sulla mappa.");
-                
                 const newField = { 
                     id: Date.now().toString(), 
                     name, code, category, 
@@ -588,7 +585,6 @@
                 fData.marker.bindPopup(`<div class="text-[11px] font-bold">${fData.name}</div><div class="text-[9px] text-slate-400">${fData.code}</div>${p}`, { className: 'custom-popup' });
             }
             
-            // Aggiungi alla lista globale se non presente
             if (!fields.some(f => f.id.toString() === fData.id.toString())) {
                 fields.push(fData);
             }
@@ -681,9 +677,7 @@
                     let path = f.pathCoords;
                     if (typeof path === 'string') try { path = JSON.parse(path); } catch(e) { path = []; }
                     if (!path) path = [];
-                    
                     const last = path[path.length - 1];
-                    // Registra punto se l'utente si è spostato di almeno 5-10 metri
                     if (!last || Math.abs(last[0] - userPos.lat) > 0.0001 || Math.abs(last[1] - userPos.lng) > 0.0001) { 
                         path.push([userPos.lat, userPos.lng]); 
                         f.pathCoords = path; 
@@ -740,10 +734,25 @@
                 if (file.name.toLowerCase().endsWith('.json')) {
                     try { 
                         const imported = JSON.parse(e.target.result); 
-                        isInitialized = true; lastCloudSyncTime = 0; isSyncing = false;
-                        mergeData(imported); await saveData(); 
-                        showNotification("Backup ripristinato con successo."); 
-                    } catch (err) { showNotification("Errore nel file JSON."); }
+                        if (!Array.isArray(imported)) throw new Error("Formato backup non valido");
+                        
+                        // IMPOSTA COME NUOVO PUNTO DI PARTENZA
+                        isInitialized = true;
+                        lastLocalEditTime = Date.now(); // Blocca sync in entrata per 5 secondi
+                        lastCloudSyncTime = 0; 
+                        
+                        // Sostituzione totale dei dati
+                        mergeData(imported); 
+                        
+                        // Memorizzazione forzata immediata
+                        await saveData(); 
+                        
+                        showNotification("Backup ripristinato e memorizzato come nuovo punto di partenza."); 
+                        if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
+                    } catch (err) { 
+                        console.error(err);
+                        showNotification("Errore nel file di backup JSON."); 
+                    }
                 } else {
                     try {
                         const data = new Uint8Array(e.target.result);
@@ -760,12 +769,12 @@
                         })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
                         
                         isInitialized = true;
+                        // Per l'Excel manteniamo l'aggiunta (append) ma salviamo subito
                         mergeData([...fields, ...newFields]); 
                         await saveData();
                         showNotification(`Importati ${newFields.length} punti.`);
                     } catch (err) { showNotification("Errore file Excel."); }
                 }
-                // RESET così da poter selezionare lo stesso file
                 event.target.value = '';
             };
             if (file.name.toLowerCase().endsWith('.json')) reader.readAsText(file); 
