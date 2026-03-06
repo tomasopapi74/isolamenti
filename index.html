@@ -589,7 +589,8 @@
                 tempCheckpointCoords = { latlng: e.latlng, fieldId: target ? target.id : 'generiche', checkpointId: null };
                 document.getElementById('actionChoiceModal').classList.remove('hidden');
             });
-            mapReady = true; lucide.createIcons();
+            mapReady = true; 
+            lucide.createIcons();
         }
 
         const panel = document.getElementById('statusPanel'); const dragArea = document.getElementById('dragArea');
@@ -605,7 +606,22 @@
             el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); 
             setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 4000); 
         }
-        window.onload = initMap;
+
+        window.onload = () => {
+            initMap();
+            const configInfo = document.getElementById('configInfo');
+            if (configInfo) configInfo.innerText = "Sistema pronto.";
+            
+            // Verifica sessione esistente
+            const s = localStorage.getItem('isolamenti_last_session');
+            if (s) { 
+                try { 
+                    const d = JSON.parse(s); 
+                    enterApp(d.name, d.pass, d.mode === 'local'); 
+                } catch(e) {} 
+            }
+        };
+
         window.previewPhoto = (e, id) => {
             const f = e.target.files[0]; const reader = new FileReader();
             reader.onload = (ev) => { document.getElementById(id).src = ev.target.result; document.getElementById(id).classList.remove('hidden'); };
