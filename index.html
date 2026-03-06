@@ -269,7 +269,7 @@
         let isLocalMode = false, mapReady = false, isSyncing = false; 
         let isInitialized = false; 
         let lastCloudSyncTime = 0; 
-        let lastLocalEditTime = 0; // Per evitare sovrascritture dal cloud
+        let lastLocalEditTime = 0; 
         let wakeLock = null;
 
         const app = initializeApp(firebaseConfig);
@@ -312,6 +312,10 @@
                 } else {
                     await setDoc(projRef, { password: pass, fields: [], lastSync: new Date().toISOString() });
                 }
+                
+                // Salva sessione per logout/login
+                localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
+                
                 isInitialized = true;
                 enterApp(name, pass, false);
             } catch (err) { 
@@ -320,7 +324,11 @@
             }
         };
 
-        window.handleLocalMode = () => { isInitialized = true; enterApp("LOCALE", "", true); };
+        window.handleLocalMode = () => { 
+            isInitialized = true; 
+            localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: "LOCALE", pass: "", mode: 'local' }));
+            enterApp("LOCALE", "", true); 
+        };
 
         function enterApp(name, pass, local) {
             isLocalMode = local; currentProjectName = name; currentPassword = pass;
@@ -348,8 +356,8 @@
             if (!auth.currentUser) return;
             const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
             onSnapshot(projRef, (doc) => {
-                // Non aggiornare dal cloud se abbiamo appena salvato noi (entro 5 secondi)
-                if (Date.now() - lastLocalEditTime < 5000) return;
+                // Non aggiornare dal cloud se abbiamo appena salvato noi (entro 8 secondi per dare tempo al backup)
+                if (Date.now() - lastLocalEditTime < 8000) return;
                 
                 if (doc.exists()) {
                     const data = doc.data();
@@ -366,7 +374,7 @@
         function mergeData(newData) {
             if (!mapReady) return;
             
-            // Rimuovi tutti i marker esistenti per fare un rinfresco totale
+            // Pulisce mappa
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); 
                 if(f.circle) map.removeLayer(f.circle); 
@@ -421,13 +429,21 @@
             window.updateFieldUI();
 
             // SALVATAGGIO CLOUD
-            if (!isLocalMode && auth.currentUser) {
+            if (!isLocalMode && auth.currentUser && currentProjectName) {
                 try {
                     isSyncing = true; 
                     document.getElementById('syncIndicator').classList.add('saving-pulse');
                     const projRef = doc(db, 'artifacts', appId, 'public', 'data', 'projects', currentProjectName);
-                    lastCloudSyncTime = new Date(now).getTime(); 
-                    await setDoc(projRef, { password: currentPassword, fields: cleanFields, lastSync: now }, { merge: true });
+                    
+                    const syncTimestamp = new Date(now).getTime();
+                    lastCloudSyncTime = syncTimestamp; 
+                    
+                    await setDoc(projRef, { 
+                        password: currentPassword, 
+                        fields: cleanFields, 
+                        lastSync: now 
+                    }, { merge: true });
+                    
                     document.getElementById('syncIndicator').className = "text-green-600";
                 } catch (e) { 
                     console.error("Errore Cloud", e);
@@ -736,18 +752,20 @@
                         const imported = JSON.parse(e.target.result); 
                         if (!Array.isArray(imported)) throw new Error("Formato backup non valido");
                         
-                        // IMPOSTA COME NUOVO PUNTO DI PARTENZA
+                        // IMPOSTA COME NUOVO PUNTO DI PARTENZA ASSOLUTO
                         isInitialized = true;
-                        lastLocalEditTime = Date.now(); // Blocca sync in entrata per 5 secondi
+                        
+                        // Forza il blocco delle sincronizzazioni cloud in entrata
+                        lastLocalEditTime = Date.now(); 
                         lastCloudSyncTime = 0; 
                         
-                        // Sostituzione totale dei dati
+                        // Sostituzione totale dei dati locali
                         mergeData(imported); 
                         
-                        // Memorizzazione forzata immediata
+                        // Memorizzazione immediata e forzata (sia Locale che Cloud)
                         await saveData(); 
                         
-                        showNotification("Backup ripristinato e memorizzato come nuovo punto di partenza."); 
+                        showNotification("Backup ripristinato e salvato come stato attuale."); 
                         if (fields.length > 0 && fields[0].latlng[0] !== 0) map.flyTo(fields[0].latlng, 13);
                     } catch (err) { 
                         console.error(err);
@@ -769,7 +787,6 @@
                         })).filter(f => !isNaN(f.latlng[0]) && !isNaN(f.latlng[1]));
                         
                         isInitialized = true;
-                        // Per l'Excel manteniamo l'aggiunta (append) ma salviamo subito
                         mergeData([...fields, ...newFields]); 
                         await saveData();
                         showNotification(`Importati ${newFields.length} punti.`);
