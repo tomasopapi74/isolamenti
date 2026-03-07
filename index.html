@@ -17,7 +17,7 @@
             width: 100%; 
             z-index: 1; 
             background: #cbd5e1;
-            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); /* Transizione fluida per la rotazione */
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; min-height: 50px; }
@@ -34,7 +34,6 @@
         .saving-pulse { animation: pulse-blue 1.5s infinite; }
         @keyframes pulse-blue { 0% { color: #3b82f6; } 50% { color: #94a3b8; } 100% { color: #3b82f6; } }
         
-        /* Stile pulsante rotazione attivo */
         .btn-active-compass { background-color: #2563eb !important; color: white !important; animation: pulse-border 2s infinite; }
         @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
     </style>
@@ -208,9 +207,12 @@
                     <input type="file" id="fieldPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
                 </div>
                 
-                <div class="flex gap-3 pt-2">
-                    <button onclick="closeFieldModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddField()" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold uppercase">Salva</button>
+                <div class="flex flex-col gap-2 pt-2">
+                    <button id="navFieldBtn" onclick="navigateFromModal('field')" class="w-full py-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-xs border border-blue-200 flex items-center justify-center gap-2 hidden"><i data-lucide="map"></i> NAVIGA CON GOOGLE MAPS</button>
+                    <div class="flex gap-3">
+                        <button onclick="closeFieldModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
+                        <button onclick="confirmAddField()" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold uppercase">Salva</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -242,6 +244,7 @@
                 </div>
                 
                 <div class="flex flex-col gap-2 pt-2">
+                    <button id="navCheckpointBtn" onclick="navigateFromModal('checkpoint')" class="w-full py-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-xs border border-blue-200 flex items-center justify-center gap-2 hidden"><i data-lucide="map"></i> NAVIGA CON GOOGLE MAPS</button>
                     <div class="flex gap-3">
                         <button onclick="closeCheckpointModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
                         <button onclick="confirmAddCheckpoint()" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold uppercase">Salva</button>
@@ -488,6 +491,23 @@
             } 
         };
 
+        window.openNavigation = (lat, lon) => {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+            window.open(url, '_blank');
+        };
+
+        window.navigateFromModal = (type) => {
+            let lat, lon;
+            if (type === 'field') {
+                const f = fields.find(f => f.id.toString() === tempFieldId?.toString());
+                if (f) { [lat, lon] = f.latlng; }
+            } else if (type === 'checkpoint') {
+                lat = tempCheckpointCoords.latlng.lat;
+                lon = tempCheckpointCoords.latlng.lng;
+            }
+            if (lat && lon) window.openNavigation(lat, lon);
+        };
+
         function addFieldToMap(fData) {
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[(fData.category || "altro").toLowerCase()] || '#64748b';
@@ -513,7 +533,10 @@
                         <div class="text-[12px] font-black uppercase text-slate-800">${fData.name || 'Punto'}</div>
                         <div class="text-[10px] text-slate-500 font-bold mb-1">${fData.code || '---'}</div>
                         ${pImg}
-                        <button onclick="window.openEditField('${fData.id}')" class="w-full mt-2 bg-slate-100 text-slate-600 text-[10px] py-1.5 rounded-lg font-bold">Modifica</button>
+                        <div class="flex flex-col gap-1.5 mt-2">
+                            <button onclick="window.openNavigation(${fData.latlng[0]}, ${fData.latlng[1]})" class="w-full bg-blue-600 text-white text-[10px] py-2 rounded-lg font-bold flex items-center justify-center gap-2"><i data-lucide="map" style="width:12px"></i> NAVIGA</button>
+                            <button onclick="window.openEditField('${fData.id}')" class="w-full bg-slate-100 text-slate-600 text-[10px] py-1.5 rounded-lg font-bold">Modifica</button>
+                        </div>
                     </div>
                 `, { className: 'custom-popup' });
             }
@@ -537,6 +560,7 @@
                     <div class="text-[9px] text-slate-400 mb-2">${cp.date}</div>
                     <div class="text-[11px] leading-tight text-slate-700">${cp.note || '---'}</div>
                     ${p}
+                    <button onclick="window.openNavigation(${cp.latlng[0]}, ${cp.latlng[1]})" class="w-full mt-2 bg-blue-600 text-white text-[9px] py-1.5 rounded-lg font-bold flex items-center justify-center gap-2"><i data-lucide="map" style="width:10px"></i> NAVIGA</button>
                 </div>
             `);
             cp.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); openEditCheckpoint(cp); });
@@ -552,6 +576,7 @@
             const preview = document.getElementById('fieldPhotoPreview');
             const removeBtn = document.getElementById('removeFieldPhotoBtn');
             if (f.photo) { preview.src = f.photo; preview.classList.remove('hidden'); removeBtn.classList.remove('hidden'); } else { preview.classList.add('hidden'); removeBtn.classList.add('hidden'); }
+            document.getElementById('navFieldBtn').classList.remove('hidden');
             document.getElementById('fieldModal').classList.replace('hidden', 'flex');
         };
 
@@ -564,6 +589,7 @@
             const removeBtn = document.getElementById('removeCheckpointPhotoBtn');
             if (cp.photo) { preview.src = cp.photo; preview.classList.remove('hidden'); removeBtn.classList.remove('hidden'); } else { preview.classList.add('hidden'); removeBtn.classList.add('hidden'); }
             document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); 
+            document.getElementById('navCheckpointBtn').classList.remove('hidden');
             document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
         };
 
@@ -602,11 +628,10 @@
                 
                 watchId = navigator.geolocation.watchPosition((pos) => { 
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude); 
-                    const heading = pos.coords.heading; // Direzione in gradi (0 = Nord, 90 = Est, etc)
+                    const heading = pos.coords.heading; 
                     
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; 
                     
-                    // Gestione Rotazione Mappa
                     if (isCompassMode && heading !== null && typeof heading !== 'undefined') {
                         document.getElementById('map').style.transform = `rotate(${-heading}deg)`;
                     }
@@ -623,10 +648,8 @@
                         userMarker.setLatLng(latlng);
                     }
 
-                    // Ruota la freccia del marker se abbiamo l'heading
                     const arrowIcon = document.getElementById('userArrowIcon');
                     if (arrowIcon && heading !== null) {
-                        // Se la mappa ruota di -heading, la freccia deve puntare sempre in alto rispetto allo schermo
                         arrowIcon.style.transform = isCompassMode ? `rotate(0deg)` : `rotate(${heading}deg)`;
                     }
 
@@ -674,7 +697,17 @@
                         item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm mb-2 cursor-pointer active:bg-slate-50"; 
                         item.onclick = () => { if(f.latlng[0]!==0) { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); } };
                         const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-300"></i></div>`;
-                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name || '---'}</p><p class="text-[9px] text-slate-400 truncate">${f.code || '---'}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+                        item.innerHTML = `
+                            ${thumb}
+                            <div class="flex-1 min-w-0">
+                                <p class="text-[11px] font-black uppercase truncate">${f.name || '---'}</p>
+                                <p class="text-[9px] text-slate-400 truncate">${f.code || '---'}</p>
+                            </div>
+                            <div class="flex gap-1 items-center">
+                                <button onclick="event.stopPropagation(); window.openNavigation(${f.latlng[0]}, ${f.latlng[1]})" class="p-2 text-blue-500"><i data-lucide="map" class="w-4 h-4"></i></button>
+                                <button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                                <button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>`;
                         list.appendChild(item);
                     });
                 } else sec.classList.add('hidden');
@@ -750,8 +783,8 @@
         };
 
         window.recenterOnUser = () => { if (userMarker) map.flyTo(userMarker.getLatLng(), 17); };
-        window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
-        window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
+        window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); document.getElementById('navFieldBtn').classList.add('hidden'); };
+        window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.add('hidden'); document.getElementById('navCheckpointBtn').classList.add('hidden'); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
