@@ -12,7 +12,13 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
     <style>
-        #map { height: calc(100vh - 80px); width: 100%; z-index: 1; background: #cbd5e1; }
+        #map { 
+            height: calc(100vh - 80px); 
+            width: 100%; 
+            z-index: 1; 
+            background: #cbd5e1;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1); /* Transizione fluida per la rotazione */
+        }
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; min-height: 50px; }
         .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
@@ -27,6 +33,10 @@
         .is-expanded .chevron-rotate { transform: rotate(180deg); }
         .saving-pulse { animation: pulse-blue 1.5s infinite; }
         @keyframes pulse-blue { 0% { color: #3b82f6; } 50% { color: #94a3b8; } 100% { color: #3b82f6; } }
+        
+        /* Stile pulsante rotazione attivo */
+        .btn-active-compass { background-color: #2563eb !important; color: white !important; animation: pulse-border 2s infinite; }
+        @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -76,6 +86,7 @@
         
         <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
             <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg text-slate-700 active:scale-90 border border-slate-100"><i data-lucide="locate-fixed" class="w-5 h-5"></i></button>
+            <button id="compassToggleBtn" onclick="toggleCompassMode()" class="bg-white p-3 rounded-xl shadow-lg text-slate-700 active:scale-90 border border-slate-100 hidden"><i data-lucide="compass" class="w-5 h-5"></i></button>
             <button onclick="openManualCoordModal()" class="bg-white p-3 rounded-xl shadow-lg text-slate-700 active:scale-90 border border-slate-100"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
         </div>
 
@@ -261,7 +272,7 @@
         let db, auth;
         let map, userMarker, watchId = null;
         let fields = []; 
-        let isTracking = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
+        let isTracking = false, isCompassMode = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null;
         let isLocalMode = false, mapReady = false;
         let isSaving = false; let isInitialized = false; 
@@ -559,6 +570,19 @@
         window.removeFieldPhoto = () => { document.getElementById('fieldPhotoPreview').src = ""; document.getElementById('fieldPhotoPreview').classList.add('hidden'); document.getElementById('removeFieldPhotoBtn').classList.add('hidden'); };
         window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCheckpointPhotoBtn').classList.add('hidden'); };
 
+        window.toggleCompassMode = () => {
+            isCompassMode = !isCompassMode;
+            const btn = document.getElementById('compassToggleBtn');
+            if (isCompassMode) {
+                btn.classList.add('btn-active-compass');
+                showNotification("Navigazione: Mappa ruotata attivata");
+            } else {
+                btn.classList.remove('btn-active-compass');
+                document.getElementById('map').style.transform = "rotate(0deg)";
+                showNotification("Mappa orientata a Nord");
+            }
+        };
+
         window.toggleTracking = (auto = false) => {
             if (isTracking && !auto) { 
                 if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; 
@@ -566,18 +590,46 @@
                 document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS'; 
                 document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; 
                 document.getElementById('statusText').innerText = "GPS Spento"; 
+                document.getElementById('compassToggleBtn').classList.add('hidden');
+                document.getElementById('map').style.transform = "rotate(0deg)";
+                isCompassMode = false;
             }
             else if (!isTracking) { 
                 document.getElementById('statusText').innerText = "Ricerca segnale..."; 
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...'; 
                 requestWakeLock(); 
+                document.getElementById('compassToggleBtn').classList.remove('hidden');
+                
                 watchId = navigator.geolocation.watchPosition((pos) => { 
                     const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude); 
+                    const heading = pos.coords.heading; // Direzione in gradi (0 = Nord, 90 = Est, etc)
+                    
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; 
+                    
+                    // Gestione Rotazione Mappa
+                    if (isCompassMode && heading !== null && typeof heading !== 'undefined') {
+                        document.getElementById('map').style.transform = `rotate(${-heading}deg)`;
+                    }
+
                     if (!userMarker) { 
-                        userMarker = L.marker(latlng, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg>` }) }).addTo(map); 
+                        userMarker = L.marker(latlng, { 
+                            icon: L.divIcon({ 
+                                className: 'gps-arrow-container', 
+                                html: `<div id="userArrowIcon" style="transition: transform 0.3s ease;"><svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg></div>` 
+                            }) 
+                        }).addTo(map); 
                         map.flyTo(latlng, 17); 
-                    } else userMarker.setLatLng(latlng); 
+                    } else {
+                        userMarker.setLatLng(latlng);
+                    }
+
+                    // Ruota la freccia del marker se abbiamo l'heading
+                    const arrowIcon = document.getElementById('userArrowIcon');
+                    if (arrowIcon && heading !== null) {
+                        // Se la mappa ruota di -heading, la freccia deve puntare sempre in alto rispetto allo schermo
+                        arrowIcon.style.transform = isCompassMode ? `rotate(0deg)` : `rotate(${heading}deg)`;
+                    }
+
                     updateTrajectory(latlng); 
                     isTracking = true; 
                     document.getElementById('telemetryPanel').classList.remove('hidden'); 
