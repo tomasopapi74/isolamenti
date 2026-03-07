@@ -182,16 +182,21 @@
                     <option value="altro">Altro</option>
                 </select>
                 <input type="number" id="fieldRadiusInput" value="1000" class="w-full border border-slate-200 rounded-xl p-3 text-sm">
+                
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto Isolamento</label>
-                    <img id="fieldPhotoPreview" src="" class="photo-preview hidden">
+                    <div class="relative">
+                        <img id="fieldPhotoPreview" src="" class="photo-preview hidden">
+                        <button id="removeFieldPhotoBtn" onclick="removeFieldPhoto()" class="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hidden shadow-lg"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    </div>
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="document.getElementById('fieldCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold">FOTOCAMERA</button>
                         <button onclick="document.getElementById('fieldPhotoInput').click()" class="py-3 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border border-slate-200">GALLERIA</button>
                     </div>
-                    <input type="file" id="fieldCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview')">
-                    <input type="file" id="fieldPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview')">
+                    <input type="file" id="fieldCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
+                    <input type="file" id="fieldPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
                 </div>
+                
                 <div class="flex gap-3 pt-2">
                     <button onclick="closeFieldModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
                     <button onclick="confirmAddField()" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold uppercase">Salva</button>
@@ -210,16 +215,21 @@
                     <input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded border-slate-300">
                     <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700">CONTROLLATO OK (X)</label>
                 </div>
+                
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto Nota</label>
-                    <img id="checkpointPhotoPreview" src="" class="photo-preview hidden">
+                    <div class="relative">
+                        <img id="checkpointPhotoPreview" src="" class="photo-preview hidden">
+                        <button id="removeCheckpointPhotoBtn" onclick="removeCheckpointPhoto()" class="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hidden shadow-lg"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    </div>
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="document.getElementById('checkpointCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold">FOTOCAMERA</button>
                         <button onclick="document.getElementById('checkpointPhotoInput').click()" class="py-3 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border border-slate-200">GALLERIA</button>
                     </div>
-                    <input type="file" id="checkpointCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview')">
-                    <input type="file" id="checkpointPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview')">
+                    <input type="file" id="checkpointCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview', 'removeCheckpointPhotoBtn')">
+                    <input type="file" id="checkpointPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview', 'removeCheckpointPhotoBtn')">
                 </div>
+                
                 <div class="flex flex-col gap-2 pt-2">
                     <div class="flex gap-3">
                         <button onclick="closeCheckpointModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
@@ -326,7 +336,7 @@
             if (!auth.currentUser || !currentProjectName || isLocalMode) return;
             const fieldsCol = collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName);
             onSnapshot(fieldsCol, (snapshot) => {
-                if (isSaving || (Date.now() - lastLocalEditTime < 4000)) return;
+                if (isSaving || (Date.now() - lastLocalEditTime < 3000)) return;
                 const incomingFields = snapshot.docs.map(doc => doc.data());
                 mergeData(incomingFields);
                 document.getElementById('syncIndicator').className = "text-green-500 transition-all";
@@ -349,7 +359,7 @@
                     if (fData.pathCoords && typeof fData.pathCoords === 'string') { 
                         try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; } 
                     }
-                    fields.push(fData); // AGGIUNTO: ripopoliamo l'array globale per la lista
+                    fields.push(fData); 
                     addFieldToMap(fData);
                 });
             }
@@ -411,7 +421,7 @@
                     const idx = fields.findIndex(f => f.id.toString() === tempFieldId.toString());
                     if (idx !== -1) {
                         fields[idx].name = name; fields[idx].code = code; fields[idx].category = category; fields[idx].radius = radius;
-                        if (photo) fields[idx].photo = photo;
+                        fields[idx].photo = photo;
                         if (fields[idx].marker) map.removeLayer(fields[idx].marker); 
                         if (fields[idx].circle) map.removeLayer(fields[idx].circle); 
                         if (fields[idx].polyline) map.removeLayer(fields[idx].polyline);
@@ -419,12 +429,12 @@
                         targetField = fields[idx];
                     }
                 } else {
-                    let latlng = tempFieldCoords; if (!latlng) return showNotification("Seleziona un punto sulla mappa.");
+                    let latlng = tempFieldCoords; if (!latlng) return showNotification("Seleziona punto.");
                     targetField = { id: "f_" + Date.now(), name, code, category, latlng: [latlng.lat, latlng.lng], radius, photo, pathCoords: [], checkpoints: [] };
                     fields.push(targetField);
                     addFieldToMap(targetField);
                 }
-                await saveField(targetField); closeFieldModal(); showNotification("Punto salvato.");
+                await saveField(targetField); closeFieldModal(); showNotification("Dati salvati.");
             } catch (err) { console.error(err); }
         };
 
@@ -432,7 +442,6 @@
             const note = document.getElementById('checkpointNoteInput').value.trim();
             const checked = document.getElementById('checkpointCheckedInput').checked;
             const photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null;
-            if (!note && !photo) return showNotification("Inserisci almeno una nota o una foto.");
             
             let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
             if (!field) {
@@ -442,7 +451,7 @@
             
             if (tempCheckpointCoords.checkpointId) {
                 const cp = field.checkpoints.find(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
-                if (cp) { cp.note = note; cp.checked = checked; if (photo) cp.photo = photo; if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp); }
+                if (cp) { cp.note = note; cp.checked = checked; cp.photo = photo; if (cp.marker) map.removeLayer(cp.marker); renderCheckpointOnMap(cp); }
             } else {
                 const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                 if (!field.checkpoints) field.checkpoints = []; 
@@ -453,7 +462,7 @@
         };
 
         window.deleteField = async (id) => { 
-            if (confirm("Eliminare definitivamente questo isolamento?")) { 
+            if (confirm("Eliminare definitivamente?")) { 
                 const fIdx = fields.findIndex(f => f.id.toString() === id.toString()); 
                 if (fIdx !== -1) { 
                     const f = fields[fIdx];
@@ -490,7 +499,7 @@
                 const pImg = fData.photo ? `<img src="${fData.photo}" class="w-full h-24 object-cover rounded-lg mt-2 cursor-pointer" onclick="window.open('${fData.photo}')">` : '';
                 fData.marker.bindPopup(`
                     <div class="p-1">
-                        <div class="text-[12px] font-black uppercase text-slate-800">${fData.name || 'Isolamento'}</div>
+                        <div class="text-[12px] font-black uppercase text-slate-800">${fData.name || 'Punto'}</div>
                         <div class="text-[10px] text-slate-500 font-bold mb-1">${fData.code || '---'}</div>
                         ${pImg}
                         <button onclick="window.openEditField('${fData.id}')" class="w-full mt-2 bg-slate-100 text-slate-600 text-[10px] py-1.5 rounded-lg font-bold">Modifica</button>
@@ -515,7 +524,7 @@
                 <div class="p-1">
                     <div class="text-[11px] font-black text-red-600">RILEVAMENTO</div>
                     <div class="text-[9px] text-slate-400 mb-2">${cp.date}</div>
-                    <div class="text-[11px] leading-tight text-slate-700">${cp.note || 'Senza descrizione'}</div>
+                    <div class="text-[11px] leading-tight text-slate-700">${cp.note || '---'}</div>
                     ${p}
                 </div>
             `);
@@ -530,7 +539,8 @@
             document.getElementById('fieldCategoryInput').value = (f.category || "altro").toLowerCase(); 
             document.getElementById('fieldRadiusInput').value = f.radius;
             const preview = document.getElementById('fieldPhotoPreview');
-            if (f.photo) { preview.src = f.photo; preview.classList.remove('hidden'); } else { preview.classList.add('hidden'); }
+            const removeBtn = document.getElementById('removeFieldPhotoBtn');
+            if (f.photo) { preview.src = f.photo; preview.classList.remove('hidden'); removeBtn.classList.remove('hidden'); } else { preview.classList.add('hidden'); removeBtn.classList.add('hidden'); }
             document.getElementById('fieldModal').classList.replace('hidden', 'flex');
         };
 
@@ -540,10 +550,14 @@
             document.getElementById('checkpointNoteInput').value = cp.note; 
             document.getElementById('checkpointCheckedInput').checked = !!cp.checked;
             const preview = document.getElementById('checkpointPhotoPreview');
-            if (cp.photo) { preview.src = cp.photo; preview.classList.remove('hidden'); } else { preview.classList.add('hidden'); }
+            const removeBtn = document.getElementById('removeCheckpointPhotoBtn');
+            if (cp.photo) { preview.src = cp.photo; preview.classList.remove('hidden'); removeBtn.classList.remove('hidden'); } else { preview.classList.add('hidden'); removeBtn.classList.add('hidden'); }
             document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); 
             document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
         };
+
+        window.removeFieldPhoto = () => { document.getElementById('fieldPhotoPreview').src = ""; document.getElementById('fieldPhotoPreview').classList.add('hidden'); document.getElementById('removeFieldPhotoBtn').classList.add('hidden'); };
+        window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCheckpointPhotoBtn').classList.add('hidden'); };
 
         window.toggleTracking = (auto = false) => {
             if (isTracking && !auto) { 
@@ -590,7 +604,7 @@
                     }
                 }
             });
-            document.getElementById('statusText').innerText = anyInside ? "In Area Isolamento" : "Ricerca Area...";
+            document.getElementById('statusText').innerText = anyInside ? "In Area" : "Viaggio";
             document.getElementById('statusDot').className = anyInside ? "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" : "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse";
         }
 
@@ -608,7 +622,7 @@
                         item.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl shadow-sm mb-2 cursor-pointer active:bg-slate-50"; 
                         item.onclick = () => { if(f.latlng[0]!==0) { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); } };
                         const thumb = f.photo ? `<img src="${f.photo}" class="list-thumb">` : `<div class="list-thumb bg-slate-100 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-slate-300"></i></div>`;
-                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name || 'Senza Nome'}</p><p class="text-[9px] text-slate-400 truncate">${f.code || '---'}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+                        item.innerHTML = `${thumb}<div class="flex-1 min-w-0"><p class="text-[11px] font-black uppercase truncate">${f.name || '---'}</p><p class="text-[9px] text-slate-400 truncate">${f.code || '---'}</p></div><div class="flex gap-1"><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-300"><i data-lucide="edit-3" class="w-4 h-4"></i></button><button onclick="event.stopPropagation(); deleteField('${f.id}')" class="p-2 text-red-300"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
                         list.appendChild(item);
                     });
                 } else sec.classList.add('hidden');
@@ -640,17 +654,15 @@
             container.style.fontFamily = 'Arial, sans-serif'; container.style.padding = '20px';
             let html = `<div style="text-align:center"><h1 style="color: #16a34a; margin-bottom:0">IsolamenTom</h1><p style="color:#64748b; font-size:12px">Report Isolamenti Agricoli - ${currentProjectName.toUpperCase()}</p></div><hr style="border:0; border-top:1px solid #eee; margin: 20px 0;">`;
             
-            if (fields.length === 0) html += '<p style="text-align: center; color: #94a3b8;">Nessun dato registrato.</p>';
-            
             fields.forEach((f, idx) => {
                 const photoHtml = f.photo ? `<img src="${f.photo}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin-top: 10px;">` : '';
-                html += `<div style="margin-bottom: 40px; border: 1px solid #eee; padding: 20px; border-radius: 12px; page-break-inside: avoid; background:#fafafa;"><h2 style="margin:0; font-size:18px">${idx+1}. ${f.name} <span style="font-size:12px; font-weight:normal; color:#64748b">(${f.category.toUpperCase()})</span></h2><p style="font-size:11px; margin:5px 0"><b>Codice:</b> ${f.code} | <b>Coord:</b> ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>${photoHtml}<h3 style="font-size: 13px; margin: 20px 0 10px 0; border-bottom: 1px solid #eee; padding-bottom:5px">Rilevamenti e Note:</h3>`;
+                html += `<div style="margin-bottom: 40px; border: 1px solid #eee; padding: 20px; border-radius: 12px; page-break-inside: avoid; background:#fafafa;"><h2 style="margin:0; font-size:18px">${idx+1}. ${f.name} <span style="font-size:12px; font-weight:normal; color:#64748b">(${f.category.toUpperCase()})</span></h2><p style="font-size:11px; margin:5px 0"><b>Codice:</b> ${f.code} | <b>Coord:</b> ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>${photoHtml}<h3 style="font-size: 13px; margin: 20px 0 10px 0; border-bottom: 1px solid #eee; padding-bottom:5px">Note:</h3>`;
                 
                 const notes = (f.checkpoints || []);
                 if (notes.length === 0) html += '<p style="font-size: 11px; color: #94a3b8; font-style:italic">Nessun rilievo.</p>';
                 else {
                     notes.forEach(cp => {
-                        const status = cp.checked ? '<span style="color:green">[OK]</span>' : '<span style="color:red">[DA VERIFICARE]</span>';
+                        const status = cp.checked ? '<span style="color:green">[OK]</span>' : '<span style="color:red">[X]</span>';
                         const cpPhoto = cp.photo ? `<br><img src="${cp.photo}" style="width: 120px; height: 80px; object-fit: cover; border-radius: 4px; margin-top: 5px;">` : '';
                         html += `<div style="padding: 10px; border-bottom: 1px solid #eee; font-size: 11px; background:white; margin-bottom:5px"><b>${cp.date}</b> - ${status}<br>${cp.note || '-'}${cpPhoto}</div>`;
                     });
@@ -672,13 +684,13 @@
                 if (file.name.endsWith('.json')) {
                     try { 
                         let imported = JSON.parse(e.target.result); 
-                        showNotification("Ottimizzazione dati...");
+                        showNotification("Caricamento...");
                         for(let f of imported) {
                             f.photo = await compressImage(f.photo);
                             if(f.checkpoints) for(let cp of f.checkpoints) cp.photo = await compressImage(cp.photo);
                         }
-                        mergeData(imported); await saveData(); showNotification("Backup caricato!"); 
-                    } catch (err) { showNotification("Errore nel file."); }
+                        mergeData(imported); await saveData(); showNotification("Caricato!"); 
+                    } catch (err) { showNotification("Errore."); }
                 }
                 event.target.value = '';
             };
@@ -699,9 +711,9 @@
             if (!isNaN(lat) && !isNaN(lon)) { 
                 tempFieldCoords = L.latLng(lat, lon); 
                 closeManualCoordModal(); selectNewField(); 
-            } else { showNotification("Coordinate non valide."); }
+            } else { showNotification("Coordinate Errate."); }
         };
-        window.logoutProject = () => { if(confirm("Vuoi uscire dalla sessione?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if(confirm("Disconnettere?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 7);
@@ -730,7 +742,18 @@
         document.getElementById('dragArea').addEventListener('click', togglePanel);
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 5000); }
         window.onload = () => { initMap(); lucide.createIcons(); };
-        window.previewPhoto = (e, id) => { const f = e.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = (ev) => { const p = document.getElementById(id); p.src = ev.target.result; p.classList.remove('hidden'); }; reader.readAsDataURL(f); };
+        window.previewPhoto = (e, imgId, btnId) => { 
+            const f = e.target.files[0]; if(!f) return; 
+            const reader = new FileReader(); 
+            reader.onload = (ev) => { 
+                const p = document.getElementById(imgId); 
+                p.src = ev.target.result; 
+                p.classList.remove('hidden'); 
+                document.getElementById(btnId).classList.remove('hidden');
+                lucide.createIcons();
+            }; 
+            reader.readAsDataURL(f); 
+        };
     </script>
 </body>
 </html>
