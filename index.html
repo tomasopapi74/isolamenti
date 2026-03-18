@@ -22,15 +22,30 @@
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; min-height: 50px; }
         .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
-        #statusPanel { transition: transform 0.4s cubic-bezier(0.17, 0.67, 0.83, 0.67); touch-action: none; padding-bottom: env(safe-area-inset-bottom); z-index: 1001; max-height: 85vh; }
+        
+        /* Pannello Inferiore Ottimizzato */
+        #statusPanel { 
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.1); 
+            touch-action: none; 
+            padding-bottom: env(safe-area-inset-bottom); 
+            z-index: 1001; 
+            max-height: 85vh;
+            transform: translateY(calc(100% - 85px));
+        }
+        #statusPanel.expanded {
+            transform: translateY(0) !important;
+        }
+
         .drag-handle { width: 40px; height: 5px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 4px auto; }
         #loginOverlay { position: fixed; inset: 0; background: #f8fafc; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; }
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #16a34a; border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .photo-preview { width: 100%; height: 120px; border-radius: 12px; object-fit: cover; background: #f1f5f9; border: 2px dashed #cbd5e1; }
         .list-thumb { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; border: 1px solid #e2e8f0; }
+        
         .chevron-rotate { transition: transform 0.4s ease; }
-        .is-expanded .chevron-rotate { transform: rotate(180deg); }
+        #statusPanel.expanded .chevron-rotate { transform: rotate(180deg); }
+        
         .saving-pulse { animation: pulse-blue 1.5s infinite; }
         @keyframes pulse-blue { 0% { color: #3b82f6; } 50% { color: #94a3b8; } 100% { color: #3b82f6; } }
         
@@ -123,71 +138,76 @@
         </div>
 
         <!-- Pannello Inferiore -->
-        <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] rounded-t-[32px] flex flex-col translate-y-[calc(100%-85px)] z-[1001]">
-            <div id="dragArea" class="cursor-pointer p-5 pb-2 shrink-0">
+        <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_-5px_rgba(0,0,0,0.15)] rounded-t-[32px] flex flex-col z-[1001]">
+            <div id="dragArea" class="cursor-pointer p-6 pb-3 shrink-0 select-none bg-white rounded-t-[32px]">
                 <div class="drag-handle mb-4"></div>
                 <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Dati Registrati</span><i data-lucide="chevron-up" class="w-4 h-4 text-slate-300 chevron-rotate"></i></div>
-                    <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600"><span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span><span id="statusText">GPS Spento</span></div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] font-black uppercase tracking-widest text-slate-500">Dati e Strumenti</span>
+                        <i data-lucide="chevron-up" class="w-5 h-5 text-slate-400 chevron-rotate"></i>
+                    </div>
+                    <div id="statusIndicator" class="flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 transition-all">
+                        <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <span id="statusText">GPS Spento</span>
+                    </div>
                 </div>
             </div>
-            <div id="panelContent" class="space-y-6 overflow-y-auto px-5 pb-10 opacity-40 h-[70vh]">
+            <div id="panelContent" class="space-y-6 overflow-y-auto px-5 pb-12 opacity-0 transition-opacity duration-300 h-[70vh]">
                 <div class="flex flex-col gap-3">
                     <div class="flex gap-2">
-                        <button id="trackBtn" onclick="toggleTracking()" class="flex-1 bg-slate-900 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2"><i data-lucide="navigation" class="w-4 h-4"></i> Attiva GPS</button>
-                        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3.5 rounded-xl"><i data-lucide="log-out" class="w-5 h-5"></i></button>
+                        <button id="trackBtn" onclick="toggleTracking()" class="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all"><i data-lucide="navigation" class="w-5 h-5"></i> Attiva GPS</button>
+                        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-4 rounded-2xl active:bg-slate-200"><i data-lucide="log-out" class="w-5 h-5"></i></button>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3 rounded-xl font-black text-[10px] border border-green-200 uppercase">Importa Dati</button>
-                        <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3 rounded-xl font-black text-[10px] uppercase">Report PDF</button>
+                        <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3.5 rounded-2xl font-black text-[10px] border border-green-200 uppercase active:scale-95 transition-all">Importa Dati</button>
+                        <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg active:scale-95 transition-all">Report PDF</button>
                     </div>
-                    <button onclick="exportBackup()" class="w-full bg-blue-50 text-blue-700 py-2 rounded-xl font-black text-[10px] border border-blue-200 uppercase">Esporta Backup</button>
+                    <button onclick="exportBackup()" class="w-full bg-blue-50 text-blue-700 py-3 rounded-2xl font-black text-[10px] border border-blue-200 uppercase active:scale-95 transition-all">Esporta Backup</button>
                     <input type="file" id="excelInput" class="hidden" accept=".json" onchange="handleExcelFile(event)">
                 </div>
                 <div id="fieldsSection" class="space-y-6">
-                    <div id="cat-cipolle" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2">Cipolle</h3><div id="list-cipolle" class="space-y-2"></div></div>
-                    <div id="cat-bunching" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2">Bunching</h3><div id="list-bunching" class="space-y-2"></div></div>
-                    <div id="cat-brassiche" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2">Brassiche</h3><div id="list-brassiche" class="space-y-2"></div></div>
-                    <div id="cat-cavoli" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2">Cavoli</h3><div id="list-cavoli" class="space-y-2"></div></div>
-                    <div id="cat-cicoria" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2">Cicoria</h3><div id="list-cicoria" class="space-y-2"></div></div>
-                    <div id="cat-altro" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2">Altro</h3><div id="list-altro" class="space-y-2"></div></div>
-                    <div id="emptyMsg" class="text-center py-10 text-slate-400 text-xs italic">Nessun dato.</div>
+                    <div id="cat-cipolle" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-orange-500 pl-2">Cipolle</h3><div id="list-cipolle" class="space-y-2"></div></div>
+                    <div id="cat-bunching" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-green-500 pl-2">Bunching</h3><div id="list-bunching" class="space-y-2"></div></div>
+                    <div id="cat-brassiche" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-purple-500 pl-2">Brassiche</h3><div id="list-brassiche" class="space-y-2"></div></div>
+                    <div id="cat-cavoli" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-blue-500 pl-2">Cavoli</h3><div id="list-cavoli" class="space-y-2"></div></div>
+                    <div id="cat-cicoria" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-emerald-600 pl-2">Cicoria</h3><div id="list-cicoria" class="space-y-2"></div></div>
+                    <div id="cat-altro" class="hidden"><h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-slate-400 pl-2">Altro</h3><div id="list-altro" class="space-y-2"></div></div>
+                    <div id="emptyMsg" class="text-center py-10 text-slate-400 text-xs italic">Nessun isolamento registrato in questo team.</div>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Modal Rilevamento -->
+    <!-- Modal Nota -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Nota sul Campo</h2>
             <div class="space-y-4">
-                <textarea id="checkpointNoteInput" rows="3" class="w-full border border-slate-200 rounded-xl p-3 text-sm bg-slate-50" placeholder="Descrivi il rilevamento..."></textarea>
-                <div class="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl">
+                <textarea id="checkpointNoteInput" rows="3" class="w-full border border-slate-200 rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descrivi il rilevamento..."></textarea>
+                <div class="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded border-slate-300">
-                    <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700">CONTROLLATO OK (X)</label>
+                    <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700 uppercase tracking-tight">Rilevamento Eseguito OK (X)</label>
                 </div>
                 <div class="space-y-2">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Foto</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Foto Documentale</label>
                     <div class="relative">
                         <img id="checkpointPhotoPreview" src="" class="photo-preview hidden">
-                        <button id="removeCheckpointPhotoBtn" onclick="removeCheckpointPhoto()" class="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
+                        <button id="removeCheckpointPhotoBtn" onclick="removeCheckpointPhoto()" class="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full shadow-lg hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="document.getElementById('checkpointCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase">Fotocamera</button>
-                        <button onclick="document.getElementById('checkpointPhotoInput').click()" class="py-3 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border uppercase">Galleria</button>
+                        <button onclick="document.getElementById('checkpointCameraInput').click()" class="py-3.5 bg-slate-900 text-white rounded-2xl text-[11px] font-bold uppercase shadow-md active:scale-95 transition-all">Fotocamera</button>
+                        <button onclick="document.getElementById('checkpointPhotoInput').click()" class="py-3.5 bg-white text-slate-700 rounded-2xl text-[11px] font-bold border-2 border-slate-100 uppercase active:scale-95 transition-all">Galleria</button>
                     </div>
                     <input type="file" id="checkpointCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview', 'removeCheckpointPhotoBtn')">
                     <input type="file" id="checkpointPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview', 'removeCheckpointPhotoBtn')">
                 </div>
                 <div class="flex flex-col gap-2 pt-2">
-                    <button id="navCheckpointBtn" onclick="navigateFromModal('checkpoint')" class="w-full py-3 bg-blue-50 text-blue-700 rounded-xl font-bold text-xs border border-blue-200 flex items-center justify-center gap-2 hidden"><i data-lucide="map"></i> NAVIGA CON GOOGLE MAPS</button>
+                    <button id="navCheckpointBtn" onclick="navigateFromModal('checkpoint')" class="w-full py-3.5 bg-blue-50 text-blue-700 rounded-2xl font-bold text-xs border border-blue-100 flex items-center justify-center gap-2 hidden active:bg-blue-100 transition-all"><i data-lucide="map"></i> NAVIGA CON GOOGLE MAPS</button>
                     <div class="flex gap-3">
-                        <button onclick="closeCheckpointModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
-                        <button onclick="confirmAddCheckpoint()" class="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-bold uppercase">Salva</button>
+                        <button onclick="closeCheckpointModal()" class="flex-1 py-4 border-2 border-slate-100 rounded-2xl font-bold text-slate-400 active:bg-slate-50">Annulla</button>
+                        <button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase shadow-lg shadow-blue-100 active:scale-95 transition-all">Salva Nota</button>
                     </div>
-                    <!-- FIX: Pulsante elimina ora funzionante -->
-                    <button id="deleteCheckpointBtn" onclick="deleteCheckpoint()" class="w-full py-2.5 bg-red-50 text-red-600 rounded-xl font-bold text-xs flex items-center justify-center gap-2 mt-2 hidden">
+                    <button id="deleteCheckpointBtn" onclick="deleteCheckpoint()" class="w-full py-3 bg-red-50 text-red-600 rounded-2xl font-bold text-[11px] flex items-center justify-center gap-2 mt-2 hidden active:bg-red-100 transition-all">
                         <i data-lucide="trash-2" class="w-4 h-4"></i> ELIMINA QUESTA NOTA
                     </button>
                 </div>
@@ -195,47 +215,47 @@
         </div>
     </div>
 
-    <!-- Altri Modal (Choice, Manual, Field) - versioni compatte per brevità -->
+    <!-- Altri Modals -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
-        <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl text-center">
-            <h2 class="text-lg font-bold mb-6">Nuovo Rilevamento</h2>
+        <div class="bg-white rounded-[40px] w-full max-w-sm p-8 shadow-2xl text-center">
+            <h2 class="text-xl font-bold text-slate-800 mb-8 tracking-tight">Cosa vuoi aggiungere?</h2>
             <div class="flex flex-col gap-4">
-                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-4 rounded-2xl border border-green-200">
-                    <div class="flex items-center gap-3"><i data-lucide="plus-circle" class="w-6 h-6"></i><span class="font-bold">Crea Isolamento</span></div><i data-lucide="chevron-right" class="w-4 h-4"></i>
+                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-6 rounded-3xl border border-green-100 active:scale-95 transition-all">
+                    <div class="flex items-center gap-4"><i data-lucide="plus-circle" class="w-8 h-8"></i><span class="font-bold text-lg">Nuovo Isolamento</span></div><i data-lucide="chevron-right" class="w-5 h-5"></i>
                 </button>
-                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-4 rounded-2xl border border-blue-200">
-                    <div class="flex items-center gap-3"><i data-lucide="clipboard-check" class="w-6 h-6"></i><span class="font-bold">Aggiungi Nota</span></div><i data-lucide="chevron-right" class="w-4 h-4"></i>
+                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-6 rounded-3xl border border-blue-100 active:scale-95 transition-all">
+                    <div class="flex items-center gap-4"><i data-lucide="clipboard-check" class="w-8 h-8"></i><span class="font-bold text-lg">Aggiungi Nota</span></div><i data-lucide="chevron-right" class="w-5 h-5"></i>
                 </button>
-                <button onclick="closeActionChoiceModal()" class="mt-2 text-slate-400 text-sm font-bold">Annulla</button>
+                <button onclick="closeActionChoiceModal()" class="mt-4 text-slate-400 font-bold text-sm">Annulla operazione</button>
             </div>
         </div>
     </div>
 
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 class="text-xl font-bold text-green-700 mb-4 flex items-center gap-2"><i data-lucide="plus-circle"></i> Isolamento</h2>
+            <h2 class="text-xl font-bold text-green-700 mb-4 flex items-center gap-2"><i data-lucide="plus-circle"></i> Registra Isolamento</h2>
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
-                    <input type="text" id="fieldNameInput" placeholder="Nome" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                    <input type="text" id="fieldNameInput" placeholder="Nome Campo" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
                     <input type="text" id="fieldCodeInput" placeholder="Codice" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
                 </div>
-                <select id="fieldCategoryInput" class="w-full border rounded-xl p-3 text-sm bg-slate-50">
+                <select id="fieldCategoryInput" class="w-full border rounded-xl p-3 text-sm bg-slate-50 font-bold text-slate-700">
                     <option value="cipolle">Cipolle</option><option value="bunching">Bunching</option><option value="brassiche">Brassiche</option><option value="cavoli">Cavoli</option><option value="cicoria">Cicoria</option><option value="altro">Altro</option>
                 </select>
-                <input type="number" id="fieldRadiusInput" placeholder="Raggio (m)" class="w-full border rounded-xl p-3 text-sm bg-slate-50">
+                <input type="number" id="fieldRadiusInput" placeholder="Raggio Geofence (m)" class="w-full border rounded-xl p-3 text-sm bg-slate-50">
                 <div class="relative">
                     <img id="fieldPhotoPreview" src="" class="photo-preview hidden">
-                    <button id="removeFieldPhotoBtn" onclick="removeFieldPhoto()" class="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
+                    <button id="removeFieldPhotoBtn" onclick="removeFieldPhoto()" class="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hidden"><i data-lucide="x" class="w-4 h-4"></i></button>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
-                    <button onclick="document.getElementById('fieldCameraInput').click()" class="py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase">Foto</button>
-                    <button onclick="document.getElementById('fieldPhotoInput').click()" class="py-3 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border uppercase">Gallery</button>
+                    <button onclick="document.getElementById('fieldCameraInput').click()" class="py-3.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase active:scale-95 transition-all">Foto Campo</button>
+                    <button onclick="document.getElementById('fieldPhotoInput').click()" class="py-3.5 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border uppercase active:scale-95 transition-all">Gallery</button>
                 </div>
                 <input type="file" id="fieldCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
                 <input type="file" id="fieldPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
-                <div class="flex gap-3">
-                    <button onclick="closeFieldModal()" class="flex-1 py-3.5 border rounded-xl font-bold text-slate-400">Annulla</button>
-                    <button onclick="confirmAddField()" class="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold uppercase">Salva</button>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="closeFieldModal()" class="flex-1 py-4 border-2 rounded-2xl font-bold text-slate-400 active:bg-slate-50 transition-all">Annulla</button>
+                    <button onclick="confirmAddField()" class="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold uppercase shadow-lg shadow-green-100 active:scale-95 transition-all">Salva Dati</button>
                 </div>
             </div>
         </div>
@@ -243,22 +263,22 @@
 
     <div id="manualCoordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[2000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
-            <h2 class="text-lg font-bold mb-4">Trova Punto</h2>
+            <h2 class="text-lg font-bold mb-4 tracking-tight">Trova Punto GPS</h2>
             <div class="space-y-4">
                 <div class="grid grid-cols-2 gap-3">
-                    <input type="number" id="manualLat" step="any" placeholder="Lat" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
-                    <input type="number" id="manualLon" step="any" placeholder="Lon" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                    <input type="number" id="manualLat" step="any" placeholder="Lat (es 44.5)" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                    <input type="number" id="manualLon" step="any" placeholder="Lon (es 11.2)" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
                 </div>
                 <div class="space-y-2">
-                    <button onclick="locateManualCoords()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm">VAI A COORDINATE</button>
-                    <button onclick="confirmManualCoords()" class="w-full py-3 bg-green-50 text-green-700 border border-green-200 rounded-xl font-bold text-sm">CREA ISOLAMENTO QUI</button>
-                    <button onclick="closeManualCoordModal()" class="w-full py-2 text-slate-400 font-bold text-xs">Annulla</button>
+                    <button onclick="locateManualCoords()" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg active:scale-95 transition-all">VAI A COORDINATE</button>
+                    <button onclick="confirmManualCoords()" class="w-full py-4 bg-green-50 text-green-700 border-2 border-green-100 rounded-2xl font-bold text-sm active:bg-green-100 transition-all">CREA ISOLAMENTO QUI</button>
+                    <button onclick="closeManualCoordModal()" class="w-full py-2 text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">Annulla</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-6 py-2.5 rounded-full shadow-2xl text-xs font-bold text-center min-w-[220px]"><span id="notifText"></span></div>
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900/95 backdrop-blur text-white px-8 py-3 rounded-full shadow-2xl text-xs font-bold text-center min-w-[250px]"><span id="notifText"></span></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -280,6 +300,7 @@
         let isTracking = false, isCompassMode = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = null, currentPassword = null, isLocalMode = false, mapReady = false, isAdmin = false;
         let isSaving = false, isInitialized = false, lastLocalEditTime = 0, wakeLock = null, lastWeatherUpdate = 0;
+        let isExpanded = false;
 
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
@@ -309,7 +330,7 @@
             const btn = document.getElementById('loginBtn');
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
-            if (!nameRaw || !pass) return showNotification("Compila i dati.");
+            if (!nameRaw || !pass) return showNotification("Compila tutti i campi di accesso.");
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>...';
             try {
                 await signInAnonymously(auth);
@@ -324,7 +345,7 @@
                 currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                 isInitialized = true; enterApp(name, pass, false);
-            } catch (err) { showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI"; }
+            } catch (err) { showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI AL CLOUD"; }
         };
 
         function enterAdminMode() {
@@ -336,17 +357,17 @@
                 listEl.innerHTML = "";
                 snap.docs.forEach(d => {
                     const div = document.createElement('div');
-                    div.className = "bg-white p-4 rounded-2xl border mb-3";
-                    div.innerHTML = `<div class="flex justify-between font-bold uppercase"><span>${d.id}</span><span class="text-blue-600">${d.data().password}</span></div>
-                    <div class="flex gap-2 mt-2">
-                        <button onclick="adminDeleteProject('${d.id}')" class="flex-1 bg-red-50 text-red-600 py-2 rounded-xl text-xs font-bold uppercase">Elimina Team</button>
+                    div.className = "bg-white p-5 rounded-3xl border mb-3 shadow-sm";
+                    div.innerHTML = `<div class="flex justify-between font-black uppercase text-slate-800"><span>${d.id}</span><span class="text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-xs">${d.data().password}</span></div>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="adminDeleteProject('${d.id}')" class="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl text-xs font-bold uppercase active:bg-red-100 transition-all">Elimina Team</button>
                     </div>`;
                     listEl.appendChild(div);
                 });
             });
         }
 
-        window.adminDeleteProject = async (id) => { if (confirm(`Eliminare team ${id}?`)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', id)); };
+        window.adminDeleteProject = async (id) => { if (confirm(`Eliminare team ${id} DEFINITIVAMENTE?`)) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'projects', id)); };
 
         function enterApp(name, pass, local) {
             isLocalMode = local; currentProjectName = name; currentPassword = pass;
@@ -363,6 +384,7 @@
             onSnapshot(fieldsCol, (snap) => {
                 if (isSaving || (Date.now() - lastLocalEditTime < 3000)) return;
                 mergeData(snap.docs.map(doc => doc.data()));
+                document.getElementById('syncIndicator').className = "text-green-500 transition-all";
             });
         }
 
@@ -423,7 +445,7 @@
                 f = { id: "f_" + Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, photo, pathCoords: [], checkpoints: [] };
                 fields.push(f); addFieldToMap(f);
             }
-            await saveField(f); closeFieldModal(); showNotification("Salvato.");
+            await saveField(f); closeFieldModal(); showNotification("Punto salvato correttamente.");
         };
 
         window.confirmAddCheckpoint = async function() {
@@ -439,12 +461,11 @@
                 const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo }; 
                 field.checkpoints.push(cpData); renderCheckpointOnMap(cpData); 
             }
-            await saveField(field); closeCheckpointModal(); showNotification("Nota salvata.");
+            await saveField(field); closeCheckpointModal(); showNotification("Rilevamento salvato.");
         };
 
-        // FIX: Implementazione eliminazione checkpoint
         window.deleteCheckpoint = async () => {
-            if (!confirm("Eliminare questa nota?")) return;
+            if (!confirm("Vuoi eliminare definitivamente questa nota?")) return;
             const fid = tempCheckpointCoords.fieldId;
             const cpid = tempCheckpointCoords.checkpointId;
             const fIdx = fields.findIndex(f => f.id.toString() === fid.toString());
@@ -456,41 +477,40 @@
                     fields[fIdx].checkpoints.splice(cpIdx, 1);
                     await saveField(fields[fIdx]);
                     closeCheckpointModal();
-                    showNotification("Nota eliminata.");
+                    showNotification("Nota eliminata con successo.");
                 }
             }
         };
 
         window.generatePDFReport = async () => {
-            showNotification("Generazione PDF...");
-            // FIX: Creiamo il contenitore con stile inline per assicurarci che html2pdf legga tutto
+            showNotification("Compilazione PDF in corso...");
             const container = document.createElement('div');
             container.style.padding = '40px';
             container.style.color = '#1e293b';
             container.style.backgroundColor = '#ffffff';
             
             let html = `<div style="text-align:center; margin-bottom: 30px;">
-                <h1 style="color: #16a34a; font-size: 28px; margin: 0;">IsolamenTom</h1>
-                <p style="color: #64748b; font-size: 14px;">Report Isolamenti - Team: ${currentProjectName.toUpperCase()}</p>
-                <p style="color: #94a3b8; font-size: 10px;">Generato il: ${new Date().toLocaleString()}</p>
+                <h1 style="color: #16a34a; font-size: 28px; margin: 0; font-family: sans-serif;">IsolamenTom</h1>
+                <p style="color: #64748b; font-size: 14px;">Report Team: ${currentProjectName.toUpperCase()}</p>
+                <p style="color: #94a3b8; font-size: 10px;">Data generazione: ${new Date().toLocaleString()}</p>
             </div><hr style="border:0; border-top: 1px solid #e2e8f0; margin-bottom: 30px;">`;
 
             fields.forEach((f, idx) => {
                 if (f.id === 'field_gen' && (!f.checkpoints || f.checkpoints.length === 0)) return;
                 const photoHtml = f.photo ? `<img src="${f.photo}" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; margin: 15px 0;">` : '';
-                html += `<div style="page-break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 30px; background: #f8fafc;">
-                    <h2 style="font-size: 18px; color: #0f172a; margin: 0;">${idx+1}. ${f.name} <span style="font-size: 10px; font-weight: normal; background: #e2e8f0; padding: 2px 8px; border-radius: 10px;">${f.category.toUpperCase()}</span></h2>
+                html += `<div style="page-break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 30px; background: #f8fafc; font-family: sans-serif;">
+                    <h2 style="font-size: 18px; color: #0f172a; margin: 0;">${idx+1}. ${f.name} <span style="font-size: 10px; font-weight: normal; background: #e2e8f0; padding: 2px 8px; border-radius: 10px; margin-left: 10px;">${f.category.toUpperCase()}</span></h2>
                     <p style="font-size: 12px; color: #64748b; margin: 5px 0;">Codice: <b>${f.code}</b> | Coordinate: ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>
                     ${photoHtml}
-                    <h3 style="font-size: 12px; text-transform: uppercase; color: #475569; margin-top: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">Rilevamenti:</h3>`;
+                    <h3 style="font-size: 12px; text-transform: uppercase; color: #475569; margin-top: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; letter-spacing: 1px;">Rilevamenti sul campo:</h3>`;
                 
-                if (!f.checkpoints || f.checkpoints.length === 0) html += `<p style="font-size: 11px; color: #94a3b8; font-style: italic;">Nessuna nota registrata.</p>`;
+                if (!f.checkpoints || f.checkpoints.length === 0) html += `<p style="font-size: 11px; color: #94a3b8; font-style: italic; margin-top: 10px;">Nessuna nota registrata.</p>`;
                 else {
                     f.checkpoints.forEach(cp => {
-                        const icon = cp.checked ? '[OK]' : '[X]';
-                        const cpPhoto = cp.photo ? `<br><img src="${cp.photo}" style="width: 100px; height: 70px; object-fit: cover; border-radius: 8px; margin-top: 5px;">` : '';
-                        html += `<div style="font-size: 11px; margin-top: 10px; padding: 10px; background: #fff; border-radius: 8px; border-left: 4px solid #3b82f6;">
-                            <b>${cp.date} ${icon}</b><br>${cp.note || 'Nessuna descrizione.'}${cpPhoto}
+                        const status = cp.checked ? '<span style="color: #16a34a;">[CONTROLLATO OK]</span>' : '<span style="color: #ef4444;">[DA RIVEDERE]</span>';
+                        const cpPhoto = cp.photo ? `<br><img src="${cp.photo}" style="width: 120px; height: 80px; object-fit: cover; border-radius: 8px; margin-top: 8px;">` : '';
+                        html += `<div style="font-size: 11px; margin-top: 12px; padding: 12px; background: #fff; border-radius: 12px; border: 1px solid #f1f5f9; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                            <b style="color: #334155;">${cp.date}</b> ${status}<br><div style="margin-top: 5px; color: #475569;">${cp.note || '---'}</div>${cpPhoto}
                         </div>`;
                     });
                 }
@@ -498,21 +518,39 @@
             });
 
             container.innerHTML = html;
-            // Aggiungiamo temporaneamente al body (necessario per alcuni motori di rendering)
             document.body.appendChild(container);
             
-            const opt = { margin: 10, filename: `Report_${currentProjectName}.pdf`, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+            const opt = { 
+                margin: 10, 
+                filename: `Report_IsolamenTom_${currentProjectName}.pdf`, 
+                image: { type: 'jpeg', quality: 0.95 }, 
+                html2canvas: { scale: 2, useCORS: true }, 
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } 
+            };
             
             html2pdf().set(opt).from(container).save().then(() => {
                 document.body.removeChild(container);
-                showNotification("PDF Scaricato!");
-            }).catch(err => {
+                showNotification("Report PDF scaricato con successo!");
+            }).catch(() => {
                 document.body.removeChild(container);
-                showNotification("Errore generazione PDF.");
+                showNotification("Errore durante la creazione del PDF.");
             });
         };
 
-        // --- Altre Funzioni ---
+        // --- FIX: Funzione sollevamento finestra ottimizzata ---
+        window.togglePanel = () => {
+            isExpanded = !isExpanded;
+            const p = document.getElementById('statusPanel');
+            const content = document.getElementById('panelContent');
+            if (isExpanded) {
+                p.classList.add('expanded');
+                content.style.opacity = '1';
+            } else {
+                p.classList.remove('expanded');
+                content.style.opacity = '0';
+            }
+        };
+
         window.openEditCheckpoint = (cp) => {
             let fid = 'field_gen'; fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
             tempCheckpointCoords = { latlng: L.latLng(cp.latlng[0], cp.latlng[1]), fieldId: fid, checkpointId: cp.id };
@@ -525,20 +563,19 @@
         };
 
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.add('hidden'); document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
-        window.previewPhoto = (e, imgId, btnId) => { const f = e.target.files[0]; if(!f) return; const reader = new FileReader(); reader.onload = (ev) => { const p = document.getElementById(imgId); p.src = ev.target.result; p.classList.remove('hidden'); document.getElementById(btnId).classList.remove('hidden'); lucide.createIcons(); }; reader.readAsDataURL(f); };
+        window.previewPhoto = (e, imgId, btnId) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { const p = document.getElementById(imgId); p.src = ev.target.result; p.classList.remove('hidden'); document.getElementById(btnId).classList.remove('hidden'); lucide.createIcons(); }; r.readAsDataURL(f); };
         window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCheckpointPhotoBtn').classList.add('hidden'); };
-        window.logoutProject = () => { localStorage.removeItem('isolamenti_last_session'); location.reload(); };
+        window.logoutProject = () => { if(confirm("Disconnettere il team?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
-        // Helper grafici e GPS
         function addFieldToMap(f) {
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[f.category] || '#64748b';
             if (f.id !== 'field_gen' && f.latlng[0] !== 0) {
-                f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: '', iconSize: [34, 34], iconAnchor: [17, 17] }) }).addTo(map);
-                f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2 }).addTo(map);
-                f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 3, opacity: 0.6 }).addTo(map);
-                const pImg = f.photo ? `<img src="${f.photo}" class="w-full h-24 object-cover rounded-lg mt-2 cursor-pointer" onclick="window.open('${f.photo}')">` : '';
-                f.marker.bindPopup(`<div class="p-1"><b>${f.name}</b><br><span class="text-[10px] text-slate-400">${f.code}</span>${pImg}<button onclick="window.openEditField('${f.id}')" class="w-full mt-2 bg-slate-100 py-1 rounded-lg text-[10px] font-bold">Modifica</button></div>`);
+                f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: '', iconSize: [34, 34], iconAnchor: [17, 17] }) }).addTo(map);
+                f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5' }).addTo(map);
+                f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5 }).addTo(map);
+                const pImg = f.photo ? `<img src="${f.photo}" class="w-full h-24 object-cover rounded-xl mt-2 cursor-pointer" onclick="window.open('${f.photo}')">` : '';
+                f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span>${pImg}<button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase active:scale-95 transition-all">Modifica Dati</button></div>`);
             }
             if (f.checkpoints) f.checkpoints.forEach(renderCheckpointOnMap);
             lucide.createIcons();
@@ -546,27 +583,58 @@
 
         function renderCheckpointOnMap(cp) {
             const x = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="4" stroke-linecap="round" />' : '';
-            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}</svg>`, className: '', iconSize: [30, 30], iconAnchor: [15, 30] }) }).addTo(map);
+            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}</svg>`, className: '', iconSize: [32, 32], iconAnchor: [16, 32] }) }).addTo(map);
             cp.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); openEditCheckpoint(cp); });
         }
 
         window.toggleTracking = () => {
-            if (isTracking) { if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> Attiva GPS'; document.getElementById('statusText').innerText = "GPS Spento"; }
-            else { 
+            if (isTracking) { 
+                if (watchId) navigator.geolocation.clearWatch(watchId); 
+                watchId = null; isTracking = false; releaseWakeLock();
+                document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> Attiva GPS'; 
+                document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400";
+                document.getElementById('statusText').innerText = "GPS Spento"; 
+                document.getElementById('telemetryPanel').classList.add('hidden');
+            } else { 
                 document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...';
+                document.getElementById('telemetryPanel').classList.remove('hidden');
+                requestWakeLock();
                 watchId = navigator.geolocation.watchPosition((pos) => {
                     const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
                     document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
-                    if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg>` }) }).addTo(map); map.flyTo(ll, 17); }
-                    else userMarker.setLatLng(ll);
-                    updateTrajectory(ll); isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> Spegni GPS'; lucide.createIcons();
-                });
+                    if (!userMarker) { 
+                        userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg>` }) }).addTo(map); 
+                        map.flyTo(ll, 17); 
+                    } else userMarker.setLatLng(ll);
+                    updateTrajectory(ll); isTracking = true; 
+                    document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> Spegni GPS'; 
+                    lucide.createIcons();
+                }, null, { enableHighAccuracy: true });
             }
         };
 
         function updateTrajectory(up) {
-            let active = []; fields.forEach(f => { if(f.id!=='field_gen' && up.distanceTo(L.latLng(f.latlng)) <= f.radius) { active.push(f.name); f.pathCoords.push([up.lat, up.lng]); if(f.polyline) f.polyline.setLatLngs(f.pathCoords); saveField(f); } });
-            document.getElementById('statusText').innerText = active.length ? "Area: " + active.join(", ") : "In Viaggio...";
+            let active = []; 
+            fields.forEach(f => { 
+                if(f.id!=='field_gen' && up.distanceTo(L.latLng(f.latlng)) <= f.radius) { 
+                    active.push(f.name); 
+                    if (!f.pathCoords) f.pathCoords = [];
+                    const last = f.pathCoords[f.pathCoords.length - 1];
+                    if (!last || up.distanceTo(L.latLng(last[0], last[1])) > 10) {
+                        f.pathCoords.push([up.lat, up.lng]); 
+                        if(f.polyline) f.polyline.setLatLngs(f.pathCoords); 
+                        saveField(f); 
+                    }
+                } 
+            });
+            const st = document.getElementById('statusText'); const sd = document.getElementById('statusDot');
+            if (active.length) { 
+                st.innerText = "Area: " + active.join(", "); 
+                sd.className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
+            } else { 
+                st.innerText = "In Viaggio..."; 
+                sd.className = "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse";
+            }
         }
 
         window.updateFieldUI = function() {
@@ -574,9 +642,9 @@
             cats.forEach(c => {
                 const list = document.getElementById(`list-${c}`), sec = document.getElementById(`cat-${c}`), cfs = fields.filter(f => f.category === c);
                 if (cfs.length) { sec.classList.remove('hidden'); list.innerHTML = ""; cfs.forEach(f => {
-                    const i = document.createElement('div'); i.className = "flex items-center gap-3 p-3 bg-white border rounded-2xl mb-2 cursor-pointer";
-                    i.onclick = () => map.flyTo(f.latlng, 15);
-                    i.innerHTML = `<div class="flex-1 font-bold text-xs uppercase">${f.name}</div><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2"><i data-lucide="edit-3" class="w-4 h-4"></i></button>`;
+                    const i = document.createElement('div'); i.className = "flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl mb-2 cursor-pointer active:bg-slate-100 transition-all";
+                    i.onclick = () => { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
+                    i.innerHTML = `<div class="flex-1 font-black text-[11px] uppercase text-slate-700">${f.name} <span class="text-[9px] text-slate-400 font-normal">(${f.code})</span></div><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-400 active:text-slate-900"><i data-lucide="edit-3" class="w-4 h-4"></i></button>`;
                     list.appendChild(i);
                 }); } else sec.classList.add('hidden');
             });
@@ -591,23 +659,30 @@
         };
 
         window.handleSearch = () => {
-            const q = document.getElementById('searchInput').value.trim();
-            const f = fields.find(x => x.name.toLowerCase().includes(q.toLowerCase()));
-            if(f) map.flyTo(f.latlng, 16); else showNotification("Non trovato.");
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            const f = fields.find(x => x.name.toLowerCase().includes(q) || x.code.toLowerCase().includes(q));
+            if(f) { map.flyTo(f.latlng, 16); if(f.marker) f.marker.openPopup(); } else showNotification("Elemento non trovato.");
         };
 
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
+        
         window.onload = () => { 
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            map.on('click', (e) => { if(!isInitialized) return; tempFieldCoords = e.latlng; const t = fields.find(f => f.id !== 'field_gen' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); tempCheckpointCoords = { latlng: e.latlng, fieldId: t ? t.id : 'field_gen', checkpointId: null }; document.getElementById('actionChoiceModal').classList.remove('hidden'); });
-            mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); if(s) { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); isInitialized=true; }
+            map.on('click', (e) => { 
+                if(!isInitialized || isAdmin) return; 
+                tempFieldCoords = e.latlng; 
+                const t = fields.find(f => f.id !== 'field_gen' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); 
+                tempCheckpointCoords = { latlng: e.latlng, fieldId: t ? t.id : 'field_gen', checkpointId: null }; 
+                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
+            });
+            mapReady = true; 
+            const s = localStorage.getItem('isolamenti_last_session'); 
+            if(s) { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); isInitialized=true; }
+            document.getElementById('dragArea').onclick = togglePanel;
             lucide.createIcons();
         };
 
-        // UI Helpers
-        window.togglePanel = () => { const p = document.getElementById('statusPanel'); const hiddenY = p.offsetHeight - 85; isExpanded = !isExpanded; p.style.transform = isExpanded ? 'translateY(0)' : `translateY(${hiddenY}px)`; document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0.4'; };
-        document.getElementById('dragArea').onclick = togglePanel;
         window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
@@ -619,6 +694,25 @@
         window.navigateFromModal = (t) => { const ll = t === 'field' ? fields.find(f => f.id===tempFieldId).latlng : [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng]; window.open(`https://www.google.com/maps/dir/?api=1&destination=${ll[0]},${ll[1]}`); };
         window.toggleCompassMode = () => { isCompassMode = !isCompassMode; if(!isCompassMode) document.getElementById('map').style.transform = "rotate(0deg)"; };
         window.recenterOnUser = () => { if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
+        window.locateManualCoords = () => {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lon = parseFloat(document.getElementById('manualLon').value);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                map.flyTo([lat, lon], 17);
+                if (searchMarker) map.removeLayer(searchMarker);
+                searchMarker = L.marker([lat, lon], { icon: L.divIcon({ html: '<div class="animate-bounce bg-blue-600 w-8 h-8 rounded-full border-4 border-white shadow-xl"></div>', className: '', iconSize: [32, 32], iconAnchor: [16, 32] }) }).addTo(map);
+                closeManualCoordModal();
+            } else showNotification("Inserisci coordinate numeriche valide.");
+        };
+        window.confirmManualCoords = () => {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lon = parseFloat(document.getElementById('manualLon').value);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                tempFieldCoords = { lat, lng: lon };
+                closeManualCoordModal();
+                selectNewField();
+            } else showNotification("Coordinate non valide.");
+        };
     </script>
 </body>
 </html>
