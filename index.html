@@ -139,7 +139,6 @@
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 class="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-700"><i data-lucide="clipboard-check"></i> Nota sul Campo</h2>
             <div class="space-y-4">
-                <!-- Nuova sezione numerazione manuale -->
                 <div class="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
                     <div class="flex-1">
                         <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Progressivo Nota</label>
@@ -147,14 +146,11 @@
                     </div>
                     <input type="number" id="checkpointNumberInput" class="w-16 border-2 border-blue-200 rounded-xl p-2 text-center font-black text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
-
                 <textarea id="checkpointNoteInput" rows="3" class="w-full border rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descrivi il rilevamento..."></textarea>
-                
                 <div class="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded border-slate-300">
                     <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700 uppercase">Rilevamento OK (X)</label>
                 </div>
-
                 <div class="space-y-2">
                     <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Foto Documentale</label>
                     <div class="relative">
@@ -168,7 +164,6 @@
                     <input type="file" id="checkpointCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview', 'removeCheckpointPhotoBtn')">
                     <input type="file" id="checkpointPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'checkpointPhotoPreview', 'removeCheckpointPhotoBtn')">
                 </div>
-                
                 <div class="flex flex-col gap-2 pt-2">
                     <button id="navCheckpointBtn" onclick="navigateFromModal('checkpoint')" class="w-full py-3.5 bg-blue-50 text-blue-700 rounded-2xl font-bold text-xs border border-blue-100 flex items-center justify-center gap-2 hidden"><i data-lucide="map"></i> NAVIGA CON GOOGLE MAPS</button>
                     <div class="flex gap-3">
@@ -296,7 +291,7 @@
             const btn = document.getElementById('loginBtn');
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
-            if (!nameRaw || !pass) return showNotification("Compila tutti i campi.");
+            if (!nameRaw || !pass) return showNotification("Dati mancanti.");
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>...';
             try {
                 await signInAnonymously(auth);
@@ -311,7 +306,7 @@
                 currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                 isInitialized = true; enterApp(name, pass, false);
-            } catch (err) { showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI AL CLOUD"; }
+            } catch (err) { showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI"; }
         };
 
         function enterAdminMode() {
@@ -324,10 +319,11 @@
                 snap.docs.forEach(d => {
                     const div = document.createElement('div');
                     div.className = "bg-white p-5 rounded-3xl border mb-3 shadow-sm";
-                    div.innerHTML = `<div class="flex justify-between font-black uppercase text-slate-800"><span>${d.id}</span><span class="text-blue-600 bg-blue-50 px-3 py-1 rounded-full text-xs">${d.data().password}</span></div>
-                    <div class="flex gap-2 mt-4"><button onclick="adminDeleteProject('${d.id}')" class="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl text-xs font-bold uppercase active:bg-red-100 transition-all">Elimina Team</button></div>`;
+                    div.innerHTML = `<div class="flex justify-between font-black uppercase text-slate-800"><span>${d.id}</span><span class="text-blue-600">${d.data().password}</span></div>
+                    <div class="flex gap-2 mt-4"><button onclick="adminDeleteProject('${d.id}')" class="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl text-xs font-bold uppercase">Elimina Team</button></div>`;
                     listEl.appendChild(div);
                 });
+                lucide.createIcons();
             });
         }
 
@@ -363,7 +359,6 @@
                 newData.forEach(fData => {
                     fData.id = fData.id?.toString() || "f_" + Date.now();
                     if (typeof fData.pathCoords === 'string') try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
-                    // Ordiniamo le note per il numero assegnato
                     if (fData.checkpoints) fData.checkpoints.sort((a, b) => (parseInt(a.customNumber) || 0) - (parseInt(b.customNumber) || 0));
                     fields.push(fData); addFieldToMap(fData);
                 });
@@ -391,8 +386,7 @@
                 id: cp.id?.toString() || "cp_" + Math.random().toString(36).substr(2, 9), 
                 latlng: Array.isArray(cp.latlng) ? cp.latlng : [cp.latlng.lat, cp.latlng.lng], 
                 note: cp.note || "", date: cp.date || new Date().toLocaleString(), checked: !!cp.checked, 
-                photo: await compressImage(cp.photo),
-                customNumber: cp.customNumber || "" // Salviamo il numero manuale
+                photo: await compressImage(cp.photo), customNumber: cp.customNumber || ""
             })));
             return {
                 id: f.id.toString(), name: f.name || "Punto", code: f.code || "---", category: (f.category || "altro").toLowerCase(), 
@@ -413,7 +407,7 @@
                 f = { id: "f_" + Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, photo, pathCoords: [], checkpoints: [] };
                 fields.push(f); addFieldToMap(f);
             }
-            await saveField(f); closeFieldModal(); showNotification("Dati isolamento salvati.");
+            await saveField(f); closeFieldModal(); showNotification("Punto salvato.");
         };
 
         window.confirmAddCheckpoint = async function() {
@@ -421,85 +415,92 @@
                   checked = document.getElementById('checkpointCheckedInput').checked,
                   photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null,
                   customNum = document.getElementById('checkpointNumberInput').value;
-            
             let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
             if (!field) { field = { id: 'field_gen', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, photo: null, pathCoords: [], checkpoints: [] }; fields.push(field); }
-            
             if (tempCheckpointCoords.checkpointId) {
                 const cp = field.checkpoints.find(c => c.id.toString() === tempCheckpointCoords.checkpointId.toString());
-                if (cp) { 
-                    cp.note = note; cp.checked = checked; cp.photo = photo; cp.customNumber = customNum;
-                    if (cp.marker) map.removeLayer(cp.marker); 
-                }
+                if (cp) { cp.note = note; cp.checked = checked; cp.photo = photo; cp.customNumber = customNum; if (cp.marker) map.removeLayer(cp.marker); }
             } else {
                 const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo, customNumber: customNum }; 
                 field.checkpoints.push(cpData); 
             }
-            
-            // Riordiniamo i checkpoints in base al numero assegnato
             field.checkpoints.sort((a, b) => (parseInt(a.customNumber) || 0) - (parseInt(b.customNumber) || 0));
-            
-            // Ridisegniamo per aggiornare graficamente
             field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); });
             field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
-            
             await saveField(field); closeCheckpointModal(); showNotification("Rilevamento salvato.");
         };
 
         window.deleteCheckpoint = async () => {
             if (!confirm("Eliminare questa nota?")) return;
-            const fid = tempCheckpointCoords.fieldId;
-            const cpid = tempCheckpointCoords.checkpointId;
+            const fid = tempCheckpointCoords.fieldId, cpid = tempCheckpointCoords.checkpointId;
             const fIdx = fields.findIndex(f => f.id.toString() === fid.toString());
             if (fIdx !== -1) {
                 const cpIdx = fields[fIdx].checkpoints.findIndex(cp => cp.id.toString() === cpid.toString());
                 if (cpIdx !== -1) {
-                    const cp = fields[fIdx].checkpoints[cpIdx];
-                    if (cp.marker) map.removeLayer(cp.marker);
+                    if (fields[fIdx].checkpoints[cpIdx].marker) map.removeLayer(fields[fIdx].checkpoints[cpIdx].marker);
                     fields[fIdx].checkpoints.splice(cpIdx, 1);
-                    if (fields[fIdx].checkpoints) {
-                        fields[fIdx].checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); });
-                        fields[fIdx].checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
-                    }
-                    await saveField(fields[fIdx]);
-                    closeCheckpointModal();
-                    showNotification("Nota eliminata.");
+                    fields[fIdx].checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); });
+                    fields[fIdx].checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
+                    await saveField(fields[fIdx]); closeCheckpointModal(); showNotification("Eliminata.");
                 }
             }
         };
 
-        window.generatePDFReport = async () => {
-            showNotification("Compilazione PDF...");
-            const container = document.createElement('div');
-            container.style.padding = '40px'; container.style.color = '#1e293b'; container.style.backgroundColor = '#ffffff';
-            let html = `<div style="text-align:center; margin-bottom: 30px;"><h1 style="color: #16a34a; font-size: 28px; margin: 0; font-family: sans-serif;">IsolamenTom</h1><p style="color: #64748b; font-size: 14px;">Report Team: ${currentProjectName.toUpperCase()}</p></div><hr style="border:0; border-top: 1px solid #e2e8f0; margin-bottom: 30px;">`;
-            fields.forEach((f, idx) => {
-                if (f.id === 'field_gen' && (!f.checkpoints || f.checkpoints.length === 0)) return;
-                const photoHtml = f.photo ? `<img src="${f.photo}" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; margin: 15px 0;">` : '';
-                html += `<div style="page-break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 30px; background: #f8fafc; font-family: sans-serif;">
-                    <h2 style="font-size: 18px; color: #0f172a; margin: 0;">${idx+1}. ${f.name} <span style="font-size: 10px; font-weight: normal; background: #e2e8f0; padding: 2px 8px; border-radius: 10px; margin-left: 10px;">${f.category.toUpperCase()}</span></h2>
-                    <p style="font-size: 12px; color: #64748b; margin: 5px 0;">Codice: <b>${f.code}</b> | Coordinate: ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>
-                    ${photoHtml}
-                    <h3 style="font-size: 12px; text-transform: uppercase; color: #475569; margin-top: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px;">Rilevamenti:</h3>`;
-                if (!f.checkpoints || f.checkpoints.length === 0) html += `<p style="font-size: 11px; color: #94a3b8; font-style: italic;">Nessuna nota.</p>`;
-                else {
-                    f.checkpoints.forEach((cp) => {
-                        const icon = cp.checked ? '<span style="color: #16a34a;">[OK]</span>' : '<span style="color: #ef4444;">[!]</span>';
-                        const cpPhoto = cp.photo ? `<br><img src="${cp.photo}" style="width: 120px; height: 80px; object-fit: cover; border-radius: 8px; margin-top: 8px;">` : '';
-                        html += `<div style="font-size: 11px; margin-top: 10px; padding: 12px; background: #fff; border-radius: 12px; border: 1px solid #f1f5f9;">
-                            <b style="color: #334155;">#${cp.customNumber || '?'} - ${cp.date}</b> ${status}<br>${cp.note || '---'}${cpPhoto}
-                        </div>`;
-                    });
+        // FIX: Re-inserita la funzione deleteField che mancava
+        window.deleteField = async (id) => {
+            if (!confirm("Eliminare definitivamente questo isolamento e tutti i suoi dati?")) return;
+            const idx = fields.findIndex(f => f.id.toString() === id.toString());
+            if (idx !== -1) {
+                const f = fields[idx];
+                // Rimuovi strati dalla mappa
+                if (f.marker) map.removeLayer(f.marker);
+                if (f.circle) map.removeLayer(f.circle);
+                if (f.polyline) map.removeLayer(f.polyline);
+                if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
+                
+                // Rimuovi dal database Cloud
+                if (!isLocalMode) {
+                    try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); } catch(e) {}
                 }
-                html += `</div>`;
-            });
-            container.innerHTML = html;
-            document.body.appendChild(container);
-            const opt = { margin: 10, filename: `Report_${currentProjectName}.pdf`, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(container).save().then(() => { document.body.removeChild(container); showNotification("Report PDF scaricato!"); });
+                
+                // Rimuovi dall'array locale
+                fields.splice(idx, 1);
+                
+                // Salva lo stato locale aggiornato
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields.map(f => {
+                    const c = {...f}; delete c.marker; delete c.circle; delete c.polyline;
+                    if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c;
+                })));
+                
+                window.updateFieldUI();
+                showNotification("Isolamento eliminato.");
+            }
         };
 
-        window.togglePanel = () => { isExpanded = !isExpanded; const p = document.getElementById('statusPanel'); const content = document.getElementById('panelContent'); if (isExpanded) { p.classList.add('expanded'); content.style.opacity = '1'; } else { p.classList.remove('expanded'); content.style.opacity = '0'; } };
+        window.generatePDFReport = async () => {
+            showNotification("Generazione PDF...");
+            const container = document.createElement('div');
+            container.style.padding = '40px'; container.style.color = '#1e293b'; container.style.backgroundColor = '#ffffff';
+            let html = `<div style="text-align:center; margin-bottom: 30px;"><h1 style="color: #16a34a; font-size: 28px; margin: 0;">IsolamenTom</h1><p style="color: #64748b;">Report Team: ${currentProjectName.toUpperCase()}</p></div>`;
+            fields.forEach((f, idx) => {
+                const photoHtml = f.photo ? `<img src="${f.photo}" style="width: 100%; max-height: 200px; object-fit: cover; border-radius: 12px; margin: 15px 0;">` : '';
+                html += `<div style="page-break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 30px; background: #f8fafc;">
+                    <h2 style="font-size: 18px; color: #0f172a; margin: 0;">${idx+1}. ${f.name} (${f.category.toUpperCase()})</h2>
+                    <p style="font-size: 12px; color: #64748b;">Codice: ${f.code} | Coord: ${f.latlng[0].toFixed(5)}, ${f.latlng[1].toFixed(5)}</p>
+                    ${photoHtml}
+                    <h3 style="font-size: 12px; text-transform: uppercase; margin-top: 15px; border-bottom: 1px solid #cbd5e1;">Rilevamenti:</h3>`;
+                if (f.checkpoints) f.checkpoints.forEach(cp => {
+                    const icon = cp.checked ? '[OK]' : '[!]';
+                    html += `<div style="font-size: 11px; margin-top: 10px; padding: 10px; background: #fff; border-radius: 12px;"><b>#${cp.customNumber || '?'} - ${cp.date}</b> ${icon}<br>${cp.note || '---'}</div>`;
+                });
+                html += `</div>`;
+            });
+            container.innerHTML = html; document.body.appendChild(container);
+            const opt = { margin: 10, filename: `Report_${currentProjectName}.pdf`, image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+            html2pdf().set(opt).from(container).save().then(() => { document.body.removeChild(container); showNotification("PDF scaricato!"); });
+        };
+
+        window.togglePanel = () => { isExpanded = !isExpanded; const p = document.getElementById('statusPanel'), c = document.getElementById('panelContent'); if (isExpanded) { p.classList.add('expanded'); c.style.opacity = '1'; } else { p.classList.remove('expanded'); c.style.opacity = '0'; } };
 
         window.openEditCheckpoint = (cp) => {
             let fid = 'field_gen'; fields.forEach(f => { if (f.checkpoints?.some(c => c.id.toString() === cp.id.toString())) fid = f.id; });
@@ -510,8 +511,7 @@
             const p = document.getElementById('checkpointPhotoPreview'), r = document.getElementById('removeCheckpointPhotoBtn');
             if (cp.photo) { p.src = cp.photo; p.classList.remove('hidden'); r.classList.remove('hidden'); } else { p.classList.add('hidden'); r.classList.add('hidden'); }
             document.getElementById('deleteCheckpointBtn').classList.remove('hidden'); 
-            document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
-            lucide.createIcons();
+            document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); lucide.createIcons();
         };
 
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.add('hidden'); document.getElementById('deleteCheckpointBtn').classList.add('hidden'); };
@@ -526,35 +526,31 @@
                 f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: '', iconSize: [34, 34], iconAnchor: [17, 17] }) }).addTo(map);
                 f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5' }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5 }).addTo(map);
-                const pImg = f.photo ? `<img src="${f.photo}" class="w-full h-24 object-cover rounded-xl mt-2 cursor-pointer" onclick="window.open('${f.photo}')">` : '';
-                f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span>${pImg}<button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase active:scale-95 transition-all">Modifica</button></div>`);
+                f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Modifica</button></div>`);
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, idx) => renderCheckpointOnMap(cp, idx));
             lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp, index) {
-            // Usiamo customNumber se presente, altrimenti l'indice + 1
             const label = cp.customNumber || (index + 1);
             const x = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" stroke-linecap="round" opacity="0.5" />' : '';
-            const textLabel = `<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text>`;
-            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}${textLabel}</svg>`, className: '', iconSize: [32, 32], iconAnchor: [16, 32] }) }).addTo(map);
+            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, className: '', iconSize: [32, 32], iconAnchor: [16, 32] }) }).addTo(map);
             cp.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); openEditCheckpoint(cp); });
         }
 
         window.toggleTracking = () => {
-            if (isTracking) { if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; releaseWakeLock(); document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> Attiva GPS'; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; document.getElementById('statusText').innerText = "GPS Spento"; document.getElementById('telemetryPanel').classList.add('hidden'); } 
-            else { document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...'; document.getElementById('telemetryPanel').classList.remove('hidden'); requestWakeLock(); watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg>` }) }).addTo(map); map.flyTo(ll, 17); } else userMarker.setLatLng(ll); updateTrajectory(ll); isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> Spegni GPS'; lucide.createIcons(); }, null, { enableHighAccuracy: true }); }
+            if (isTracking) { if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; releaseWakeLock(); document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> Attiva GPS'; document.getElementById('statusText').innerText = "GPS Spento"; } 
+            else { document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...'; requestWakeLock(); watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg>` }) }).addTo(map); map.flyTo(ll, 17); } else userMarker.setLatLng(ll); updateTrajectory(ll); isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> Spegni GPS'; lucide.createIcons(); }, null, { enableHighAccuracy: true }); }
         };
 
         function updateTrajectory(up) {
             let active = []; fields.forEach(f => { if(f.id!=='field_gen' && up.distanceTo(L.latLng(f.latlng)) <= f.radius) { active.push(f.name); if (!f.pathCoords) f.pathCoords = []; const last = f.pathCoords[f.pathCoords.length - 1]; if (!last || up.distanceTo(L.latLng(last[0], last[1])) > 10) { f.pathCoords.push([up.lat, up.lng]); if(f.polyline) f.polyline.setLatLngs(f.pathCoords); saveField(f); } } });
-            const st = document.getElementById('statusText'); const sd = document.getElementById('statusDot'); if (active.length) { st.innerText = "Area: " + active.join(", "); sd.className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"; } else { st.innerText = "In Viaggio..."; sd.className = "w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"; }
+            const st = document.getElementById('statusText'); if (active.length) st.innerText = "Area: " + active.join(", "); else st.innerText = "In Viaggio...";
         }
 
         window.updateFieldUI = function() {
-            const container = document.getElementById('fieldsSection');
-            container.innerHTML = "";
+            const container = document.getElementById('fieldsSection'); container.innerHTML = "";
             const cats = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
             cats.forEach(c => {
                 const cfs = fields.filter(f => f.category === c);
@@ -564,14 +560,19 @@
                     container.appendChild(sec);
                     const list = sec.querySelector(`#list-${c}`);
                     cfs.forEach(f => {
-                        const i = document.createElement('div'); i.className = "flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl mb-2 cursor-pointer";
+                        const i = document.createElement('div'); i.className = "flex items-center gap-3 p-4 bg-slate-50 border rounded-2xl mb-2 cursor-pointer";
                         i.onclick = () => { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
-                        i.innerHTML = `<div class="flex-1 font-black text-[11px] uppercase text-slate-700">${f.name} <span class="text-[9px] text-slate-400 font-normal">(${f.code})</span></div><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-400"><i data-lucide="edit-3" class="w-4 h-4"></i></button>`;
+                        // FIX: Aggiunto tasto cancella nell'elenco
+                        i.innerHTML = `<div class="flex-1 font-black text-[11px] uppercase text-slate-700">${f.name} <span class="text-[9px] text-slate-400 font-normal">(${f.code})</span></div>
+                        <div class="flex gap-1">
+                            <button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-400"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2 text-red-400"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>`;
                         list.appendChild(i);
                     });
                 }
             });
-            if (!fields.length) container.innerHTML = '<div id="emptyMsg" class="text-center py-10 text-slate-400 text-xs italic">Nessun dato.</div>';
+            if (!fields.length) container.innerHTML = '<div class="text-center py-10 text-slate-400 text-xs italic">Nessun dato.</div>';
             lucide.createIcons();
         }
 
@@ -584,13 +585,11 @@
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             map.on('click', (e) => { if(!isInitialized || isAdmin) return; tempFieldCoords = e.latlng; const t = fields.find(f => f.id !== 'field_gen' && e.latlng.distanceTo(L.latLng(f.latlng)) <= f.radius); tempCheckpointCoords = { latlng: e.latlng, fieldId: t ? t.id : 'field_gen', checkpointId: null };
-            // Suggerimento automatico numero progressivo
             const fTarget = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             document.getElementById('checkpointNumberInput').value = fTarget ? (fTarget.checkpoints.length + 1) : "";
             document.getElementById('actionChoiceModal').classList.remove('hidden'); });
             mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); if(s) { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); isInitialized=true; }
-            document.getElementById('dragArea').onclick = togglePanel;
-            lucide.createIcons();
+            document.getElementById('dragArea').onclick = togglePanel; lucide.createIcons();
         };
 
         window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
@@ -599,6 +598,13 @@
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
         window.openManualCoordModal = () => document.getElementById('manualCoordModal').classList.replace('hidden', 'flex');
         window.closeManualCoordModal = () => document.getElementById('manualCoordModal').classList.add('hidden');
+        window.exportBackup = () => { const link = document.createElement('a'); link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(fields)); link.download = `backup_${currentProjectName}.json`; link.click(); };
+        window.navigateFromModal = (t) => { const ll = t === 'field' ? fields.find(f => f.id===tempFieldId).latlng : [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng]; window.open(`https://www.google.com/maps/dir/?api=1&destination=${ll[0]},${ll[1]}`); };
+        window.toggleCompassMode = () => { isCompassMode = !isCompassMode; if(!isCompassMode) document.getElementById('map').style.transform = "rotate(0deg)"; };
+        window.recenterOnUser = () => { if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
+        window.handleLocalMode = () => { isInitialized = true; enterApp("LOCALE", "", true); };
+        window.locateManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value), lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat) && !isNaN(lon)) { map.flyTo([lat, lon], 17); closeManualCoordModal(); } };
+        window.confirmManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value), lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat) && !isNaN(lon)) { tempFieldCoords = { lat, lng: lon }; closeManualCoordModal(); selectNewField(); } };
     </script>
 </body>
 </html>
