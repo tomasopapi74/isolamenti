@@ -125,9 +125,11 @@
                         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-4 rounded-2xl"><i data-lucide="log-out" class="w-5 h-5"></i></button>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3.5 rounded-2xl font-black text-[10px] border border-green-200 uppercase">Importa</button>
-                        <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg">Report PDF</button>
+                        <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3.5 rounded-2xl font-black text-[10px] border border-green-200 uppercase active:scale-95">Importa Backup</button>
+                        <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3.5 rounded-2xl font-black text-[10px] uppercase shadow-lg active:scale-95">Report PDF</button>
                     </div>
+                    <button onclick="exportBackup()" class="w-full bg-blue-50 text-blue-700 py-3 rounded-2xl font-black text-[10px] border border-blue-200 uppercase active:scale-95 transition-all">Esporta Backup (.json)</button>
+                    <input type="file" id="excelInput" class="hidden" accept=".json" onchange="handleExcelFile(event)">
                 </div>
                 <div id="fieldsSection" class="space-y-6"></div>
             </div>
@@ -142,9 +144,9 @@
                 <div class="flex items-center gap-4 bg-blue-50 p-4 rounded-2xl border border-blue-100">
                     <div class="flex-1">
                         <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Progressivo Nota</label>
-                        <p class="text-[11px] text-blue-600 leading-tight">Puoi modificare l'ordine di questa nota.</p>
+                        <p class="text-[11px] text-blue-600 leading-tight">Ordine numerico della nota.</p>
                     </div>
-                    <input type="number" id="checkpointNumberInput" class="w-16 border-2 border-blue-200 rounded-xl p-2 text-center font-black text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                    <input type="number" id="checkpointNumberInput" class="w-16 border-2 border-blue-200 rounded-xl p-2 text-center font-black text-blue-700 outline-none">
                 </div>
                 <textarea id="checkpointNoteInput" rows="3" class="w-full border rounded-2xl p-4 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Descrivi il rilevamento..."></textarea>
                 <div class="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -168,7 +170,7 @@
                     <button id="navCheckpointBtn" onclick="navigateFromModal('checkpoint')" class="w-full py-3.5 bg-blue-50 text-blue-700 rounded-2xl font-bold text-xs border border-blue-100 flex items-center justify-center gap-2 hidden"><i data-lucide="map"></i> NAVIGA CON GOOGLE MAPS</button>
                     <div class="flex gap-3">
                         <button onclick="closeCheckpointModal()" class="flex-1 py-4 border-2 rounded-2xl font-bold text-slate-400">Annulla</button>
-                        <button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase shadow-lg">Salva</button>
+                        <button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase shadow-lg">Salva Nota</button>
                     </div>
                     <button id="deleteCheckpointBtn" onclick="deleteCheckpoint()" class="w-full py-3 bg-red-50 text-red-600 rounded-2xl font-bold text-[11px] flex items-center justify-center gap-2 mt-2 hidden"><i data-lucide="trash-2" class="w-4 h-4"></i> ELIMINA QUESTA NOTA</button>
                 </div>
@@ -210,7 +212,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <button onclick="document.getElementById('fieldCameraInput').click()" class="py-3.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase">Foto</button>
-                    <button onclick="document.getElementById('fieldPhotoInput').click()" class="py-3.5 bg-slate-100 text-slate-700 rounded-xl text-[11px] font-bold border uppercase">Galleria</button>
+                    <button onclick="document.getElementById('fieldPhotoInput').click()" class="py-3.5 bg-white text-slate-700 rounded-xl text-[11px] font-bold border-2 uppercase">Galleria</button>
                 </div>
                 <input type="file" id="fieldCameraInput" accept="image/*" capture="environment" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
                 <input type="file" id="fieldPhotoInput" accept="image/*" class="hidden" onchange="previewPhoto(event, 'fieldPhotoPreview', 'removeFieldPhotoBtn')">
@@ -259,7 +261,7 @@
 
         let db, auth, map, userMarker, watchId = null, searchMarker = null, fields = []; 
         let isTracking = false, isCompassMode = false, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
-        let currentProjectName = null, currentPassword = null, isLocalMode = false, mapReady = false, isAdmin = false;
+        let currentProjectName = "locale", currentPassword = null, isLocalMode = false, mapReady = false, isAdmin = false;
         let isSaving = false, isInitialized = false, lastLocalEditTime = 0, wakeLock = null, lastWeatherUpdate = 0;
         let isExpanded = false;
 
@@ -291,7 +293,7 @@
             const btn = document.getElementById('loginBtn');
             const nameRaw = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
-            if (!nameRaw || !pass) return showNotification("Dati mancanti.");
+            if (!nameRaw || !pass) return showNotification("Compila i dati.");
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>...';
             try {
                 await signInAnonymously(auth);
@@ -306,7 +308,7 @@
                 currentProjectName = name; currentPassword = pass;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                 isInitialized = true; enterApp(name, pass, false);
-            } catch (err) { showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI"; }
+            } catch (err) { showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI AL CLOUD"; }
         };
 
         function enterAdminMode() {
@@ -320,7 +322,7 @@
                     const div = document.createElement('div');
                     div.className = "bg-white p-5 rounded-3xl border mb-3 shadow-sm";
                     div.innerHTML = `<div class="flex justify-between font-black uppercase text-slate-800"><span>${d.id}</span><span class="text-blue-600">${d.data().password}</span></div>
-                    <div class="flex gap-2 mt-4"><button onclick="adminDeleteProject('${d.id}')" class="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl text-xs font-bold uppercase">Elimina Team</button></div>`;
+                    <div class="flex gap-2 mt-4"><button onclick="adminDeleteProject('${d.id}')" class="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl text-xs font-bold uppercase active:bg-red-100 transition-all">Elimina Team</button></div>`;
                     listEl.appendChild(div);
                 });
                 lucide.createIcons();
@@ -446,35 +448,91 @@
             }
         };
 
-        // FIX: Re-inserita la funzione deleteField che mancava
         window.deleteField = async (id) => {
-            if (!confirm("Eliminare definitivamente questo isolamento e tutti i suoi dati?")) return;
+            if (!confirm("Eliminare questo isolamento e tutti i suoi dati?")) return;
             const idx = fields.findIndex(f => f.id.toString() === id.toString());
             if (idx !== -1) {
                 const f = fields[idx];
-                // Rimuovi strati dalla mappa
                 if (f.marker) map.removeLayer(f.marker);
                 if (f.circle) map.removeLayer(f.circle);
                 if (f.polyline) map.removeLayer(f.polyline);
                 if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                 
-                // Rimuovi dal database Cloud
                 if (!isLocalMode) {
                     try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); } catch(e) {}
                 }
-                
-                // Rimuovi dall'array locale
                 fields.splice(idx, 1);
-                
-                // Salva lo stato locale aggiornato
                 localStorage.setItem('isolamenti_local_db', JSON.stringify(fields.map(f => {
                     const c = {...f}; delete c.marker; delete c.circle; delete c.polyline;
                     if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c;
                 })));
-                
                 window.updateFieldUI();
                 showNotification("Isolamento eliminato.");
             }
+        };
+
+        // --- BACKUP LOGIC (RIPRISTINATA E CORRETTA) ---
+        window.exportBackup = () => {
+            try {
+                // Puliamo i dati per evitare errori di riferimenti circolari
+                const cleanData = fields.map(f => {
+                    const c = { ...f };
+                    delete c.marker; delete c.circle; delete c.polyline;
+                    if (c.checkpoints) {
+                        c.checkpoints = c.checkpoints.map(cp => {
+                            const xc = { ...cp };
+                            delete xc.marker;
+                            return xc;
+                        });
+                    }
+                    return c;
+                });
+                
+                const blob = new Blob([JSON.stringify(cleanData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `backup_isolamenti_${currentProjectName}_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                showNotification("Backup scaricato correttamente.");
+            } catch (err) {
+                console.error(err);
+                showNotification("Errore durante l'esportazione.");
+            }
+        };
+
+        window.triggerExcelImport = () => document.getElementById('excelInput').click();
+
+        window.handleExcelFile = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (Array.isArray(data)) {
+                        if (confirm(`Importare ${data.length} isolamenti? I dati esistenti verranno mantenuti.`)) {
+                            for (let f of data) {
+                                // Evitiamo duplicati identici se hanno lo stesso ID
+                                if (!fields.some(existing => existing.id.toString() === f.id.toString())) {
+                                    fields.push(f);
+                                    await saveField(f);
+                                }
+                            }
+                            mergeData(fields);
+                            showNotification("Dati importati con successo!");
+                        }
+                    } else {
+                        showNotification("Formato file non valido.");
+                    }
+                } catch (err) {
+                    showNotification("Errore nel caricamento del file.");
+                }
+            };
+            reader.readAsText(file);
         };
 
         window.generatePDFReport = async () => {
@@ -540,8 +598,8 @@
         }
 
         window.toggleTracking = () => {
-            if (isTracking) { if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; releaseWakeLock(); document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> Attiva GPS'; document.getElementById('statusText').innerText = "GPS Spento"; } 
-            else { document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...'; requestWakeLock(); watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg>` }) }).addTo(map); map.flyTo(ll, 17); } else userMarker.setLatLng(ll); updateTrajectory(ll); isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> Spegni GPS'; lucide.createIcons(); }, null, { enableHighAccuracy: true }); }
+            if (isTracking) { if (watchId) navigator.geolocation.clearWatch(watchId); watchId = null; isTracking = false; releaseWakeLock(); document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> Attiva GPS'; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; document.getElementById('statusText').innerText = "GPS Spento"; document.getElementById('telemetryPanel').classList.add('hidden'); } 
+            else { document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> GPS...'; document.getElementById('telemetryPanel').classList.remove('hidden'); requestWakeLock(); watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m"; if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg>` }) }).addTo(map); map.flyTo(ll, 17); } else userMarker.setLatLng(ll); updateTrajectory(ll); isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> Spegni GPS'; lucide.createIcons(); }, null, { enableHighAccuracy: true }); }
         };
 
         function updateTrajectory(up) {
@@ -562,7 +620,6 @@
                     cfs.forEach(f => {
                         const i = document.createElement('div'); i.className = "flex items-center gap-3 p-4 bg-slate-50 border rounded-2xl mb-2 cursor-pointer";
                         i.onclick = () => { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
-                        // FIX: Aggiunto tasto cancella nell'elenco
                         i.innerHTML = `<div class="flex-1 font-black text-[11px] uppercase text-slate-700">${f.name} <span class="text-[9px] text-slate-400 font-normal">(${f.code})</span></div>
                         <div class="flex gap-1">
                             <button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-400"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
@@ -588,7 +645,7 @@
             const fTarget = fields.find(f => f.id === tempCheckpointCoords.fieldId);
             document.getElementById('checkpointNumberInput').value = fTarget ? (fTarget.checkpoints.length + 1) : "";
             document.getElementById('actionChoiceModal').classList.remove('hidden'); });
-            mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); if(s) { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'local'); isInitialized=true; }
+            mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); if(s) { const d = JSON.parse(s); enterApp(d.name, d.pass, d.mode === 'cloud'); isInitialized=true; }
             document.getElementById('dragArea').onclick = togglePanel; lucide.createIcons();
         };
 
@@ -598,10 +655,6 @@
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
         window.openManualCoordModal = () => document.getElementById('manualCoordModal').classList.replace('hidden', 'flex');
         window.closeManualCoordModal = () => document.getElementById('manualCoordModal').classList.add('hidden');
-        window.exportBackup = () => { const link = document.createElement('a'); link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(fields)); link.download = `backup_${currentProjectName}.json`; link.click(); };
-        window.navigateFromModal = (t) => { const ll = t === 'field' ? fields.find(f => f.id===tempFieldId).latlng : [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng]; window.open(`https://www.google.com/maps/dir/?api=1&destination=${ll[0]},${ll[1]}`); };
-        window.toggleCompassMode = () => { isCompassMode = !isCompassMode; if(!isCompassMode) document.getElementById('map').style.transform = "rotate(0deg)"; };
-        window.recenterOnUser = () => { if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.handleLocalMode = () => { isInitialized = true; enterApp("LOCALE", "", true); };
         window.locateManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value), lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat) && !isNaN(lon)) { map.flyTo([lat, lon], 17); closeManualCoordModal(); } };
         window.confirmManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value), lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat) && !isNaN(lon)) { tempFieldCoords = { lat, lng: lon }; closeManualCoordModal(); selectNewField(); } };
