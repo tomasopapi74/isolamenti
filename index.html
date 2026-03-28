@@ -25,11 +25,10 @@
             transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         
-        /* Forza l'interattività dei marker */
         .leaflet-marker-icon { 
             cursor: pointer !important; 
             pointer-events: auto !important; 
-            z-index: 9999 !important; /* Valore altissimo */
+            z-index: 9999 !important;
         }
         
         .counter-rotate, .gps-arrow-icon {
@@ -71,7 +70,6 @@
             pointer-events: none;
         }
 
-        /* Area di tocco ottimizzata */
         .interactive-marker {
             width: 44px;
             height: 44px;
@@ -126,7 +124,7 @@
             <div class="flex-1 flex gap-2">
                 <div class="relative flex-1">
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
-                    <input type="text" id="searchInput" placeholder="Cerca isolamento o codice..." class="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
+                    <input type="text" id="searchInput" placeholder="Cerca nome o lat, lon..." class="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
                 </div>
                 <button onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold shadow-md active:scale-95">Cerca</button>
             </div>
@@ -220,7 +218,7 @@
         </div>
     </div>
 
-    <!-- Choice Action Modal -->
+    <!-- Scelta Azione -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
         <div class="bg-white rounded-[40px] w-full max-w-sm p-8 shadow-2xl text-center">
             <h2 class="text-xl font-bold text-slate-800 mb-8">Nuovo Elemento</h2>
@@ -236,7 +234,7 @@
         </div>
     </div>
 
-    <!-- Field Modal -->
+    <!-- Modale Campo -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold text-green-700 mb-4 flex items-center gap-2"><i data-lucide="plus-circle"></i> Registra Isolamento</h2>
@@ -255,6 +253,32 @@
                         <button onclick="closeFieldModal()" class="flex-1 py-4 border-2 rounded-2xl font-bold text-slate-400">Esci</button>
                         <button onclick="confirmAddField()" class="flex-1 py-4 bg-green-600 text-white rounded-2xl font-bold uppercase shadow-lg">Salva</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Coordinate Manuali -->
+    <div id="manualCoordModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
+            <h2 class="text-lg font-bold mb-4 text-slate-800">Cerca Posizione</h2>
+            <div class="space-y-5">
+                <div class="space-y-2">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">Indirizzo</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="manualAddress" placeholder="Es: Via Roma 1, Bologna" class="flex-1 border rounded-xl p-3 text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
+                        <button onclick="searchAddress()" class="bg-blue-600 text-white px-4 rounded-xl shadow-md active:scale-95"><i data-lucide="search" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3"><hr class="flex-1 border-slate-100"><span class="text-[10px] font-bold text-slate-300 uppercase">O COORD</span><hr class="flex-1 border-slate-100"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <input type="number" id="manualLat" step="any" placeholder="Lat (es: 44.1)" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                    <input type="number" id="manualLon" step="any" placeholder="Lon (es: 12.2)" class="w-full border rounded-xl p-3 text-sm bg-slate-50 outline-none">
+                </div>
+                <div class="space-y-2 pt-2">
+                    <button onclick="locateManualCoords()" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg active:scale-95 flex items-center justify-center gap-2"><i data-lucide="map"></i> VAI AL PUNTO</button>
+                    <button onclick="confirmManualCoords()" class="w-full py-4 bg-green-50 text-green-700 border-2 border-green-100 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"><i data-lucide="plus-circle"></i> CREA ISOLAMENTO QUI</button>
+                    <button onclick="closeManualCoordModal()" class="w-full py-2 text-slate-400 font-bold text-xs uppercase mt-2">Annulla</button>
                 </div>
             </div>
         </div>
@@ -541,6 +565,44 @@
             await saveField(field); closeCheckpointModal(); showNotification("Rilevamento salvato.");
         };
 
+        window.deleteField = async (id) => {
+            if (!confirm("Eliminare definitivamente questo isolamento e tutte le note associate?")) return;
+            const idx = fields.findIndex(f => f.id.toString() === id.toString());
+            if (idx !== -1) {
+                const f = fields[idx];
+                if (f.marker) map.removeLayer(f.marker);
+                if (f.circle) map.removeLayer(f.circle);
+                if (f.polyline) map.removeLayer(f.polyline);
+                if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
+                if (!isLocalMode) { try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); } catch(e) {} }
+                fields.splice(idx, 1);
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
+                window.updateFieldUI();
+                showNotification("Isolamento eliminato.");
+            }
+        };
+
+        window.handleSearch = () => {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!q) return;
+            
+            // Supporto ricerca per coordinate (es: 44.1, 12.2)
+            if (q.includes(',')) {
+                const parts = q.split(',').map(p => parseFloat(p.trim()));
+                if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                    map.flyTo([parts[0], parts[1]], 17);
+                    showNotification(`Navigazione a: ${parts[0]}, ${parts[1]}`);
+                    return;
+                }
+            }
+
+            const f = fields.find(x => x.name.toLowerCase().includes(q) || x.code.toLowerCase().includes(q));
+            if (f && f.latlng[0] !== 0) {
+                map.flyTo(f.latlng, 17);
+                if (f.marker) setTimeout(() => f.marker.openPopup(), 500);
+            } else { showNotification("Elemento non trovato."); }
+        };
+
         window.updateFieldUI = function() {
             const container = document.getElementById('fieldsSection'); container.innerHTML = "";
             const cats = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
@@ -557,6 +619,7 @@
                         i.innerHTML = `<div class="flex-1 font-black text-[11px] uppercase text-slate-700">${f.name} <span class="text-[9px] text-slate-400 font-normal">(${f.code})</span></div>
                         <div class="flex gap-1">
                             <button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-400 hover:text-slate-900"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                            <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2 text-red-400 hover:text-red-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                         </div>`;
                         list.appendChild(i);
                     });
@@ -572,12 +635,7 @@
             
             map.on('click', (e) => { 
                 if(!isInitialized || mapRotationEnabled) return; 
-                
-                if (markerTouchBlock) {
-                    markerTouchBlock = false;
-                    return; 
-                }
-                
+                if (markerTouchBlock) { markerTouchBlock = false; return; }
                 const target = e.originalEvent.target;
                 if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-popup') || e.originalEvent._stopped) return;
 
@@ -605,8 +663,30 @@
         window.closeManualCoordModal = () => document.getElementById('manualCoordModal').classList.add('hidden');
         window.recenterOnUser = () => { if(userMarker) { isFollowing = true; map.flyTo(userMarker.getLatLng(), 17); } };
         window.handleLocalMode = () => { isInitialized = true; enterApp("LOCALE", "", true); };
-        window.locateManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value), lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat) && !isNaN(lon)) { map.flyTo([lat, lon], 17); closeManualCoordModal(); } };
-        window.confirmManualCoords = () => { const lat = parseFloat(document.getElementById('manualLat').value), lon = parseFloat(document.getElementById('manualLon').value); if (!isNaN(lat) && !isNaN(lon)) { tempFieldCoords = { lat, lng: lon }; closeManualCoordModal(); selectNewField(); } };
+        
+        window.locateManualCoords = () => { 
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lon = parseFloat(document.getElementById('manualLon').value); 
+            if (!isNaN(lat) && !isNaN(lon)) { 
+                map.flyTo([lat, lon], 17); 
+                closeManualCoordModal(); 
+            } else {
+                showNotification("Inserisci coordinate valide (numeri).");
+            }
+        };
+
+        window.confirmManualCoords = () => { 
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lon = parseFloat(document.getElementById('manualLon').value); 
+            if (!isNaN(lat) && !isNaN(lon)) { 
+                tempFieldCoords = { lat, lng: lon }; 
+                closeManualCoordModal(); 
+                selectNewField(); 
+            } else {
+                showNotification("Inserisci coordinate valide (numeri).");
+            }
+        };
+
         window.previewPhoto = (e, imgId, btnId) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { const p = document.getElementById(imgId); p.src = ev.target.result; p.classList.remove('hidden'); document.getElementById(btnId).classList.remove('hidden'); }; r.readAsDataURL(f); };
         window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCheckpointPhotoBtn').classList.add('hidden'); };
         window.closeCheckpointModal = () => { document.getElementById('checkpointModal').classList.add('hidden'); };
@@ -649,7 +729,7 @@
                 if (el) setupEvents(el);
                 else f.marker.on('add', () => setupEvents(f.marker.getElement()));
                 
-                f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button></div>`);
+                f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><div class="flex gap-2 mt-3"><button onclick="window.openEditField('${f.id}')" class="flex-1 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button><button onclick="window.deleteField('${f.id}')" class="bg-red-50 text-red-600 p-2 rounded-xl border border-red-100"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div></div>`);
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, idx) => renderCheckpointOnMap(cp, idx));
             setTimeout(() => lucide.createIcons(), 100);
