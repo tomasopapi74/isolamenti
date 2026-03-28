@@ -545,7 +545,7 @@
                 
                 // Evitiamo il menu se l'utente ha cliccato un marker (controlliamo il target dell'evento originale)
                 const target = e.originalEvent.target;
-                if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-popup')) {
+                if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-popup') || e.originalEvent._stopped) {
                     return; 
                 }
 
@@ -591,10 +591,11 @@
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[f.category] || '#64748b';
             if (f.id !== 'field_gen' && f.latlng[0] !== 0) {
-                // FIX: Assicuriamo interattività totale del marker
+                // FIX: Assicuriamo interattività totale del marker e alta priorità
                 f.marker = L.marker(f.latlng, { 
                     bubblingMouseEvents: false,
                     interactive: true,
+                    zIndexOffset: 1000,
                     icon: L.divIcon({ 
                         html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);pointer-events:none;"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, 
                         className: 'field-marker-icon', 
@@ -603,13 +604,17 @@
                     }) 
                 }).addTo(map);
                 
+                // Cerchi e linee NON interattivi per non bloccare il click al centro
                 f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5', interactive: false }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5, interactive: false }).addTo(map);
                 
-                // FIX: stopPropagation su click e mousedown
+                // Gestione click rinforzata
                 const handleFieldClick = (e) => {
                     L.DomEvent.stopPropagation(e);
-                    if (e.originalEvent) L.DomEvent.preventDefault(e.originalEvent);
+                    if (e.originalEvent) {
+                        e.originalEvent._stopped = true;
+                        L.DomEvent.preventDefault(e.originalEvent);
+                    }
                     f.marker.openPopup();
                 };
                 f.marker.on('click', handleFieldClick);
@@ -628,6 +633,7 @@
             cp.marker = L.marker(cp.latlng, { 
                 bubblingMouseEvents: false,
                 interactive: true,
+                zIndexOffset: 1100,
                 icon: L.divIcon({ 
                     html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); pointer-events:none;"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, 
                     className: 'checkpoint-marker-icon', 
@@ -638,7 +644,10 @@
             
             const handleCpClick = (e) => {
                 L.DomEvent.stopPropagation(e);
-                if (e.originalEvent) L.DomEvent.preventDefault(e.originalEvent);
+                if (e.originalEvent) {
+                    e.originalEvent._stopped = true;
+                    L.DomEvent.preventDefault(e.originalEvent);
+                }
                 openEditCheckpoint(cp); 
             };
             cp.marker.on('click', handleCpClick);
