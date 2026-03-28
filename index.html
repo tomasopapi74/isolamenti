@@ -17,7 +17,7 @@
             z-index: 1; 
             background: #cbd5e1;
         }
-        /* FIX: Assicura che i marker siano sempre interattivi e sopra la mappa */
+        /* Assicura che i marker siano cliccabili sopra ogni cosa */
         .leaflet-marker-icon { 
             cursor: pointer !important; 
             pointer-events: auto !important; 
@@ -258,7 +258,7 @@
         let isTracking = false, isFollowing = true, tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
         let currentProjectName = "locale", isLocalMode = false, mapReady = false, isAdmin = false;
         let isSaving = false, isInitialized = false, lastLocalEditTime = 0, wakeLock = null;
-        let isExpanded = false;
+        let isExpanded = false, markerTouchBlock = false;
 
         const firebaseApp = initializeApp(firebaseConfig);
         auth = getAuth(firebaseApp);
@@ -541,9 +541,12 @@
             
             // FIX: Filtro click sulla mappa migliorato
             map.on('click', (e) => { 
-                if(!isInitialized) return; 
+                if(!isInitialized || markerTouchBlock) {
+                    markerTouchBlock = false;
+                    return; 
+                }
                 
-                // Evitiamo il menu se l'utente ha cliccato un marker (controlliamo il target dell'evento originale)
+                // Evitiamo il menu se l'utente ha cliccato un marker o popup
                 const target = e.originalEvent.target;
                 if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-popup') || e.originalEvent._stopped) {
                     return; 
@@ -597,7 +600,7 @@
                     interactive: true,
                     zIndexOffset: 1000,
                     icon: L.divIcon({ 
-                        html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);pointer-events:none;"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, 
+                        html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, 
                         className: 'field-marker-icon', 
                         iconSize: [34, 34], 
                         iconAnchor: [17, 17] 
@@ -608,17 +611,27 @@
                 f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5', interactive: false }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5, interactive: false }).addTo(map);
                 
-                // Gestione click rinforzata
-                const handleFieldClick = (e) => {
+                // Gestione click rinforzata: usiamo L.DomEvent per un blocco più profondo
+                f.marker.on('click', (e) => {
                     L.DomEvent.stopPropagation(e);
-                    if (e.originalEvent) {
-                        e.originalEvent._stopped = true;
-                        L.DomEvent.preventDefault(e.originalEvent);
-                    }
+                    markerTouchBlock = true;
                     f.marker.openPopup();
-                };
-                f.marker.on('click', handleFieldClick);
-                f.marker.on('mousedown', (e) => L.DomEvent.stopPropagation(e));
+                });
+
+                // Supporto per tocco diretto (Mobile)
+                f.marker.on('add', () => {
+                    const icon = f.marker.getElement();
+                    if (icon) {
+                        L.DomEvent.on(icon, 'click', (ev) => {
+                            L.DomEvent.stopPropagation(ev);
+                            markerTouchBlock = true;
+                            f.marker.openPopup();
+                        });
+                        L.DomEvent.on(icon, 'touchstart', (ev) => {
+                            markerTouchBlock = true;
+                        });
+                    }
+                });
                 
                 f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button></div>`);
             }
@@ -635,23 +648,32 @@
                 interactive: true,
                 zIndexOffset: 1100,
                 icon: L.divIcon({ 
-                    html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); pointer-events:none;"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, 
+                    html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, 
                     className: 'checkpoint-marker-icon', 
                     iconSize: [32, 32], 
                     iconAnchor: [16, 32] 
                 }) 
             }).addTo(map);
             
-            const handleCpClick = (e) => {
+            cp.marker.on('click', (e) => {
                 L.DomEvent.stopPropagation(e);
-                if (e.originalEvent) {
-                    e.originalEvent._stopped = true;
-                    L.DomEvent.preventDefault(e.originalEvent);
-                }
+                markerTouchBlock = true;
                 openEditCheckpoint(cp); 
-            };
-            cp.marker.on('click', handleCpClick);
-            cp.marker.on('mousedown', (e) => L.DomEvent.stopPropagation(e));
+            });
+
+            cp.marker.on('add', () => {
+                const icon = cp.marker.getElement();
+                if (icon) {
+                    L.DomEvent.on(icon, 'click', (ev) => {
+                        L.DomEvent.stopPropagation(ev);
+                        markerTouchBlock = true;
+                        openEditCheckpoint(cp);
+                    });
+                    L.DomEvent.on(icon, 'touchstart', (ev) => {
+                        markerTouchBlock = true;
+                    });
+                }
+            });
             
             setTimeout(() => lucide.createIcons(), 100);
         }
