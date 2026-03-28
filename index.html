@@ -17,6 +17,9 @@
             z-index: 1; 
             background: #cbd5e1;
         }
+        /* Assicura che i marker siano cliccabili sopra ogni cosa */
+        .leaflet-marker-icon { cursor: pointer !important; pointer-events: auto !important; }
+        
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         .gps-arrow-container { display: flex !important; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; pointer-events: none; }
         
@@ -53,7 +56,7 @@
                     <input type="password" id="passwordInput" placeholder="Password" class="w-full border border-slate-200 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm">
                     <button id="loginBtn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all uppercase tracking-wide">Accedi</button>
                 </div>
-                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><i data-lucide="smartphone" class="w-4 h-4"></i> MODALITÀ LOCALE</button>
+                <button id="localBtn" onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-sm shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all"><i data-lucide="smartphone" class="w-4 h-4"></i> MODALITÀ LOCALE</button>
             </div>
         </div>
     </div>
@@ -576,6 +579,10 @@
                 f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: '', iconSize: [34, 34], iconAnchor: [17, 17] }) }).addTo(map);
                 f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5' }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5 }).addTo(map);
+                
+                // FIX: Blocco propagazione click per aprire popup senza scatenare click mappa
+                f.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); });
+                
                 f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button></div>`);
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, idx) => renderCheckpointOnMap(cp, idx));
@@ -585,7 +592,12 @@
             const label = cp.customNumber || (index + 1);
             const x = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" stroke-linecap="round" opacity="0.5" />' : '';
             cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, className: '', iconSize: [32, 32], iconAnchor: [16, 32] }) }).addTo(map);
-            cp.marker.on('click', (e) => { L.DomEvent.stopPropagation(e); openEditCheckpoint(cp); });
+            
+            // FIX: Blocco propagazione click per aprire modale senza scatenare click mappa
+            cp.marker.on('click', (e) => { 
+                L.DomEvent.stopPropagation(e); 
+                openEditCheckpoint(cp); 
+            });
         }
     </script>
 </body>
