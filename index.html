@@ -42,6 +42,12 @@
         .photo-preview { width: 100%; height: 120px; border-radius: 12px; object-fit: cover; background: #f1f5f9; border: 2px dashed #cbd5e1; }
         .chevron-rotate { transition: transform 0.4s ease; }
         #statusPanel.expanded .chevron-rotate { transform: rotate(180deg); }
+
+        /* Miglioramento Hitbox per Mobile */
+        .checkpoint-marker-icon, .field-marker-icon {
+            background: transparent;
+            border: none;
+        }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -563,7 +569,7 @@
         };
 
         window.onload = () => { 
-            map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 7);
+            map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             map.on('dragstart', () => { isFollowing = false; });
             
@@ -641,14 +647,18 @@
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5, interactive: false }).addTo(map);
                 
                 // Gestione click profonda tramite DOM
-                f.marker.on('add', () => {
-                    const el = f.marker.getElement();
-                    L.DomEvent.on(el, 'click', (ev) => {
+                const setupFieldEvents = (el) => {
+                    L.DomEvent.disableClickPropagation(el);
+                    L.DomEvent.on(el, 'click touchstart', (ev) => {
                         L.DomEvent.stopPropagation(ev);
                         markerTouchBlock = true;
                         f.marker.openPopup();
                     });
-                });
+                };
+
+                const el = f.marker.getElement();
+                if (el) setupFieldEvents(el);
+                else f.marker.on('add', () => setupFieldEvents(f.marker.getElement()));
                 
                 f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button></div>`);
             }
@@ -663,37 +673,40 @@
             cp.marker = L.marker(cp.latlng, { 
                 bubblingMouseEvents: false,
                 interactive: true,
-                zIndexOffset: 1200, // Priorità massima
+                zIndexOffset: 2000, // Estrema priorità per le note
                 icon: L.divIcon({ 
-                    html: `<div class="checkpoint-hitbox" style="width:32px; height:32px;"><svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); pointer-events: none;"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg></div>`, 
+                    html: `<div class="checkpoint-hitbox" style="width:36px; height:36px; display:flex; align-items:center; justify-content:center; background: transparent;"><svg viewBox="0 0 24 24" width="34" height="34" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); pointer-events: auto;"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg></div>`, 
                     className: 'checkpoint-marker-icon', 
-                    iconSize: [32, 32], 
-                    iconAnchor: [16, 32] 
+                    iconSize: [36, 36], 
+                    iconAnchor: [18, 32] 
                 }) 
             }).addTo(map);
             
-            // Gestione click unificata e robusta
-            const handleNoteClick = (ev) => {
-                if (ev) {
+            // Gestione evento Note (Triangoli) con blocco forzato
+            const setupNoteEvents = (el) => {
+                // Disabilita ogni propagazione di click/tocco alla mappa
+                L.DomEvent.disableClickPropagation(el);
+                
+                const handler = (ev) => {
                     L.DomEvent.stopPropagation(ev);
-                    if (ev.originalEvent) L.DomEvent.preventDefault(ev.originalEvent);
-                }
-                markerTouchBlock = true;
-                window.openEditCheckpoint(cp);
+                    if (ev.originalEvent) {
+                        L.DomEvent.preventDefault(ev.originalEvent);
+                        ev.originalEvent._stopped = true;
+                    }
+                    markerTouchBlock = true;
+                    window.openEditCheckpoint(cp);
+                };
+
+                L.DomEvent.on(el, 'click', handler);
+                L.DomEvent.on(el, 'touchstart', (ev) => {
+                    markerTouchBlock = true;
+                    L.DomEvent.stopPropagation(ev);
+                });
             };
 
-            cp.marker.on('click', handleNoteClick);
-
-            cp.marker.on('add', () => {
-                const el = cp.marker.getElement();
-                if (el) {
-                    L.DomEvent.on(el, 'click', handleNoteClick);
-                    L.DomEvent.on(el, 'touchstart', (ev) => {
-                        L.DomEvent.stopPropagation(ev);
-                        markerTouchBlock = true;
-                    });
-                }
-            });
+            const el = cp.marker.getElement();
+            if (el) setupNoteEvents(el);
+            else cp.marker.on('add', () => setupNoteEvents(cp.marker.getElement()));
             
             setTimeout(() => lucide.createIcons(), 100);
         }
