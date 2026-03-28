@@ -378,6 +378,34 @@
             };
         }
 
+        window.openEditField = function(id) {
+            const f = fields.find(x => x.id.toString() === id.toString());
+            if (!f) return;
+            tempFieldId = f.id;
+            document.getElementById('fieldNameInput').value = f.name;
+            document.getElementById('fieldCodeInput').value = f.code;
+            document.getElementById('fieldCategoryInput').value = f.category;
+            document.getElementById('fieldRadiusInput').value = f.radius;
+            document.getElementById('navFieldBtn').classList.remove('hidden');
+            document.getElementById('fieldModal').classList.replace('hidden', 'flex');
+            lucide.createIcons();
+        };
+
+        window.openEditCheckpoint = function(cp) {
+            const field = fields.find(f => f.checkpoints.some(c => c.id === cp.id));
+            tempCheckpointCoords = { latlng: { lat: cp.latlng[0], lng: cp.latlng[1] }, fieldId: field ? field.id : 'field_gen', checkpointId: cp.id };
+            document.getElementById('checkpointNumberInput').value = cp.customNumber || "";
+            document.getElementById('checkpointNoteInput').value = cp.note || "";
+            document.getElementById('checkpointCheckedInput').checked = !!cp.checked;
+            document.getElementById('checkpointPhotoPreview').src = cp.photo || "";
+            if (cp.photo) document.getElementById('checkpointPhotoPreview').classList.remove('hidden');
+            else document.getElementById('checkpointPhotoPreview').classList.add('hidden');
+            document.getElementById('navCheckpointBtn').classList.remove('hidden');
+            document.getElementById('deleteCheckpointBtn').classList.remove('hidden');
+            document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
+            lucide.createIcons();
+        };
+
         window.confirmAddField = async function() {
             const name = document.getElementById('fieldNameInput').value.trim() || "Punto", code = document.getElementById('fieldCodeInput').value.trim() || "---",
                   cat = document.getElementById('fieldCategoryInput').value.toLowerCase(), rad = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
@@ -541,12 +569,15 @@
             
             // FIX: Filtro click sulla mappa migliorato
             map.on('click', (e) => { 
-                if(!isInitialized || markerTouchBlock) {
+                if(!isInitialized) return;
+                
+                // Se markerTouchBlock è attivo, significa che abbiamo appena toccato un marker
+                if (markerTouchBlock) {
                     markerTouchBlock = false;
                     return; 
                 }
                 
-                // Evitiamo il menu se l'utente ha cliccato un marker o popup
+                // Evitiamo il menu se l'utente ha cliccato un marker o popup (controllo DOM)
                 const target = e.originalEvent.target;
                 if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-popup') || e.originalEvent._stopped) {
                     return; 
@@ -594,43 +625,29 @@
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[f.category] || '#64748b';
             if (f.id !== 'field_gen' && f.latlng[0] !== 0) {
-                // FIX: Assicuriamo interattività totale del marker e alta priorità
                 f.marker = L.marker(f.latlng, { 
                     bubblingMouseEvents: false,
                     interactive: true,
                     zIndexOffset: 1000,
                     icon: L.divIcon({ 
-                        html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, 
+                        html: `<div class="marker-container" style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, 
                         className: 'field-marker-icon', 
                         iconSize: [34, 34], 
                         iconAnchor: [17, 17] 
                     }) 
                 }).addTo(map);
                 
-                // Cerchi e linee NON interattivi per non bloccare il click al centro
                 f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5', interactive: false }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5, interactive: false }).addTo(map);
                 
-                // Gestione click rinforzata: usiamo L.DomEvent per un blocco più profondo
-                f.marker.on('click', (e) => {
-                    L.DomEvent.stopPropagation(e);
-                    markerTouchBlock = true;
-                    f.marker.openPopup();
-                });
-
-                // Supporto per tocco diretto (Mobile)
+                // Gestione click profonda tramite DOM
                 f.marker.on('add', () => {
-                    const icon = f.marker.getElement();
-                    if (icon) {
-                        L.DomEvent.on(icon, 'click', (ev) => {
-                            L.DomEvent.stopPropagation(ev);
-                            markerTouchBlock = true;
-                            f.marker.openPopup();
-                        });
-                        L.DomEvent.on(icon, 'touchstart', (ev) => {
-                            markerTouchBlock = true;
-                        });
-                    }
+                    const el = f.marker.getElement();
+                    L.DomEvent.on(el, 'click', (ev) => {
+                        L.DomEvent.stopPropagation(ev);
+                        markerTouchBlock = true;
+                        f.marker.openPopup();
+                    });
                 });
                 
                 f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button></div>`);
@@ -655,24 +672,13 @@
                 }) 
             }).addTo(map);
             
-            cp.marker.on('click', (e) => {
-                L.DomEvent.stopPropagation(e);
-                markerTouchBlock = true;
-                openEditCheckpoint(cp); 
-            });
-
             cp.marker.on('add', () => {
-                const icon = cp.marker.getElement();
-                if (icon) {
-                    L.DomEvent.on(icon, 'click', (ev) => {
-                        L.DomEvent.stopPropagation(ev);
-                        markerTouchBlock = true;
-                        openEditCheckpoint(cp);
-                    });
-                    L.DomEvent.on(icon, 'touchstart', (ev) => {
-                        markerTouchBlock = true;
-                    });
-                }
+                const el = cp.marker.getElement();
+                L.DomEvent.on(el, 'click', (ev) => {
+                    L.DomEvent.stopPropagation(ev);
+                    markerTouchBlock = true;
+                    openEditCheckpoint(cp); 
+                });
             });
             
             setTimeout(() => lucide.createIcons(), 100);
