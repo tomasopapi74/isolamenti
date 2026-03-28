@@ -21,7 +21,7 @@
         .leaflet-marker-icon { 
             cursor: pointer !important; 
             pointer-events: auto !important; 
-            z-index: 600 !important;
+            z-index: 1000 !important;
         }
         
         .custom-popup .leaflet-popup-content-wrapper { border-radius: 12px; padding: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
@@ -539,12 +539,13 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             map.on('dragstart', () => { isFollowing = false; });
             
-            // FIX: Filtro click sulla mappa. Se l'utente clicca un marker, non apriamo il menu.
+            // FIX: Filtro click sulla mappa migliorato
             map.on('click', (e) => { 
                 if(!isInitialized) return; 
-                // Leaflet propaga i click dai marker alla mappa se non gestito bene.
-                // Controlliamo l'originalEvent per vedere se il target è l'area della mappa o un marker.
-                if (e.originalEvent.target.id !== 'map' && !e.originalEvent.target.classList.contains('leaflet-container')) {
+                
+                // Evitiamo il menu se l'utente ha cliccato un marker (controlliamo il target dell'evento originale)
+                const target = e.originalEvent.target;
+                if (target.closest('.leaflet-marker-icon') || target.closest('.leaflet-popup')) {
                     return; 
                 }
 
@@ -590,41 +591,60 @@
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
             const color = cats[f.category] || '#64748b';
             if (f.id !== 'field_gen' && f.latlng[0] !== 0) {
-                // FIX: Opzione bubblingMouseEvents: false impedisce al click di passare alla mappa
+                // FIX: Assicuriamo interattività totale del marker
                 f.marker = L.marker(f.latlng, { 
                     bubblingMouseEvents: false,
-                    icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: '', iconSize: [34, 34], iconAnchor: [17, 17] }) 
+                    interactive: true,
+                    icon: L.divIcon({ 
+                        html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,0.15);pointer-events:none;"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, 
+                        className: 'field-marker-icon', 
+                        iconSize: [34, 34], 
+                        iconAnchor: [17, 17] 
+                    }) 
                 }).addTo(map);
                 
-                f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5' }).addTo(map);
-                f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5 }).addTo(map);
+                f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5', interactive: false }).addTo(map);
+                f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5, interactive: false }).addTo(map);
                 
-                // FIX: stopPropagation obbligatorio per non triggerare map.on('click')
-                f.marker.on('click', (e) => { 
-                    L.DomEvent.stopPropagation(e); 
-                    // Apriamo il popup manualmente per sicurezza
+                // FIX: stopPropagation su click e mousedown
+                const handleFieldClick = (e) => {
+                    L.DomEvent.stopPropagation(e);
+                    if (e.originalEvent) L.DomEvent.preventDefault(e.originalEvent);
                     f.marker.openPopup();
-                });
+                };
+                f.marker.on('click', handleFieldClick);
+                f.marker.on('mousedown', (e) => L.DomEvent.stopPropagation(e));
                 
                 f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><button onclick="window.openEditField('${f.id}')" class="w-full mt-3 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button></div>`);
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, idx) => renderCheckpointOnMap(cp, idx));
+            setTimeout(() => lucide.createIcons(), 100);
         }
 
         function renderCheckpointOnMap(cp, index) {
             const label = cp.customNumber || (index + 1);
             const x = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" stroke-linecap="round" opacity="0.5" />' : '';
             
-            // FIX: bubblingMouseEvents: false anche qui
             cp.marker = L.marker(cp.latlng, { 
                 bubblingMouseEvents: false,
-                icon: L.divIcon({ html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, className: '', iconSize: [32, 32], iconAnchor: [16, 32] }) 
+                interactive: true,
+                icon: L.divIcon({ 
+                    html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); pointer-events:none;"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, 
+                    className: 'checkpoint-marker-icon', 
+                    iconSize: [32, 32], 
+                    iconAnchor: [16, 32] 
+                }) 
             }).addTo(map);
             
-            cp.marker.on('click', (e) => { 
-                L.DomEvent.stopPropagation(e); 
+            const handleCpClick = (e) => {
+                L.DomEvent.stopPropagation(e);
+                if (e.originalEvent) L.DomEvent.preventDefault(e.originalEvent);
                 openEditCheckpoint(cp); 
-            });
+            };
+            cp.marker.on('click', handleCpClick);
+            cp.marker.on('mousedown', (e) => L.DomEvent.stopPropagation(e));
+            
+            setTimeout(() => lucide.createIcons(), 100);
         }
     </script>
 </body>
