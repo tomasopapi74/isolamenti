@@ -663,22 +663,36 @@
             cp.marker = L.marker(cp.latlng, { 
                 bubblingMouseEvents: false,
                 interactive: true,
-                zIndexOffset: 1100,
+                zIndexOffset: 1200, // Priorità massima
                 icon: L.divIcon({ 
-                    html: `<svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`, 
+                    html: `<div class="checkpoint-hitbox" style="width:32px; height:32px;"><svg viewBox="0 0 24 24" width="32" height="32" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); pointer-events: none;"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#ffffff" stroke-width="2.5"/>${x}<text x="12" y="18" font-family="Arial" font-size="8" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg></div>`, 
                     className: 'checkpoint-marker-icon', 
                     iconSize: [32, 32], 
                     iconAnchor: [16, 32] 
                 }) 
             }).addTo(map);
             
+            // Gestione click unificata e robusta
+            const handleNoteClick = (ev) => {
+                if (ev) {
+                    L.DomEvent.stopPropagation(ev);
+                    if (ev.originalEvent) L.DomEvent.preventDefault(ev.originalEvent);
+                }
+                markerTouchBlock = true;
+                window.openEditCheckpoint(cp);
+            };
+
+            cp.marker.on('click', handleNoteClick);
+
             cp.marker.on('add', () => {
                 const el = cp.marker.getElement();
-                L.DomEvent.on(el, 'click', (ev) => {
-                    L.DomEvent.stopPropagation(ev);
-                    markerTouchBlock = true;
-                    openEditCheckpoint(cp); 
-                });
+                if (el) {
+                    L.DomEvent.on(el, 'click', handleNoteClick);
+                    L.DomEvent.on(el, 'touchstart', (ev) => {
+                        L.DomEvent.stopPropagation(ev);
+                        markerTouchBlock = true;
+                    });
+                }
             });
             
             setTimeout(() => lucide.createIcons(), 100);
