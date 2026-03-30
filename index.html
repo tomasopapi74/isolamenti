@@ -206,7 +206,7 @@
         </div>
     </div>
 
-    <!-- Altri Modali omessi per brevità, ma reinseriti logicamente -->
+    <!-- Scelta Azione -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
         <div class="bg-white rounded-[40px] w-full max-w-sm p-8 shadow-2xl text-center">
             <h2 class="text-xl font-bold text-slate-800 mb-8">Nuovo Elemento</h2>
@@ -241,6 +241,8 @@
             </div>
         </div>
     </div>
+
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[3000] transform -translate-y-24 opacity-0 transition-all duration-500 bg-slate-900 text-white px-8 py-3 rounded-full shadow-2xl text-xs font-bold text-center min-w-[250px]"><span id="notifText"></span></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -283,7 +285,8 @@
                 else if (!docSnap.exists()) await setDoc(projRef, { password: pass, lastSync: new Date().toISOString() });
                 currentProjectName = name;
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
-                isInitialized = true; enterApp(name, pass, false);
+                isInitialized = true; 
+                enterApp(name, pass, false);
             } catch (err) { 
                 showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI"; 
             }
@@ -323,16 +326,108 @@
         };
 
         function enterApp(name, pass, local) {
-            isLocalMode = local; currentProjectName = name;
+            isLocalMode = local; 
+            currentProjectName = name;
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
+            
             if (mapReady) { 
-                if (local) loadForensicData(); else startCloudSync(); 
+                // CARICAMENTO PRIORITARIO: Carica prima la cache locale
+                loadForensicData(); 
+                
+                // Poi avvia la sincronizzazione cloud se non è in modalità locale
+                if (!local) startCloudSync(); 
+                
                 setTimeout(() => toggleTracking(), 800); 
             }
         }
 
-        // --- CORE GPS (FIXATO) ---
+        // --- GESTIONE DATI LOCALE E CLOUD ---
+
+        function loadForensicData() { 
+            const raw = localStorage.getItem('isolamenti_local_db'); 
+            if (raw) {
+                try {
+                    const parsedData = JSON.parse(raw);
+                    // Filtra i dati per caricare solo quelli del progetto corrente se necessario
+                    // (Attualmente l'app usa una singola tabella locale, carichiamo tutto come cache)
+                    mergeData(parsedData); 
+                } catch(e) { console.error("Errore cache locale:", e); }
+            }
+        }
+
+        function startCloudSync() {
+            if (isLocalMode || !currentProjectName) return;
+            const fieldsCol = collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName);
+            
+            // Listener cloud
+            onSnapshot(fieldsCol, (snap) => {
+                // Non sovrascrivere se stiamo salvando proprio ora per evitare loop
+                if (isSaving) return;
+                
+                const cloudData = snap.docs.map(doc => doc.data());
+                if (cloudData.length > 0) {
+                    mergeData(cloudData);
+                    document.getElementById('syncIndicator')?.classList.replace('text-slate-300', 'text-green-500');
+                    // Aggiorna la cache locale con i dati freschi dal cloud
+                    localStorage.setItem('isolamenti_local_db', JSON.stringify(cloudData));
+                }
+            }, (err) => {
+                console.error("Errore Sync Cloud:", err);
+                showNotification("Errore sincronizzazione Cloud.");
+            });
+        }
+
+        async function saveField(field) {
+            if (!isInitialized) return;
+            isSaving = true;
+            try {
+                const prepared = {
+                    id: field.id.toString(), name: field.name || "Punto", code: field.code || "---", category: field.category || "altro", 
+                    latlng: field.latlng, radius: Number(field.radius) || 1000,
+                    pathCoords: typeof field.pathCoords === 'string' ? field.pathCoords : JSON.stringify(field.pathCoords || []),
+                    checkpoints: (field.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date, checked: !!cp.checked, photo: cp.photo, customNumber: cp.customNumber }))
+                };
+                
+                // Salva in Locale SEMPRE
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
+                
+                // Salva in Cloud se non locale
+                if (!isLocalMode) {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id), prepared);
+                }
+                
+                document.getElementById('syncIndicator')?.classList.replace('text-slate-300', 'text-green-500');
+            } catch(e) {
+                console.error("Errore Salvataggio:", e);
+                showNotification("Errore nel salvataggio dei dati.");
+            } finally {
+                setTimeout(() => { isSaving = false; }, 1000);
+            }
+        }
+
+        function mergeData(newData) {
+            if (!mapReady || !Array.isArray(newData)) return;
+            
+            // Pulisci mappa esistente
+            fields.forEach(f => {
+                if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline);
+                if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
+            });
+            
+            fields = []; 
+            newData.forEach(fData => {
+                fData.id = fData.id?.toString() || "f_" + Date.now();
+                if (typeof fData.pathCoords === 'string') {
+                    try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
+                }
+                fields.push(fData); 
+                addFieldToMap(fData);
+            });
+            window.updateFieldUI();
+        }
+
+        // --- CORE GPS ---
 
         window.toggleTracking = () => {
             if (isTracking) { 
@@ -345,22 +440,12 @@
                 return;
             } 
 
-            if (!navigator.geolocation) {
-                return showNotification("Il tuo dispositivo non supporta il GPS.");
-            }
+            if (!navigator.geolocation) return showNotification("GPS non supportato.");
 
             document.getElementById('trackBtn').innerHTML = '<span class="loader"></span> ATTIVA...';
             
-            const options = {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            };
-
             watchId = navigator.geolocation.watchPosition((pos) => {
                 const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
-                
-                // Telemetria
                 document.getElementById('telemetryPanel').classList.remove('hidden');
                 document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
                 
@@ -368,49 +453,24 @@
                     isTracking = true;
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> FERMA';
                     document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
-                    showNotification("GPS Collegato");
                 }
 
                 if (!userMarker) { 
-                    userMarker = L.marker(ll, { 
-                        icon: L.divIcon({ 
-                            className: 'gps-arrow-container', 
-                            html: `<div class="gps-arrow-icon"><svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg></div>` 
-                        }) 
-                    }).addTo(map); 
+                    userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<div class="gps-arrow-icon"><svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg></div>` }) }).addTo(map); 
                     map.setView(ll, 17);
-                } else { 
-                    userMarker.setLatLng(ll); 
-                    if (isFollowing) map.panTo(ll); 
-                }
+                } else { userMarker.setLatLng(ll); if(isFollowing) map.panTo(ll); }
 
-                // Bearing (direzione)
-                if (pos.coords.heading !== null) {
-                    currentHeading = pos.coords.heading;
-                } else if (lastPos) {
-                    const lPos = L.latLng(lastPos.lat, lastPos.lng);
-                    if (ll.distanceTo(lPos) > 2) {
-                        currentHeading = calculateBearing(lastPos, ll);
-                    }
+                if (pos.coords.heading !== null) currentHeading = pos.coords.heading;
+                else if (lastPos) {
+                    if (ll.distanceTo(L.latLng(lastPos.lat, lastPos.lng)) > 2) currentHeading = calculateBearing(lastPos, ll);
                 }
                 lastPos = { lat: ll.lat, lng: ll.lng };
-                
                 updateAllMarkersRotation(currentHeading);
                 updateTrajectory(ll);
                 lucide.createIcons();
-
             }, (err) => {
-                isTracking = false;
-                document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> GPS';
-                document.getElementById('telemetryPanel').classList.add('hidden');
-                
-                switch(err.code) {
-                    case err.PERMISSION_DENIED: showNotification("Permesso GPS negato."); break;
-                    case err.POSITION_UNAVAILABLE: showNotification("Segnale GPS assente."); break;
-                    case err.TIMEOUT: showNotification("Timeout segnale GPS."); break;
-                    default: showNotification("Errore GPS generico.");
-                }
-            }, options);
+                showNotification("Errore GPS: " + err.message);
+            }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
         };
 
         function calculateBearing(p1, p2) {
@@ -435,42 +495,10 @@
                     } 
                 } 
             });
-            const st = document.getElementById('statusText'); 
-            if (active.length) st.innerText = "Area: " + active.join(", "); 
-            else st.innerText = "GPS Attivo";
+            document.getElementById('statusText').innerText = active.length ? "Area: " + active.join(", ") : "GPS Attivo";
         }
 
-        // --- GESTIONE DATI ---
-
-        async function saveField(field) {
-            if (!isInitialized) return;
-            try {
-                const prepared = {
-                    id: field.id.toString(), name: field.name || "Punto", code: field.code || "---", category: field.category || "altro", 
-                    latlng: field.latlng, radius: Number(field.radius) || 1000,
-                    pathCoords: typeof field.pathCoords === 'string' ? field.pathCoords : JSON.stringify(field.pathCoords || []),
-                    checkpoints: (field.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date, checked: !!cp.checked, photo: cp.photo, customNumber: cp.customNumber }))
-                };
-                if (!isLocalMode) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id), prepared);
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
-                document.getElementById('syncIndicator')?.classList.replace('text-slate-300', 'text-green-500');
-            } catch(e) {}
-        }
-
-        function mergeData(newData) {
-            if (!mapReady) return;
-            fields.forEach(f => {
-                if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline);
-                if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
-            });
-            fields = []; 
-            newData.forEach(fData => {
-                fData.id = fData.id?.toString() || "f_" + Date.now();
-                if (typeof fData.pathCoords === 'string') try { fData.pathCoords = JSON.parse(fData.pathCoords); } catch(e) { fData.pathCoords = []; }
-                fields.push(fData); addFieldToMap(fData);
-            });
-            window.updateFieldUI();
-        }
+        // --- UI E MAPPA ---
 
         function addFieldToMap(f) {
             const cats = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', cavoli: '#3b82f6', cicoria: '#059669', altro: '#64748b' };
@@ -502,71 +530,121 @@
             if (el) setupEvents(el); else cp.marker.on('add', () => setupEvents(cp.marker.getElement()));
         }
 
-        // --- UTILITY E UI ---
-
-        window.toggleMapRotation = () => {
-            mapRotationEnabled = !mapRotationEnabled;
-            const btn = document.getElementById('rotationToggle');
-            btn.classList.toggle('text-blue-600', mapRotationEnabled);
-            btn.classList.toggle('text-slate-400', !mapRotationEnabled);
-            if (!mapRotationEnabled) { document.getElementById('map').style.transform = 'none'; updateAllMarkersRotation(0); }
+        window.openEditField = (id) => {
+            const f = fields.find(x => x.id.toString() === id.toString());
+            if (!f) return;
+            tempFieldId = f.id;
+            document.getElementById('fieldNameInput').value = f.name;
+            document.getElementById('fieldCodeInput').value = f.code;
+            document.getElementById('fieldCategoryInput').value = f.category;
+            document.getElementById('fieldRadiusInput').value = f.radius;
+            document.getElementById('fieldModal').classList.replace('hidden', 'flex');
         };
 
+        window.deleteField = async (id) => {
+            if (!confirm("Eliminare questo isolamento?")) return;
+            const idx = fields.findIndex(f => f.id.toString() === id.toString());
+            if (idx !== -1) {
+                const f = fields[idx];
+                if (f.marker) map.removeLayer(f.marker);
+                if (f.circle) map.removeLayer(f.circle);
+                if (f.polyline) map.removeLayer(f.polyline);
+                if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
+                if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
+                fields.splice(idx, 1);
+                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
+                window.updateFieldUI();
+            }
+        };
+
+        window.confirmAddField = async function() {
+            const name = document.getElementById('fieldNameInput').value.trim() || "Punto", code = document.getElementById('fieldCodeInput').value.trim() || "---",
+                  cat = document.getElementById('fieldCategoryInput').value.toLowerCase(), rad = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
+            let f;
+            if (tempFieldId) {
+                f = fields.find(x => x.id.toString() === tempFieldId.toString());
+                if (f) { f.name = name; f.code = code; f.category = cat; f.radius = rad; if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); addFieldToMap(f); }
+            } else {
+                f = { id: "f_" + Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [] };
+                fields.push(f); addFieldToMap(f);
+            }
+            await saveField(f); closeFieldModal();
+        };
+
+        window.updateFieldUI = () => {
+            const container = document.getElementById('fieldsSection'); container.innerHTML = "";
+            const cats = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
+            cats.forEach(c => {
+                const cfs = fields.filter(f => f.category === c);
+                if (cfs.length) {
+                    const sec = document.createElement('div');
+                    sec.innerHTML = `<h3 class="text-xs font-black uppercase text-slate-600 mb-2 border-l-4 border-slate-400 pl-2">${c.toUpperCase()}</h3><div id="list-${c}" class="space-y-2"></div>`;
+                    container.appendChild(sec);
+                    const list = sec.querySelector(`#list-${c}`);
+                    cfs.forEach(f => {
+                        const i = document.createElement('div'); i.className = "flex items-center gap-3 p-4 bg-slate-50 border rounded-2xl mb-2 cursor-pointer active:bg-slate-100";
+                        i.onclick = () => { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
+                        i.innerHTML = `<div class="flex-1 font-black text-[11px] uppercase">${f.name} <span class="text-slate-400 font-normal">(${f.code})</span></div>
+                            <div class="flex gap-1"><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-slate-400"><i data-lucide="edit-3" class="w-4 h-4"></i></button></div>`;
+                        list.appendChild(i);
+                    });
+                }
+            });
+            lucide.createIcons();
+        };
+
+        // --- UTILITY ---
+        window.toggleMapRotation = () => { mapRotationEnabled = !mapRotationEnabled; document.getElementById('rotationToggle').classList.toggle('text-blue-600', mapRotationEnabled); if (!mapRotationEnabled) { document.getElementById('map').style.transform = 'none'; updateAllMarkersRotation(0); } };
         function updateAllMarkersRotation(bearing) {
             const angle = mapRotationEnabled ? bearing : 0;
-            document.querySelectorAll('.counter-rotate').forEach(el => {
-                if (!el.classList.contains('gps-arrow-icon')) el.style.transform = `rotate(${-angle}deg)`;
-            });
-            if (mapRotationEnabled) {
-                document.getElementById('map').style.transform = `rotate(${-angle}deg)`;
-                const arrow = document.querySelector('.gps-arrow-icon');
-                if (arrow) arrow.style.transform = 'rotate(0deg)';
-            } else {
-                const arrow = document.querySelector('.gps-arrow-icon');
-                if (arrow) arrow.style.transform = `rotate(${bearing}deg)`;
-            }
+            document.querySelectorAll('.counter-rotate').forEach(el => { if (!el.classList.contains('gps-arrow-icon')) el.style.transform = `rotate(${-angle}deg)`; });
+            if (mapRotationEnabled) { document.getElementById('map').style.transform = `rotate(${-angle}deg)`; if (document.querySelector('.gps-arrow-icon')) document.querySelector('.gps-arrow-icon').style.transform = 'rotate(0deg)'; }
+            else if (document.querySelector('.gps-arrow-icon')) document.querySelector('.gps-arrow-icon').style.transform = `rotate(${bearing}deg)`;
         }
-
         window.handleSearch = () => {
-            const q = document.getElementById('searchInput').value.trim().toLowerCase();
-            if (!q) return;
-            if (q.includes(',') || q.includes(' ')) {
-                const parts = q.split(/[,\s]+/).map(p => parseFloat(p.trim()));
-                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                    map.flyTo([parts[0], parts[1]], 17); return;
-                }
-            }
-            const f = fields.find(x => x.name.toLowerCase().includes(q) || x.code.toLowerCase().includes(q));
-            if (f) map.flyTo(f.latlng, 17);
+            const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
+            if (q.includes(',')) { const parts = q.split(',').map(p => parseFloat(p.trim())); if (parts.length >= 2 && !isNaN(parts[0])) { map.flyTo(parts, 17); return; } }
+            const f = fields.find(x => x.name.toLowerCase().includes(q) || x.code.toLowerCase().includes(q)); if (f) map.flyTo(f.latlng, 17);
         };
-
         window.onload = () => { 
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             map.on('dragstart', () => { isFollowing = false; });
-            map.on('click', (e) => { 
-                if(!isInitialized || mapRotationEnabled || markerTouchBlock) return;
-                tempFieldCoords = e.latlng; 
-                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
-                lucide.createIcons();
-            });
+            map.on('click', (e) => { if(!isInitialized || mapRotationEnabled || markerTouchBlock) return; tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session'); 
             if(s) { const d = JSON.parse(s); enterApp(d.name, d.pass, false); }
             document.getElementById('dragArea').onclick = togglePanel; 
             lucide.createIcons();
         };
-
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0'; lucide.createIcons(); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
-        window.closeFieldModal = () => document.getElementById('fieldModal').classList.add('hidden');
+        window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.logoutProject = () => { localStorage.removeItem('isolamenti_last_session'); location.reload(); };
         window.handleLocalMode = () => { isInitialized = true; enterApp("LOCALE", "", true); };
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
+        window.openManualCoordModal = () => { const lat = prompt("Latitudine:"), lon = prompt("Longitudine:"); if(lat && lon) { const ll = [parseFloat(lat), parseFloat(lon)]; map.flyTo(ll, 17); tempFieldCoords = { lat: ll[0], lng: ll[1] }; selectNewField(); } };
+        window.exportBackup = () => { const data = fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }); const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${currentProjectName}.json`; a.click(); };
+        window.triggerExcelImport = () => document.getElementById('excelInput').click();
+        window.handleExcelFile = (ev) => { const f = ev.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = async (e) => { try { const d = JSON.parse(e.target.result); for(let x of d) await saveField(x); location.reload(); } catch(e){ showNotification("Errore file."); } }; r.readAsText(f); };
+        window.generatePDFReport = () => { const element = document.createElement('div'); element.className = "p-10"; element.innerHTML = `<h1 class="text-2xl font-bold mb-4">Report: ${currentProjectName}</h1>` + fields.map(f => `<div class="mb-6 p-4 border rounded-xl"><h2 class="font-bold">${f.name} (${f.code})</h2><p class="text-xs">${f.category} - ${f.latlng}</p></div>`).join(''); html2pdf().from(element).set({filename:'Report.pdf'}).save(); };
+        window.previewPhoto = (e, imgId, btnId) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { const p = document.getElementById(imgId); p.src = ev.target.result; p.classList.remove('hidden'); document.getElementById(btnId).classList.remove('hidden'); }; r.readAsDataURL(f); };
+        window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCheckpointPhotoBtn').classList.add('hidden'); };
+        window.confirmAddCheckpoint = async function() {
+            const note = document.getElementById('checkpointNoteInput').value.trim(), checked = document.getElementById('checkpointCheckedInput').checked, photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null, customNum = document.getElementById('checkpointNumberInput').value;
+            let field = fields.find(f => f.id.toString() === tempCheckpointCoords.fieldId.toString());
+            if (!field) { field = { id: 'field_gen', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; fields.push(field); }
+            const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo, customNumber: customNum }; 
+            field.checkpoints.push(cpData); 
+            field.checkpoints.sort((a, b) => (parseInt(a.customNumber) || 0) - (parseInt(b.customNumber) || 0));
+            field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); });
+            field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
+            await saveField(field); closeCheckpointModal();
+        };
     </script>
 </body>
 </html>
