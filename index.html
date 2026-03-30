@@ -126,7 +126,7 @@
                     <i data-lucide="search" class="absolute left-3 top-3 text-slate-400 w-4 h-4"></i>
                     <input type="text" id="searchInput" placeholder="Cerca nome o lat, lon..." class="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-slate-50 shadow-inner">
                 </div>
-                <button id="searchBtn" onclick="handleSearch()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold shadow-md active:scale-95">Cerca</button>
+                <button id="searchBtn" onclick="handleSearch()" class="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold shadow-lg active:scale-95 transition-all">CERCA</button>
             </div>
         </div>
     </header>
@@ -276,7 +276,6 @@
         auth = getAuth(firebaseApp);
         db = getFirestore(firebaseApp);
 
-        // Monitoraggio stato autenticazione per debug
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 document.getElementById('debugUser').innerText = user.uid;
@@ -361,14 +360,13 @@
             document.getElementById('loginOverlay').style.display = 'none';
             
             if (mapReady) { 
-                // Carica subito la cache per evitare "schermata vuota"
                 loadForensicData(); 
                 if (!local) startCloudSync(); 
                 setTimeout(() => toggleTracking(), 800); 
             }
         }
 
-        // --- GESTIONE DATI LOCALE E CLOUD (PULIZIA CRASH FIX) ---
+        // --- GESTIONE DATI LOCALE E CLOUD ---
 
         function loadForensicData() { 
             const raw = localStorage.getItem('isolamenti_local_db'); 
@@ -386,11 +384,8 @@
             onSnapshot(fieldsCol, (snap) => {
                 if (isSaving) return;
                 
-                // Se il cloud risponde con dei dati, li usiamo
                 const cloudData = snap.docs.map(doc => doc.data());
                 
-                // Non azzerare mai la memoria se il cloud restituisce un array vuoto 
-                // MA i dati locali esistono ancora (protezione contro ritardi di sincronizzazione)
                 if (cloudData.length > 0 || (snap.metadata.fromCache === false)) {
                     mergeData(cloudData);
                     const now = new Date();
@@ -400,13 +395,12 @@
                 }
             }, (err) => {
                 console.error("Errore Sync Cloud:", err);
-                showNotification("Cloud offline - Uso dati locali");
+                showNotification("Uso dati locali (offline)");
                 document.getElementById('syncIndicator')?.querySelector('i').classList.replace('text-green-500', 'text-red-500');
             });
         }
 
         function saveToLocalStorageOnly() {
-            // Pulizia dati per evitare oggetti circolari o marker mappa
             const dataToSave = fields.map(f => {
                 const clean = {...f};
                 delete clean.marker; delete clean.circle; delete clean.polyline;
@@ -433,10 +427,8 @@
                     checkpoints: (field.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date, checked: !!cp.checked, photo: cp.photo, customNumber: cp.customNumber }))
                 };
                 
-                // Salva in Locale immediatamente
                 saveToLocalStorageOnly();
                 
-                // Salva in Cloud
                 if (!isLocalMode && currentProjectName !== "locale") {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id), prepared);
                 }
@@ -451,12 +443,8 @@
 
         function mergeData(newData) {
             if (!mapReady || !Array.isArray(newData)) return;
-            
-            // Se i dati in arrivo sono vuoti e abbiamo già dati, non facciamo nulla 
-            // per evitare di cancellare la mappa per errore di caricamento
             if (newData.length === 0 && fields.length > 0) return;
 
-            // Pulisci mappa esistente
             fields.forEach(f => {
                 if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline);
                 if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
@@ -680,19 +668,48 @@
             lucide.createIcons();
         };
 
-        // --- UTILITY ---
+        // --- UTILITY RICERCA (RIPRISTINATA) ---
+
+        window.handleSearch = () => {
+            const q = document.getElementById('searchInput').value.trim().toLowerCase(); 
+            if (!q) return;
+
+            // 1. Ricerca per coordinate dirette (es: 44.12, 12.34)
+            if (q.includes(',')) { 
+                const parts = q.split(',').map(p => parseFloat(p.trim())); 
+                if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) { 
+                    map.flyTo(parts, 17); 
+                    showNotification("Navigazione a coordinate");
+                    return; 
+                } 
+            }
+
+            // 2. Ricerca per Nome o Codice nei campi registrati
+            const f = fields.find(x => 
+                (x.name && x.name.toLowerCase().includes(q)) || 
+                (x.code && x.code.toLowerCase().includes(q))
+            ); 
+
+            if (f && f.latlng) { 
+                map.flyTo(f.latlng, 17); 
+                if (f.marker) {
+                    setTimeout(() => f.marker.openPopup(), 500);
+                }
+                showNotification("Trovato: " + f.name);
+            } else {
+                showNotification("Nessun campo trovato");
+            }
+        };
+
         window.toggleMapRotation = () => { mapRotationEnabled = !mapRotationEnabled; document.getElementById('rotationToggle').classList.toggle('text-blue-600', mapRotationEnabled); if (!mapRotationEnabled) { document.getElementById('map').style.transform = 'none'; updateAllMarkersRotation(0); } };
+        
         function updateAllMarkersRotation(bearing) {
             const angle = mapRotationEnabled ? bearing : 0;
             document.querySelectorAll('.counter-rotate').forEach(el => { if (!el.classList.contains('gps-arrow-icon')) el.style.transform = `rotate(${-angle}deg)`; });
             if (mapRotationEnabled) { document.getElementById('map').style.transform = `rotate(${-angle}deg)`; if (document.querySelector('.gps-arrow-icon')) document.querySelector('.gps-arrow-icon').style.transform = 'rotate(0deg)'; }
             else if (document.querySelector('.gps-arrow-icon')) document.querySelector('.gps-arrow-icon').style.transform = `rotate(${bearing}deg)`;
         }
-        window.handleSearch = () => {
-            const q = document.getElementById('searchInput').value.trim().toLowerCase(); if (!q) return;
-            if (q.includes(',')) { const parts = q.split(',').map(p => parseFloat(p.trim())); if (parts.length >= 2 && !isNaN(parts[0])) { map.flyTo(parts, 17); return; } }
-            const f = fields.find(x => x.name.toLowerCase().includes(q) || x.code.toLowerCase().includes(q)); if (f) map.flyTo(f.latlng, 17);
-        };
+
         window.onload = () => { 
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -708,6 +725,7 @@
             document.getElementById('dragArea').onclick = togglePanel; 
             lucide.createIcons();
         };
+
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0'; lucide.createIcons(); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); lucide.createIcons(); };
