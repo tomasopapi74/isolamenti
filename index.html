@@ -258,6 +258,7 @@
         let isTracking = false, isFollowing = true, currentProjectName = "locale", isLocalMode = false, mapReady = false;
         let isSaving = false, isInitialized = false, mapRotationEnabled = false;
         let currentHeading = 0, lastPos = null, markerTouchBlock = false, isExpanded = false, isAdmin = false;
+        let tempFieldCoords = null, tempCheckpointCoords = null, tempFieldId = null;
 
         const firebaseApp = initializeApp(firebaseConfig);
         auth = getAuth(firebaseApp);
@@ -338,7 +339,7 @@
             }
         }
 
-        // --- GESTIONE DATI LOCALE E CLOUD ---
+        // --- GESTIONE DATI LOCALE E CLOUD (PULIZIA CRASH FIX) ---
 
         function loadForensicData() { 
             const raw = localStorage.getItem('isolamenti_local_db'); 
@@ -346,6 +347,7 @@
                 try {
                     const parsedData = JSON.parse(raw);
                     mergeData(parsedData); 
+                    showNotification("Dati caricati dalla memoria");
                 } catch(e) { console.error("Errore cache locale:", e); }
             }
         }
@@ -359,12 +361,28 @@
                 if (cloudData.length > 0) {
                     mergeData(cloudData);
                     document.getElementById('syncIndicator')?.classList.replace('text-slate-300', 'text-green-500');
-                    localStorage.setItem('isolamenti_local_db', JSON.stringify(cloudData));
+                    saveToLocalStorageOnly(); // Aggiorna cache con dati cloud puliti
                 }
             }, (err) => {
                 console.error("Errore Sync Cloud:", err);
                 showNotification("Errore sincronizzazione Cloud.");
             });
+        }
+
+        function saveToLocalStorageOnly() {
+            const dataToSave = fields.map(f => {
+                const clean = {...f};
+                delete clean.marker; delete clean.circle; delete clean.polyline;
+                if (clean.checkpoints) {
+                    clean.checkpoints = clean.checkpoints.map(cp => {
+                        const cpClean = {...cp};
+                        delete cpClean.marker;
+                        return cpClean;
+                    });
+                }
+                return clean;
+            });
+            localStorage.setItem('isolamenti_local_db', JSON.stringify(dataToSave));
         }
 
         async function saveField(field) {
@@ -377,14 +395,18 @@
                     pathCoords: typeof field.pathCoords === 'string' ? field.pathCoords : JSON.stringify(field.pathCoords || []),
                     checkpoints: (field.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, date: cp.date, checked: !!cp.checked, photo: cp.photo, customNumber: cp.customNumber }))
                 };
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
+                
+                // Salva in Locale
+                saveToLocalStorageOnly();
+                
+                // Salva in Cloud
                 if (!isLocalMode) {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id), prepared);
                 }
                 document.getElementById('syncIndicator')?.classList.replace('text-slate-300', 'text-green-500');
             } catch(e) {
                 console.error("Errore Salvataggio:", e);
-                showNotification("Errore nel salvataggio dei dati.");
+                showNotification("Errore nel salvataggio.");
             } finally {
                 setTimeout(() => { isSaving = false; }, 1000);
             }
@@ -434,6 +456,7 @@
                     isTracking = true;
                     document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> FERMA';
                     document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse";
+                    showNotification("GPS Collegato");
                 }
 
                 if (!userMarker) { 
@@ -451,6 +474,7 @@
                 lucide.createIcons();
             }, (err) => {
                 showNotification("Errore GPS: " + err.message);
+                document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> GPS';
             }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
         };
 
@@ -498,22 +522,18 @@
                 f.circle = L.circle(f.latlng, { radius: f.radius || 1000, color, fillOpacity: 0.1, weight: 2, dashArray: '5, 5', interactive: false }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.5, interactive: false }).addTo(map);
                 
-                const el = f.marker.getElement();
-                if (el) {
-                    L.DomEvent.disableClickPropagation(el);
-                    // Gestore eventi robusto per bypassare problemi di coordinate con mappa ruotata
-                    const openField = (ev) => {
-                        L.DomEvent.stopPropagation(ev);
-                        markerTouchBlock = true;
-                        window.openEditField(f.id);
-                        setTimeout(() => { markerTouchBlock = false; }, 500);
-                    };
-                    L.DomEvent.on(el, 'click touchstart', openField);
-                }
+                // Leaflet click nativo (più robusto)
+                f.marker.on('click touchstart', (ev) => {
+                    L.DomEvent.stopPropagation(ev);
+                    markerTouchBlock = true;
+                    window.openEditField(f.id);
+                    setTimeout(() => { markerTouchBlock = false; }, 500);
+                });
                 
                 f.marker.bindPopup(`<div class="p-1"><b class="text-slate-800">${f.name}</b><br><span class="text-[10px] text-slate-400 font-bold uppercase">${f.code}</span><div class="flex gap-2 mt-3"><button onclick="window.openEditField('${f.id}')" class="flex-1 bg-slate-900 text-white py-2 rounded-xl text-[10px] font-bold uppercase">Gestisci</button><button onclick="window.deleteField('${f.id}')" class="bg-red-50 text-red-600 p-2 rounded-xl border border-red-100"><i data-lucide="trash-2" style="width:14px;height:14px;"></i></button></div></div>`);
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, idx) => renderCheckpointOnMap(cp, idx));
+            lucide.createIcons();
         }
 
         function renderCheckpointOnMap(cp, index) {
@@ -529,19 +549,12 @@
                 }) 
             }).addTo(map);
             
-            const setupEvents = (el) => {
-                L.DomEvent.disableClickPropagation(el);
-                const openCP = (ev) => {
-                    L.DomEvent.stopPropagation(ev);
-                    markerTouchBlock = true;
-                    window.openEditCheckpoint(cp);
-                    setTimeout(() => { markerTouchBlock = false; }, 500);
-                };
-                L.DomEvent.on(el, 'click touchstart', openCP);
-            };
-            
-            const el = cp.marker.getElement();
-            if (el) setupEvents(el); else cp.marker.on('add', () => setupEvents(cp.marker.getElement()));
+            cp.marker.on('click touchstart', (ev) => {
+                L.DomEvent.stopPropagation(ev);
+                markerTouchBlock = true;
+                window.openEditCheckpoint(cp);
+                setTimeout(() => { markerTouchBlock = false; }, 500);
+            });
         }
 
         window.openEditField = (id) => {
@@ -553,6 +566,7 @@
             document.getElementById('fieldCategoryInput').value = f.category;
             document.getElementById('fieldRadiusInput').value = f.radius;
             document.getElementById('fieldModal').classList.replace('hidden', 'flex');
+            lucide.createIcons();
         };
 
         window.openEditCheckpoint = (cp) => {
@@ -580,7 +594,7 @@
                 if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                 if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
                 fields.splice(idx, 1);
-                localStorage.setItem('isolamenti_local_db', JSON.stringify(fields));
+                saveToLocalStorageOnly();
                 window.updateFieldUI();
             }
         };
@@ -647,8 +661,8 @@
         };
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0'; lucide.createIcons(); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
-        window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
-        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
+        window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); lucide.createIcons(); };
+        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); lucide.createIcons(); };
         window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
@@ -656,7 +670,7 @@
         window.handleLocalMode = () => { isInitialized = true; enterApp("LOCALE", "", true); };
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
         window.openManualCoordModal = () => { const lat = prompt("Latitudine:"), lon = prompt("Longitudine:"); if(lat && lon) { const ll = [parseFloat(lat), parseFloat(lon)]; map.flyTo(ll, 17); tempFieldCoords = { lat: ll[0], lng: ll[1] }; selectNewField(); } };
-        window.exportBackup = () => { const data = fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }); const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${currentProjectName}.json`; a.click(); };
+        window.exportBackup = () => { saveToLocalStorageOnly(); const raw = localStorage.getItem('isolamenti_local_db'); const blob = new Blob([raw], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${currentProjectName}.json`; a.click(); };
         window.triggerExcelImport = () => document.getElementById('excelInput').click();
         window.handleExcelFile = (ev) => { const f = ev.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = async (e) => { try { const d = JSON.parse(e.target.result); for(let x of d) await saveField(x); location.reload(); } catch(e){ showNotification("Errore file."); } }; r.readAsText(f); };
         window.generatePDFReport = () => { const element = document.createElement('div'); element.className = "p-10"; element.innerHTML = `<h1 class="text-2xl font-bold mb-4">Report: ${currentProjectName}</h1>` + fields.map(f => `<div class="mb-6 p-4 border rounded-xl"><h2 class="font-bold">${f.name} (${f.code})</h2><p class="text-xs">${f.category} - ${f.latlng}</p></div>`).join(''); html2pdf().from(element).set({filename:'Report.pdf'}).save(); };
@@ -676,16 +690,11 @@
             if (!field.checkpoints) field.checkpoints = [];
             
             if (tempCheckpointCoords.checkpointId) {
-                // Editing esistente
                 const cpIndex = field.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId);
                 if (cpIndex !== -1) {
-                    field.checkpoints[cpIndex] = {
-                        ...field.checkpoints[cpIndex],
-                        note, checked, photo, customNumber: customNum
-                    };
+                    field.checkpoints[cpIndex] = { ...field.checkpoints[cpIndex], note, checked, photo, customNumber: customNum };
                 }
             } else {
-                // Nuovo checkpoint
                 const cpData = { id: "cp_" + Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, date: new Date().toLocaleString('it-IT'), checked, photo, customNumber: customNum }; 
                 field.checkpoints.push(cpData); 
             }
