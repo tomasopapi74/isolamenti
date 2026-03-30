@@ -311,7 +311,7 @@
                 document.getElementById('debugTeam').innerText = name.toUpperCase();
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name, pass, mode: 'cloud' }));
                 isInitialized = true; 
-                enterApp(name, pass, false);
+                await enterApp(name, pass, false);
             } catch (err) { 
                 showNotification(err.message); btn.disabled = false; btn.innerText = "ACCEDI"; 
             }
@@ -353,11 +353,20 @@
             enterApp(name, pass, false);
         };
 
-        function enterApp(name, pass, local) {
+        async function enterApp(name, pass, local) {
             isLocalMode = local; 
             currentProjectName = name;
             document.getElementById('displayProjName').innerText = name.toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
+
+            // Assicura l'autenticazione prima di procedere con Firestore
+            if (!local && !auth.currentUser) {
+                try {
+                    await signInAnonymously(auth);
+                } catch(e) {
+                    console.error("Auth Fail", e);
+                }
+            }
             
             if (mapReady) { 
                 loadForensicData(); 
@@ -640,6 +649,7 @@
                 f = fields.find(x => x.id.toString() === tempFieldId.toString());
                 if (f) { f.name = name; f.code = code; f.category = cat; f.radius = rad; if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); addFieldToMap(f); }
             } else {
+                if (!tempFieldCoords) return showNotification("Errore coordinate");
                 f = { id: "f_" + Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [] };
                 fields.push(f); addFieldToMap(f);
             }
@@ -668,13 +678,12 @@
             lucide.createIcons();
         };
 
-        // --- UTILITY RICERCA (RIPRISTINATA) ---
+        // --- UTILITY RICERCA ---
 
         window.handleSearch = () => {
             const q = document.getElementById('searchInput').value.trim().toLowerCase(); 
             if (!q) return;
 
-            // 1. Ricerca per coordinate dirette (es: 44.12, 12.34)
             if (q.includes(',')) { 
                 const parts = q.split(',').map(p => parseFloat(p.trim())); 
                 if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) { 
@@ -684,7 +693,6 @@
                 } 
             }
 
-            // 2. Ricerca per Nome o Codice nei campi registrati
             const f = fields.find(x => 
                 (x.name && x.name.toLowerCase().includes(q)) || 
                 (x.code && x.code.toLowerCase().includes(q))
@@ -714,7 +722,12 @@
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             map.on('dragstart', () => { isFollowing = false; });
-            map.on('click', (e) => { if(!isInitialized || mapRotationEnabled || markerTouchBlock) return; tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); });
+            map.on('click', (e) => { 
+                if(!isInitialized || mapRotationEnabled || markerTouchBlock) return; 
+                tempFieldCoords = e.latlng; 
+                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
+                lucide.createIcons(); 
+            });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session'); 
             if(s) { 
@@ -729,14 +742,45 @@
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0'; lucide.createIcons(); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); lucide.createIcons(); };
-        window.selectNewCheckpoint = () => { closeActionChoiceModal(); document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); lucide.createIcons(); };
+        
+        window.selectNewCheckpoint = () => { 
+            closeActionChoiceModal(); 
+            if (!tempFieldCoords) return showNotification("Seleziona prima un punto");
+            // Inizializza i dati per una nuova nota basata sul punto cliccato
+            tempCheckpointCoords = {
+                latlng: { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng },
+                fieldId: 'field_gen', // Default per note fuori dai campi
+                checkpointId: null
+            };
+            document.getElementById('checkpointNumberInput').value = "";
+            document.getElementById('checkpointNoteInput').value = "";
+            document.getElementById('checkpointCheckedInput').checked = false;
+            document.getElementById('checkpointPhotoPreview').classList.add('hidden');
+            document.getElementById('deleteCheckpointBtn').classList.add('hidden');
+            document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); 
+            lucide.createIcons(); 
+        };
+
         window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.logoutProject = () => { localStorage.removeItem('isolamenti_last_session'); location.reload(); };
         window.handleLocalMode = () => { isInitialized = true; enterApp("locale", "", true); };
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); el.classList.replace('-translate-y-24', 'translate-y-0'); setTimeout(() => { el.classList.replace('opacity-100', 'opacity-0'); el.classList.replace('translate-y-0', '-translate-y-24'); }, 3000); }
-        window.openManualCoordModal = () => { const lat = prompt("Latitudine:"), lon = prompt("Longitudine:"); if(lat && lon) { const ll = [parseFloat(lat), parseFloat(lon)]; map.flyTo(ll, 17); tempFieldCoords = { lat: ll[0], lng: ll[1] }; selectNewField(); } };
+        
+        window.openManualCoordModal = () => { 
+            const lat = prompt("Latitudine:"); 
+            const lon = prompt("Longitudine:"); 
+            if(lat && lon && !isNaN(lat) && !isNaN(lon)) { 
+                const ll = [parseFloat(lat), parseFloat(lon)]; 
+                map.flyTo(ll, 17); 
+                tempFieldCoords = { lat: ll[0], lng: ll[1] }; 
+                selectNewField(); 
+            } else {
+                showNotification("Dati non validi");
+            }
+        };
+        
         window.exportBackup = () => { saveToLocalStorageOnly(); const raw = localStorage.getItem('isolamenti_local_db'); const blob = new Blob([raw], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup_${currentProjectName}.json`; a.click(); };
         window.triggerExcelImport = () => document.getElementById('excelInput').click();
         window.handleExcelFile = (ev) => { const f = ev.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = async (e) => { try { const d = JSON.parse(e.target.result); for(let x of d) await saveField(x); location.reload(); } catch(e){ showNotification("Errore file."); } }; r.readAsText(f); };
@@ -745,6 +789,7 @@
         window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCheckpointPhotoBtn').classList.add('hidden'); };
         
         window.confirmAddCheckpoint = async function() {
+            if (!tempCheckpointCoords) return showNotification("Errore dati nota");
             const note = document.getElementById('checkpointNoteInput').value.trim(), checked = document.getElementById('checkpointCheckedInput').checked, photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null, customNum = document.getElementById('checkpointNumberInput').value;
             let fieldId = tempCheckpointCoords.fieldId;
             let field = fields.find(f => f.id.toString() === fieldId.toString());
