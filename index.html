@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom - Codice Madre v2.3</title>
+    <title>IsolamenTom - Codice Madre v2.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -60,7 +60,7 @@
             <div class="text-center">
                 <div class="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"><i data-lucide="shield-check" class="text-blue-600 w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-slate-500 text-sm">Codice Madre v2.3</p>
+                <p class="text-slate-500 text-sm">Codice Madre v2.4</p>
             </div>
             <div class="space-y-4">
                 <input type="text" id="projectInput" placeholder="ID Team" class="w-full border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
@@ -80,15 +80,19 @@
             <input type="text" id="searchInput" placeholder="Cerca indirizzo o campo..." class="flex-1 pl-4 pr-4 py-2 border rounded-xl text-sm bg-slate-50 outline-none">
             <button onclick="handleSearch()" class="bg-blue-600 text-white px-5 rounded-xl font-bold shadow-md">CERCA</button>
         </div>
+        <!-- AGGIUNTO TASTO LOGOUT NELL'HEADER -->
+        <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-2.5 rounded-xl active:scale-90 transition-all shadow-sm">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
     </header>
 
     <main class="relative">
         <div id="map-container"><div id="map"></div></div>
         
         <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
-            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg border"><i data-lucide="locate-fixed" class="w-5 h-5"></i></button>
-            <button id="rotationToggle" onclick="toggleMapRotation()" class="bg-white p-3 rounded-xl shadow-lg border"><i data-lucide="compass" class="w-5 h-5"></i></button>
-            <button onclick="openSearchModal()" class="bg-white p-3 rounded-xl shadow-lg border text-blue-600"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
+            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg border active:scale-90"><i data-lucide="locate-fixed" class="w-5 h-5"></i></button>
+            <button id="rotationToggle" onclick="toggleMapRotation()" class="bg-white p-3 rounded-xl shadow-lg border active:scale-90"><i data-lucide="compass" class="w-5 h-5"></i></button>
+            <button onclick="openSearchModal()" class="bg-white p-3 rounded-xl shadow-lg border text-blue-600 active:scale-90"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
         </div>
 
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] hidden flex flex-col gap-2 items-end">
@@ -115,19 +119,20 @@
                     UID: <span id="debugUser" class="text-slate-700 font-bold">---</span>
                 </div>
                 <div class="flex flex-col gap-2">
-                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3"><i data-lucide="navigation" class="w-5 h-5"></i> GPS</button>
+                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 active:scale-95"><i data-lucide="navigation" class="w-5 h-5"></i> GPS</button>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3 rounded-xl border border-green-200 font-bold text-xs uppercase">Carica</button>
-                        <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3 rounded-xl font-bold text-xs uppercase">Report PDF</button>
+                        <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3 rounded-xl border border-green-200 font-bold text-xs uppercase active:scale-95">Carica</button>
+                        <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3 rounded-xl font-bold text-xs uppercase active:scale-95">Report PDF</button>
                     </div>
-                    <button onclick="exportBackupJSON()" class="w-full bg-blue-50 text-blue-700 py-3 rounded-xl border border-blue-100 font-bold text-[10px] uppercase">Esporta Backup JSON</button>
+                    <button onclick="exportBackupJSON()" class="w-full bg-blue-50 text-blue-700 py-3 rounded-xl border border-blue-100 font-bold text-[10px] uppercase active:scale-95">Esporta Backup JSON</button>
                 </div>
                 <div id="fieldsSection" class="space-y-4"></div>
-                <button onclick="logoutProject()" class="w-full text-slate-400 text-xs font-bold py-4">ESCI DAL TEAM</button>
+                <button onclick="logoutProject()" class="w-full text-slate-400 text-xs font-bold py-6 uppercase tracking-widest border-t">Esci dal Team</button>
             </div>
         </div>
     </main>
 
+    <!-- Modals -->
     <div id="searchModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
             <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="map-pin" class="text-blue-600"></i> Vai a...</h2>
@@ -159,7 +164,7 @@
 
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 class="text-xl font-bold text-blue-700 mb-4">Aggiungi Nota</h2>
+            <h2 class="text-xl font-bold text-blue-700 mb-4">Dettagli Nota</h2>
             <div class="space-y-4">
                 <div class="flex items-center gap-2">
                     <label class="text-[10px] font-bold uppercase text-slate-400">Numero</label>
@@ -170,7 +175,7 @@
                     <input type="checkbox" id="checkpointCheckedInput" class="w-5 h-5">
                     <label for="checkpointCheckedInput" class="text-sm font-bold">CONFERMATO (X)</label>
                 </div>
-                <div class="relative"><img id="checkpointPhotoPreview" class="photo-preview hidden"><button onclick="removeCheckpointPhoto()" id="removeCPBtn" class="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hidden"><i data-lucide="x" class="w-4 h-4"></i></button></div>
+                <div class="relative"><img id="checkpointPhotoPreview" class="photo-preview hidden"><button onclick="removeCheckpointPhoto()" id="removeCPBtn" class="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hidden shadow-lg"><i data-lucide="x" class="w-4 h-4"></i></button></div>
                 <div class="grid grid-cols-2 gap-2">
                     <button onclick="document.getElementById('cpCam').click()" class="py-3 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase">Foto</button>
                     <button onclick="document.getElementById('cpGal').click()" class="py-3 bg-white border-2 rounded-xl text-xs font-bold uppercase">Galleria</button>
@@ -181,7 +186,7 @@
                     <button onclick="closeCheckpointModal()" class="flex-1 py-4 text-slate-400 font-bold">ESCI</button>
                     <button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg">SALVA NOTA</button>
                 </div>
-                <button id="deleteCPBtn" onclick="deleteCheckpoint()" class="w-full text-red-500 font-bold text-[10px] py-2 hidden">ELIMINA NOTA</button>
+                <button id="deleteCPBtn" onclick="deleteCheckpoint()" class="w-full text-red-500 font-bold text-[10px] py-2 hidden uppercase tracking-wider"><i data-lucide="trash-2" class="w-3 h-3 inline"></i> Elimina Nota</button>
             </div>
         </div>
     </div>
@@ -241,7 +246,7 @@
         window.handleLocalMode = () => { currentProjectName = "locale"; isLocalMode = true; isInitialized = true; enterApp(); };
 
         function enterApp() {
-            document.getElementById('displayProjName').innerText = currentProjectName.toUpperCase();
+            document.getElementById('displayProjName').innerText = (currentProjectName || "IsolamenTom").toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
             if (mapReady) { loadLocalCache(); if (!isLocalMode) startSync(); setTimeout(() => toggleTracking(), 500); }
         }
@@ -261,16 +266,21 @@
                     mergeData(cloudData);
                     document.getElementById('lastSyncTime').innerText = new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
                     document.getElementById('syncIndicator').querySelector('i').classList.replace('text-slate-300', 'text-green-500');
-                    localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(cloudData.map(f => {
-                        const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; 
-                        if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; });
-                        return c;
-                    })));
+                    saveToLocalStorageOnly();
                 }
             }, () => { 
                 showNotification("Errore cloud");
                 document.getElementById('syncIndicator').querySelector('i').classList.replace('text-green-500', 'text-red-500');
             });
+        }
+
+        function saveToLocalStorageOnly() {
+            const dataToSave = fields.map(f => {
+                const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; 
+                if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; });
+                return c;
+            });
+            localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(dataToSave));
         }
 
         async function saveField(field) {
@@ -288,6 +298,7 @@
                     try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id), prepared); break; } 
                     catch(e) { attempts++; if (attempts === 3) throw e; await new Promise(r => setTimeout(r, 1000)); }
                 }
+                saveToLocalStorageOnly();
             } catch(e) { showNotification("Errore cloud"); }
             finally { setTimeout(() => { isSaving = false; }, 500); }
         }
@@ -412,13 +423,12 @@
             lucide.createIcons();
         }
 
-        // FIX CLICK NOTE (v2.3): Forza marker interattivi con Z-Index altissimo e gestione touch diretta
         function renderCheckpointOnMap(cp, index) {
             const label = cp.customNumber || (index + 1);
             const cross = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" opacity="0.6" />' : '';
             
             cp.marker = L.marker(cp.latlng, { 
-                zIndexOffset: 15000, // Z-index ancora più alto per stare sopra i campi
+                zIndexOffset: 15000, 
                 interactive: true,
                 icon: L.divIcon({ 
                     html: `<div class="cp-icon-wrapper counter-rotate cp-marker-interactive">
@@ -434,7 +444,6 @@
                 }) 
             }).addTo(map);
             
-            // Metodo di cattura click potenziato
             cp.marker.on('click touchstart', (ev) => { 
                 L.DomEvent.preventDefault(ev);
                 L.DomEvent.stopPropagation(ev); 
@@ -448,6 +457,27 @@
         window.closeSearchModal = () => document.getElementById('searchModal').classList.replace('flex', 'hidden');
         window.openEditField = (id) => { const f = fields.find(x => x.id == id); if(!f) return; tempFieldId = f.id; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldCategoryInput').value = f.category; document.getElementById('fieldRadiusInput').value = f.radius; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
+        
+        // AGGIUNTA FUNZIONE ELIMINA ISOLAMENTO
+        window.deleteField = async (id) => {
+            if (!confirm("Eliminare definitivamente questo isolamento?")) return;
+            const idx = fields.findIndex(f => f.id == id);
+            if (idx !== -1) {
+                const f = fields[idx];
+                if (f.marker) map.removeLayer(f.marker);
+                if (f.circle) map.removeLayer(f.circle);
+                if (f.polyline) map.removeLayer(f.polyline);
+                if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
+                if (!isLocalMode && currentProjectName !== "locale") {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
+                }
+                fields.splice(idx, 1);
+                saveToLocalStorageOnly();
+                window.updateFieldUI();
+                showNotification("Isolamento eliminato");
+            }
+        };
+
         window.confirmAddField = async () => {
             const name = document.getElementById('fieldNameInput').value.trim() || "Campo", code = document.getElementById('fieldCodeInput').value.trim() || "---", cat = document.getElementById('fieldCategoryInput').value, rad = parseInt(document.getElementById('fieldRadiusInput').value) || 1000;
             let f;
@@ -491,9 +521,15 @@
                     sec.innerHTML = `<h3 class="text-[10px] font-black uppercase text-slate-400 mb-2 border-l-2 border-blue-500 pl-2">${c}</h3><div id="list-${c}" class="space-y-2"></div>`;
                     container.appendChild(sec);
                     cfs.forEach(f => {
-                        const div = document.createElement('div'); div.className = "p-4 bg-white border rounded-2xl flex justify-between items-center shadow-sm";
+                        const div = document.createElement('div'); div.className = "p-4 bg-white border rounded-2xl flex justify-between items-center shadow-sm active:bg-slate-50";
                         div.onclick = () => { map.flyTo(f.latlng, 15); if(f.marker) f.marker.openPopup(); };
-                        div.innerHTML = `<div class="text-xs font-bold uppercase">${f.name} <span class="text-slate-400">(${f.code})</span></div><button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="text-blue-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button>`;
+                        div.innerHTML = `
+                            <div class="text-xs font-bold uppercase">${f.name} <span class="text-slate-400">(${f.code})</span></div>
+                            <div class="flex gap-1">
+                                <button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-blue-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                                <!-- AGGIUNTO SIMBOLO CESTINO -->
+                                <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2 text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>`;
                         sec.querySelector(`#list-${c}`).appendChild(div);
                     });
                 }
@@ -508,7 +544,7 @@
                 return c;
             });
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName}_${new Date().toLocaleDateString()}.json`; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName || 'IsolamenTom'}_${new Date().toLocaleDateString()}.json`; a.click();
             showNotification("Backup JSON salvato");
         };
 
@@ -519,21 +555,47 @@
             document.querySelectorAll('.counter-rotate').forEach(el => el.style.transform = `rotate(${angle}deg)`);
         }
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); }
-        window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
+        
+        window.recenterOnUser = () => { 
+            isFollowing = true; 
+            if(userMarker) map.flyTo(userMarker.getLatLng(), 17); 
+            showNotification("Centratura automatica attiva");
+        };
+
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCPBtn').classList.add('hidden'); };
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.selectNewCheckpoint = () => { closeActionChoiceModal(); tempCheckpointCoords = { latlng: { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng }, fieldId: 'field_gen', checkpointId: null }; document.getElementById('checkpointModal').classList.replace('hidden', 'flex'); };
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
-        window.logoutProject = () => { localStorage.removeItem('isolamenti_last_session'); location.reload(); };
+        window.logoutProject = () => { if(confirm("Vuoi uscire dal team?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
 
         window.onload = () => { 
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            map.on('click', (e) => { if(!isInitialized || mapRotationEnabled) return; tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); });
+            
+            // FIX ESPLORAZIONE: Smette di seguire il GPS se l'utente tocca o sposta la mappa
+            map.on('dragstart movestart touchmove', () => { 
+                if(isFollowing) {
+                    isFollowing = false; 
+                    showNotification("Centratura disattivata (Esplorazione libera)");
+                }
+            });
+
+            map.on('click', (e) => { 
+                if(!isInitialized || mapRotationEnabled) return; 
+                tempFieldCoords = e.latlng; 
+                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
+                lucide.createIcons(); 
+            });
+            
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
-            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); }
+            if(s) { 
+                const d = JSON.parse(s); 
+                document.getElementById('projectInput').value = d.name; 
+                document.getElementById('passwordInput').value = d.pass; 
+                handleLogin(); 
+            }
             lucide.createIcons();
         };
     </script>
