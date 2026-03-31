@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom - Codice Madre v2.4</title>
+    <title>IsolamenTom - Codice Madre v2.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -14,13 +14,11 @@
         #map-container { height: calc(100vh - 80px); width: 100%; position: relative; background: #cbd5e1; overflow: hidden; }
         #map { height: 100%; width: 100%; z-index: 1; transition: transform 0.4s ease; }
         
-        /* FIX CLICK: Forza l'interattività e la visibilità */
         .leaflet-marker-icon { 
             cursor: pointer !important; 
             pointer-events: auto !important; 
         }
 
-        /* Classe specifica per i checkpoint/note per garantire il tocco */
         .cp-marker-interactive {
             z-index: 99999 !important;
             pointer-events: auto !important;
@@ -41,7 +39,6 @@
         .chevron-rotate { transition: transform 0.4s ease; }
         #statusPanel.expanded .chevron-rotate { transform: rotate(180deg); }
         
-        /* Area di tocco facilitata per le note (Triangoli) */
         .cp-icon-wrapper {
             width: 44px !important;
             height: 44px !important;
@@ -60,7 +57,7 @@
             <div class="text-center">
                 <div class="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"><i data-lucide="shield-check" class="text-blue-600 w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-slate-500 text-sm">Codice Madre v2.4</p>
+                <p class="text-slate-500 text-sm">Codice Madre v2.5</p>
             </div>
             <div class="space-y-4">
                 <input type="text" id="projectInput" placeholder="ID Team" class="w-full border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
@@ -80,7 +77,6 @@
             <input type="text" id="searchInput" placeholder="Cerca indirizzo o campo..." class="flex-1 pl-4 pr-4 py-2 border rounded-xl text-sm bg-slate-50 outline-none">
             <button onclick="handleSearch()" class="bg-blue-600 text-white px-5 rounded-xl font-bold shadow-md">CERCA</button>
         </div>
-        <!-- AGGIUNTO TASTO LOGOUT NELL'HEADER -->
         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-2.5 rounded-xl active:scale-90 transition-all shadow-sm">
             <i data-lucide="log-out" class="w-5 h-5"></i>
         </button>
@@ -284,7 +280,13 @@
         }
 
         async function saveField(field) {
-            if (!isInitialized || isLocalMode) return;
+            if (!isInitialized) return;
+            
+            // FIX v2.5: Salva sempre in locale prima di tentare il cloud
+            saveToLocalStorageOnly();
+            
+            if (isLocalMode) return;
+            
             isSaving = true;
             try {
                 const prepared = {
@@ -298,8 +300,7 @@
                     try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, prepared.id), prepared); break; } 
                     catch(e) { attempts++; if (attempts === 3) throw e; await new Promise(r => setTimeout(r, 1000)); }
                 }
-                saveToLocalStorageOnly();
-            } catch(e) { showNotification("Errore cloud"); }
+            } catch(e) { console.error("Cloud Error", e); }
             finally { setTimeout(() => { isSaving = false; }, 500); }
         }
 
@@ -399,11 +400,19 @@
         }
 
         function updateTrajectory(up) {
-            let active = []; fields.forEach(f => { 
+            let active = []; 
+            fields.forEach(f => { 
+                // Registra il punto solo se sei nel raggio di un campo
                 if(f.id!=='field_gen' && up.distanceTo(L.latLng(f.latlng)) <= f.radius) { 
-                    active.push(f.name); f.pathCoords = f.pathCoords || [];
+                    active.push(f.name); 
+                    f.pathCoords = f.pathCoords || [];
                     const last = f.pathCoords[f.pathCoords.length - 1]; 
-                    if (!last || up.distanceTo(L.latLng(last[0], last[1])) > 10) { f.pathCoords.push([up.lat, up.lng]); if(f.polyline) f.polyline.setLatLngs(f.pathCoords); saveField(f); } 
+                    // Salva un nuovo punto ogni 10 metri per non appesantire troppo
+                    if (!last || up.distanceTo(L.latLng(last[0], last[1])) > 10) { 
+                        f.pathCoords.push([up.lat, up.lng]); 
+                        if(f.polyline) f.polyline.setLatLngs(f.pathCoords); 
+                        saveField(f); 
+                    } 
                 } 
             });
             document.getElementById('statusText').innerText = active.length ? "Area: " + active.join(", ") : "GPS Attivo";
@@ -458,7 +467,6 @@
         window.openEditField = (id) => { const f = fields.find(x => x.id == id); if(!f) return; tempFieldId = f.id; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldCategoryInput').value = f.category; document.getElementById('fieldRadiusInput').value = f.radius; document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
         window.closeFieldModal = () => { tempFieldId = null; document.getElementById('fieldModal').classList.add('hidden'); };
         
-        // AGGIUNTA FUNZIONE ELIMINA ISOLAMENTO
         window.deleteField = async (id) => {
             if (!confirm("Eliminare definitivamente questo isolamento?")) return;
             const idx = fields.findIndex(f => f.id == id);
@@ -527,7 +535,6 @@
                             <div class="text-xs font-bold uppercase">${f.name} <span class="text-slate-400">(${f.code})</span></div>
                             <div class="flex gap-1">
                                 <button onclick="event.stopPropagation(); window.openEditField('${f.id}')" class="p-2 text-blue-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
-                                <!-- AGGIUNTO SIMBOLO CESTINO -->
                                 <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2 text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                             </div>`;
                         sec.querySelector(`#list-${c}`).appendChild(div);
@@ -573,7 +580,6 @@
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             
-            // FIX ESPLORAZIONE: Smette di seguire il GPS se l'utente tocca o sposta la mappa
             map.on('dragstart movestart touchmove', () => { 
                 if(isFollowing) {
                     isFollowing = false; 
