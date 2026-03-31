@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom - Codice Madre v2.7</title>
+    <title>IsolamenTom - v2.8</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -74,7 +74,7 @@
             <div class="text-center">
                 <div class="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"><i data-lucide="shield-check" class="text-blue-600 w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-slate-500 text-sm">Codice Madre v2.7</p>
+                <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Versione 2.8</p>
             </div>
             <div class="space-y-4">
                 <input type="text" id="projectInput" placeholder="ID Team / Admin" class="w-full border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
@@ -86,13 +86,19 @@
     </div>
 
     <header class="bg-white shadow-md p-4 sticky top-0 z-50 border-b h-[80px] flex items-center gap-4">
-        <div class="flex items-center gap-2 shrink-0">
-            <div class="bg-green-600 p-2 rounded-lg"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
-            <h1 class="text-lg font-bold text-slate-800 hidden sm:block" id="displayProjName">IsolamenTom</h1>
+        <div class="flex items-center gap-3 shrink-0">
+            <div class="bg-green-600 p-2.5 rounded-xl shadow-inner shadow-green-700/20"><i data-lucide="sprout" class="text-white w-6 h-6"></i></div>
+            <div class="hidden sm:flex flex-col">
+                <h1 class="text-lg font-black text-slate-900 leading-none tracking-tight">IsolamenTom</h1>
+                <div class="flex items-center gap-1.5 mt-1">
+                    <span id="displayProjName" class="text-[9px] font-black text-blue-600 uppercase tracking-tighter"></span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">v2.8</span>
+                </div>
+            </div>
         </div>
         <div class="flex-1 flex gap-2">
-            <input type="text" id="searchInput" placeholder="Cerca indirizzo o campo..." class="flex-1 pl-4 pr-4 py-2 border rounded-xl text-sm bg-slate-50 outline-none">
-            <button onclick="handleSearch()" class="bg-blue-600 text-white px-5 rounded-xl font-bold shadow-md">CERCA</button>
+            <input type="text" id="searchInput" placeholder="Cerca indirizzo o campo..." class="flex-1 pl-4 pr-4 py-2 border rounded-xl text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-blue-100">
+            <button onclick="handleSearch()" class="bg-blue-600 text-white px-5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-colors">CERCA</button>
         </div>
         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-2.5 rounded-xl active:scale-90 transition-all shadow-sm">
             <i data-lucide="log-out" class="w-5 h-5"></i>
@@ -103,8 +109,8 @@
         <div id="map-container"><div id="map"></div></div>
         
         <div class="absolute top-4 left-4 z-[1000] flex flex-col gap-2">
-            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg border active:scale-90"><i data-lucide="locate-fixed" class="w-5 h-5"></i></button>
-            <button id="rotationToggle" onclick="toggleMapRotation()" class="bg-white p-3 rounded-xl shadow-lg border active:scale-90"><i data-lucide="compass" class="w-5 h-5"></i></button>
+            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg border active:scale-90"><i data-lucide="locate-fixed" class="w-5 h-5 text-slate-700"></i></button>
+            <button id="rotationToggle" onclick="toggleMapRotation()" class="bg-white p-3 rounded-xl shadow-lg border active:scale-90"><i data-lucide="compass" class="w-5 h-5 text-slate-700"></i></button>
             <button onclick="openSearchModal()" class="bg-white p-3 rounded-xl shadow-lg border text-blue-600 active:scale-90"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
         </div>
 
@@ -122,7 +128,10 @@
             <div id="dragArea" class="cursor-pointer p-6 pb-3" onclick="togglePanel()">
                 <div class="drag-handle mb-4"></div>
                 <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-black uppercase text-slate-500 tracking-wider">Campi & Note</span>
+                    <div class="flex flex-col">
+                        <span class="text-[11px] font-black uppercase text-slate-500 tracking-wider">Campi & Note</span>
+                        <span class="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">Versione 2.8</span>
+                    </div>
                     <i data-lucide="chevron-up" class="w-5 h-5 text-slate-400 chevron-rotate"></i>
                 </div>
             </div>
@@ -132,7 +141,7 @@
                     UID: <span id="debugUser" class="text-slate-700 font-bold">---</span>
                 </div>
                 <div class="flex flex-col gap-2">
-                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 active:scale-95"><i data-lucide="navigation" class="w-5 h-5"></i> GPS</button>
+                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg"><i data-lucide="navigation" class="w-5 h-5"></i> GPS</button>
                     <div class="grid grid-cols-2 gap-2">
                         <button onclick="triggerExcelImport()" class="bg-green-50 text-green-700 py-3 rounded-xl border border-green-200 font-bold text-xs uppercase active:scale-95">Carica</button>
                         <button onclick="generatePDFReport()" class="bg-slate-800 text-white py-3 rounded-xl font-bold text-xs uppercase active:scale-95">Report PDF</button>
@@ -145,11 +154,11 @@
         </div>
     </main>
 
-    <!-- Modals -->
+    <!-- Modals (Rimasti invariati per funzionalità) -->
     <div id="searchModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
         <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl">
-            <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="map-pin" class="text-blue-600"></i> Vai a...</h2>
-            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate (es: 44.1, 11.2)" class="w-full border rounded-xl p-4 bg-slate-50 mb-4 outline-none">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-slate-800"><i data-lucide="map-pin" class="text-blue-600"></i> Vai a...</h2>
+            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate (es: 44.1, 11.2)" class="w-full border rounded-xl p-4 bg-slate-50 mb-4 outline-none focus:ring-2 focus:ring-blue-600">
             <div class="flex gap-2">
                 <button onclick="closeSearchModal()" class="flex-1 py-4 text-slate-400 font-bold">ANNULLA</button>
                 <button onclick="executeManualSearch()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg">VAI</button>
@@ -205,7 +214,7 @@
     </div>
 
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-[7000] p-4">
-        <div class="bg-white rounded-[40px] w-full max-w-sm p-8 text-center shadow-2xl">
+        <div class="bg-white rounded-[40px] w-full max-sm p-8 text-center shadow-2xl">
             <h2 class="text-xl font-bold mb-8">Nuovo Elemento</h2>
             <div class="flex flex-col gap-4">
                 <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-6 rounded-3xl border border-green-100 active:scale-95"><div class="flex items-center gap-4"><i data-lucide="plus-circle"></i><span class="font-bold">Isolamento</span></div><i data-lucide="chevron-right"></i></button>
@@ -319,7 +328,7 @@
         window.handleLocalMode = () => { currentProjectName = "locale"; isLocalMode = true; isInitialized = true; enterApp(); };
 
         function enterApp() {
-            document.getElementById('displayProjName').innerText = (currentProjectName || "IsolamenTom").toUpperCase();
+            document.getElementById('displayProjName').innerText = (currentProjectName || "").toUpperCase();
             document.getElementById('loginOverlay').style.display = 'none';
             if (mapReady) { loadLocalCache(); if (!isLocalMode) startSync(); setTimeout(() => toggleTracking(), 500); }
         }
@@ -330,7 +339,7 @@
             window.open(url, '_blank');
         };
 
-        // --- SYNC & DATA (v2.7 PROTECTIONS) ---
+        // --- SYNC & DATA ---
         function loadLocalCache() { 
             const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); 
             if (raw) { try { mergeData(JSON.parse(raw)); } catch(e) {} }
@@ -339,7 +348,6 @@
         function startSync() {
             const col = collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName);
             onSnapshot(col, (snap) => {
-                // FIX v2.7: Salta l'aggiornamento se ci sono salvataggi locali in corso o non ancora inviati
                 if (isSaving || snap.metadata.hasPendingWrites) return;
                 
                 const cloudData = snap.docs.map(d => d.data());
@@ -366,10 +374,7 @@
 
         async function saveField(field) {
             if (!isInitialized) return;
-            
-            // Forza salvataggio immediato in locale per evitare perdite se il browser crasha
             saveToLocalStorageOnly();
-            
             if (isLocalMode) return;
             isSaving = true;
             try {
@@ -401,7 +406,6 @@
             window.updateFieldUI();
         }
 
-        // --- IMAGE COMPRESSION ---
         window.processImage = (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -426,7 +430,6 @@
             reader.readAsDataURL(file);
         };
 
-        // --- SEARCH ENGINE ---
         async function processUniversalSearch(q, isForNewPoint = false) {
             const qLower = q.toLowerCase();
             const coordMatch = q.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
@@ -461,27 +464,20 @@
 
         window.handleSearch = () => processUniversalSearch(document.getElementById('searchInput').value.trim());
 
-        // --- GPS CORE ---
         window.toggleTracking = () => {
-            if (isTracking) { navigator.geolocation.clearWatch(watchId); isTracking = false; document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> GPS'; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-slate-400"; return; }
+            if (isTracking) { navigator.geolocation.clearWatch(watchId); isTracking = false; document.getElementById('trackBtn').innerHTML = '<i data-lucide="navigation"></i> GPS'; return; }
             document.getElementById('trackBtn').innerHTML = '<span class="loader"></span>';
             watchId = navigator.geolocation.watchPosition((pos) => {
                 const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
                 document.getElementById('telemetryPanel').classList.remove('hidden');
                 document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
-                if (!isTracking) { isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> STOP'; document.getElementById('statusDot').className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"; }
+                if (!isTracking) { isTracking = true; document.getElementById('trackBtn').innerHTML = '<i data-lucide="square"></i> STOP'; }
                 if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<div class="gps-arrow-icon"><svg viewBox="0 0 24 24" width="44" height="44"><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2.5"/></svg></div>` }) }).addTo(map); map.setView(ll, 17); }
                 else { userMarker.setLatLng(ll); if(isFollowing) map.panTo(ll); }
                 if (pos.coords.heading !== null) currentHeading = pos.coords.heading;
-                else if (lastPos && ll.distanceTo(L.latLng(lastPos.lat, lastPos.lng)) > 2) currentHeading = calculateBearing(lastPos, ll);
                 lastPos = { lat: ll.lat, lng: ll.lng }; updateAllMarkersRotation(currentHeading); updateTrajectory(ll); lucide.createIcons();
             }, (e) => showNotification(e.message), { enableHighAccuracy: true });
         };
-
-        function calculateBearing(p1, p2) {
-            const l1 = p1.lat * Math.PI / 180, l2 = p2.lat * Math.PI / 180, dL = (p2.lng - p1.lng) * Math.PI / 180;
-            return (Math.atan2(Math.sin(dL) * Math.cos(l2), Math.cos(l1) * Math.sin(l2) - Math.sin(l1) * Math.cos(l2) * Math.cos(dL)) * 180 / Math.PI + 360) % 360;
-        }
 
         function updateTrajectory(up) {
             let active = []; 
@@ -497,7 +493,6 @@
                     } 
                 } 
             });
-            document.getElementById('statusText').innerText = active.length ? "Area: " + active.join(", ") : "GPS Attivo";
         }
 
         function addFieldToMap(f) {
@@ -525,7 +520,6 @@
         function renderCheckpointOnMap(cp, index) {
             const label = cp.customNumber || (index + 1);
             const cross = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" opacity="0.6" />' : '';
-            
             cp.marker = L.marker(cp.latlng, { 
                 zIndexOffset: 15000, 
                 interactive: true,
@@ -542,7 +536,6 @@
                     iconAnchor: [22, 38] 
                 }) 
             }).addTo(map);
-            
             cp.marker.on('click touchstart', (ev) => { 
                 L.DomEvent.preventDefault(ev);
                 L.DomEvent.stopPropagation(ev); 
@@ -550,7 +543,6 @@
             });
         }
 
-        // --- UI HANDLERS ---
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').style.opacity = isExpanded ? '1' : '0'; lucide.createIcons(); };
         window.openSearchModal = () => document.getElementById('searchModal').classList.replace('hidden', 'flex');
         window.closeSearchModal = () => document.getElementById('searchModal').classList.replace('flex', 'hidden');
@@ -566,13 +558,9 @@
                 if (f.circle) map.removeLayer(f.circle);
                 if (f.polyline) map.removeLayer(f.polyline);
                 if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
-                if (!isLocalMode && currentProjectName !== "locale") {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
-                }
+                if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
                 fields.splice(idx, 1);
-                saveToLocalStorageOnly();
-                window.updateFieldUI();
-                showNotification("Isolamento eliminato");
+                saveToLocalStorageOnly(); window.updateFieldUI(); showNotification("Isolamento eliminato");
             }
         };
 
@@ -596,7 +584,6 @@
             document.getElementById('checkpointModal').classList.replace('hidden', 'flex');
         };
 
-        // FIX v2.7: IMPLEMENTATA FUNZIONE ELIMINA NOTA
         window.deleteCheckpoint = async () => {
             if (!confirm("Eliminare definitivamente questa nota?")) return;
             const { fieldId, checkpointId } = tempCheckpointCoords;
@@ -607,34 +594,24 @@
                     const cp = field.checkpoints[idx];
                     if (cp.marker) map.removeLayer(cp.marker);
                     field.checkpoints.splice(idx, 1);
-                    await saveField(field); // Aggiorna il cloud e il locale
-                    closeCheckpointModal();
-                    showNotification("Nota eliminata");
+                    await saveField(field); closeCheckpointModal(); showNotification("Nota eliminata");
                 }
             }
         };
 
         window.confirmAddCheckpoint = async () => {
             const note = document.getElementById('checkpointNoteInput').value.trim(), checked = document.getElementById('checkpointCheckedInput').checked, photo = document.getElementById('checkpointPhotoPreview').src.startsWith('data:') ? document.getElementById('checkpointPhotoPreview').src : null, num = document.getElementById('checkpointNumberInput').value;
-            
             let field = fields.find(f => f.id == tempCheckpointCoords.fieldId);
-            if (!field) { 
-                field = { id: 'field_gen', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; 
-                fields.push(field); 
-            }
-            
+            if (!field) { field = { id: 'field_gen', name: 'Note Libere', code: 'GEN', category: 'altro', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; fields.push(field); }
             if (tempCheckpointCoords.checkpointId) {
                 const i = field.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId);
                 field.checkpoints[i] = { ...field.checkpoints[i], note, checked, photo, customNumber: num };
             } else {
                 field.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.latlng.lat, tempCheckpointCoords.latlng.lng], note, checked, photo, customNumber: num });
             }
-            
             field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
             field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
-            
-            await saveField(field); 
-            closeCheckpointModal();
+            await saveField(field); closeCheckpointModal();
         };
 
         window.updateFieldUI = () => {
@@ -669,8 +646,7 @@
                 return c;
             });
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName || 'IsolamenTom'}_${new Date().toLocaleDateString()}.json`; a.click();
-            showNotification("Backup JSON salvato");
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_v2.8_${currentProjectName || 'IsolamenTom'}.json`; a.click();
         };
 
         window.toggleMapRotation = () => { mapRotationEnabled = !mapRotationEnabled; document.getElementById('rotationToggle').classList.toggle('text-blue-600', mapRotationEnabled); if(!mapRotationEnabled) { document.getElementById('map').style.transform = ''; updateAllMarkersRotation(0); } };
@@ -680,13 +656,7 @@
             document.querySelectorAll('.counter-rotate').forEach(el => el.style.transform = `rotate(${angle}deg)`);
         }
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); }
-        
-        window.recenterOnUser = () => { 
-            isFollowing = true; 
-            if(userMarker) map.flyTo(userMarker.getLatLng(), 17); 
-            showNotification("Centratura automatica attiva");
-        };
-
+        window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.removeCheckpointPhoto = () => { document.getElementById('checkpointPhotoPreview').src = ""; document.getElementById('checkpointPhotoPreview').classList.add('hidden'); document.getElementById('removeCPBtn').classList.add('hidden'); };
         window.selectNewField = () => { closeActionChoiceModal(); document.getElementById('fieldModal').classList.replace('hidden', 'flex'); };
@@ -697,26 +667,11 @@
         window.onload = () => { 
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            
-            map.on('dragstart movestart touchmove', () => { 
-                if(isFollowing) { isFollowing = false; showNotification("Centratura disattivata"); }
-            });
-
-            map.on('click', (e) => { 
-                if(!isInitialized || mapRotationEnabled) return; 
-                tempFieldCoords = e.latlng; 
-                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
-                lucide.createIcons(); 
-            });
-            
+            map.on('dragstart movestart touchmove', () => { if(isFollowing) { isFollowing = false; showNotification("Centratura disattivata"); } });
+            map.on('click', (e) => { if(!isInitialized || mapRotationEnabled) return; tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
-            if(s) { 
-                const d = JSON.parse(s); 
-                document.getElementById('projectInput').value = d.name; 
-                document.getElementById('passwordInput').value = d.pass; 
-                handleLogin(); 
-            }
+            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); }
             lucide.createIcons();
         };
     </script>
