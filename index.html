@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v2.8.6 - TRASH RESTORED</title>
+    <title>IsolamenTom v2.8.7 - CATEGORIES RESTORED</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -46,12 +46,12 @@
                     <i data-lucide="shield" class="text-white w-10 h-10"></i>
                 </div>
                 <h1 class="text-3xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mt-3">Versione 2.8.6 Safe</p>
+                <p class="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mt-3">Versione 2.8.7 Categories</p>
             </div>
             <div class="space-y-4">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-50 rounded-2xl p-4 text-lg outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
                 <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-50 rounded-2xl p-4 text-lg outline-none focus:border-blue-600 bg-slate-50 font-bold transition-all">
-                <button id="loginBtn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-700 active:scale-95 transition-all">ACCEDI</button>
+                <button id="loginBtn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest">Accedi</button>
                 <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all text-sm uppercase">Locale</button>
             </div>
         </div>
@@ -63,7 +63,7 @@
             <div class="bg-green-600 p-2.5 rounded-2xl shadow-lg shadow-green-100"><i data-lucide="sprout" class="text-white w-6 h-6"></i></div>
             <div class="hidden sm:flex flex-col">
                 <h1 class="text-base font-black text-slate-900 leading-none">IsolamenTom</h1>
-                <span id="displayProjName" class="text-[9px] font-black text-blue-600 uppercase tracking-tighter mt-1">Ready</span>
+                <span id="displayProjName" class="text-[9px] font-black text-blue-600 uppercase tracking-tighter mt-1">Sincronizzato</span>
             </div>
         </div>
         <div class="flex-1 flex gap-2">
@@ -91,7 +91,7 @@
             </button>
         </div>
 
-        <!-- Stato GPS/Cloud Destra -->
+        <!-- Stato Cloud Destra -->
         <div id="telemetryPanel" class="absolute top-4 right-4 z-[1000] flex flex-col gap-2 items-end">
             <div class="bg-white/90 backdrop-blur px-4 py-2 rounded-2xl border border-slate-100 text-[10px] font-black text-slate-600 flex items-center gap-3 shadow-xl">
                 <div class="flex flex-col items-center">
@@ -123,52 +123,77 @@
             
             <div id="panelContent" class="space-y-6 overflow-y-auto px-6 pb-12 transition-opacity duration-300 h-[70vh]">
                 <div class="flex flex-col gap-3">
-                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-5 rounded-[24px] font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all">
-                        <i data-lucide="play" id="trackIcon" class="fill-white w-6 h-6"></i> <span id="trackLabel uppercase">Avvia GPS</span>
+                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-5 rounded-[24px] font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all uppercase tracking-widest">
+                        <i data-lucide="play" id="trackIcon" class="fill-white w-6 h-6"></i> <span id="trackLabel">Avvia GPS</span>
                     </button>
                     
                     <div class="grid grid-cols-2 gap-3">
-                        <button onclick="exportBackupJSON()" class="bg-blue-50 text-blue-700 py-4 rounded-2xl font-bold text-xs uppercase flex items-center justify-center gap-2 border border-blue-100 shadow-sm active:scale-95 transition-all">
-                            <i data-lucide="download" class="w-4 h-4"></i> Export Backup
+                        <button onclick="exportBackupJSON()" class="bg-blue-50 text-blue-700 py-4 rounded-2xl font-bold text-xs uppercase flex items-center justify-center gap-2 border border-blue-100 shadow-sm">
+                            <i data-lucide="download" class="w-4 h-4"></i> Backup
                         </button>
-                        <button onclick="document.getElementById('importFile').click()" class="bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold text-xs uppercase flex items-center justify-center gap-2 border border-slate-200 shadow-sm active:scale-95 transition-all">
-                            <i data-lucide="upload" class="w-4 h-4"></i> Import JSON
+                        <button onclick="document.getElementById('importFile').click()" class="bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold text-xs uppercase flex items-center justify-center gap-2 border border-slate-200 shadow-sm">
+                            <i data-lucide="upload" class="w-4 h-4"></i> Import
                         </button>
                         <input type="file" id="importFile" class="hidden" onchange="importBackupJSON(event)">
                     </div>
                 </div>
 
-                <div id="fieldsSection" class="space-y-4"></div>
+                <!-- SEZIONE CATEGORIE RIPRISTINATA -->
+                <div id="fieldsSection" class="space-y-6"></div>
 
                 <div class="p-6 bg-slate-50 rounded-[32px] border border-slate-100 text-center">
-                    <p class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">System Status v2.8.6</p>
+                    <p class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">System Status v2.8.7</p>
                     <p class="text-[10px] font-bold text-slate-400">Archiviazione locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Modale Ricerca Manuale -->
-    <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
+    <!-- Modale Nuovo Isolamento (Dettagliato) -->
+    <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
         <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl">
-            <h2 class="text-2xl font-black text-slate-900 mb-6">Cerca Posizione</h2>
-            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate..." class="w-full border-2 border-slate-100 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 mb-6 transition-all">
-            <div class="flex gap-4">
-                <button onclick="closeSearchModal()" class="flex-1 py-5 text-slate-400 font-bold text-sm uppercase">Annulla</button>
-                <button onclick="executeManualSearch()" class="flex-1 py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm uppercase shadow-lg">Vai</button>
+            <h2 class="text-2xl font-black text-green-700 mb-6">Dettagli Isolamento</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Nome Campo</label>
+                    <input type="text" id="fieldNameInput" placeholder="es: Campo Nord" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-bold outline-none focus:border-green-600 transition-all">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Codice Progetto</label>
+                    <input type="text" id="fieldCodeInput" placeholder="es: ABC-123" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-bold outline-none focus:border-green-600 transition-all uppercase">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Categoria</label>
+                    <select id="fieldCategoryInput" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-black outline-none focus:border-green-600 transition-all">
+                        <option value="cipolle">Cipolle</option>
+                        <option value="bunching">Bunching</option>
+                        <option value="brassiche">Brassiche</option>
+                        <option value="cavoli">Cavoli</option>
+                        <option value="cicoria">Cicoria</option>
+                        <option value="altro">Altro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Raggio Isolamento (m)</label>
+                    <input type="number" id="fieldRadiusInput" value="300" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-bold outline-none focus:border-green-600 transition-all">
+                </div>
+                <div class="flex gap-4 pt-4">
+                    <button onclick="closeFieldModal()" class="flex-1 py-5 text-slate-400 font-bold text-sm uppercase">Annulla</button>
+                    <button onclick="confirmAddField()" class="flex-1 py-5 bg-green-600 text-white rounded-[24px] font-black text-sm uppercase shadow-lg shadow-green-100">Salva Area</button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Modale Nota -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
-        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl border border-white/20">
-            <h2 class="text-2xl font-black text-slate-900 mb-4 tracking-tight">Dettagli Nota</h2>
+        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl">
+            <h2 class="text-2xl font-black text-blue-800 mb-6">Nota Tecnica</h2>
             <div class="mb-4">
-                <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Numero Identificativo</label>
-                <input type="number" id="checkpointNumberInput" class="w-full border-2 border-slate-100 rounded-2xl p-3 bg-slate-50 font-bold text-lg outline-none focus:border-blue-600 transition-all">
+                <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Numero Nota</label>
+                <input type="number" id="checkpointNumberInput" class="w-full border-2 border-slate-50 rounded-2xl p-3 bg-slate-50 font-bold text-lg outline-none focus:border-blue-600">
             </div>
-            <textarea id="checkpointNoteInput" rows="3" class="w-full border-2 border-slate-100 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 transition-all mb-4" placeholder="Inserisci note..."></textarea>
+            <textarea id="checkpointNoteInput" rows="3" class="w-full border-2 border-slate-50 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 transition-all mb-4" placeholder="Inserisci osservazioni..."></textarea>
             <div class="flex items-center gap-4 p-5 bg-slate-50 rounded-[24px] mb-8 border border-slate-100 shadow-inner">
                 <input type="checkbox" id="checkpointCheckedInput" class="w-7 h-7 rounded-xl text-blue-600 border-2 border-slate-300">
                 <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700 uppercase tracking-tight">Isolamento OK (X)</label>
@@ -176,9 +201,9 @@
             <div class="flex flex-col gap-2">
                 <div class="flex gap-4">
                     <button onclick="closeCheckpointModal()" class="flex-1 py-5 text-slate-400 font-bold text-sm uppercase">Chiudi</button>
-                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm shadow-xl shadow-blue-200 uppercase tracking-widest active:scale-95 transition-all">Salva</button>
+                    <button onclick="confirmAddCheckpoint()" class="flex-1 py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm shadow-xl shadow-blue-200 uppercase tracking-widest">Salva</button>
                 </div>
-                <button id="deleteCPBtn" onclick="deleteCheckpoint()" class="hidden py-4 text-red-500 font-bold text-xs uppercase tracking-widest border-t mt-2">Elimina Definitivamente</button>
+                <button id="deleteCPBtn" onclick="deleteCheckpoint()" class="hidden py-4 text-red-500 font-bold text-xs uppercase tracking-widest mt-2">Elimina Nota</button>
             </div>
         </div>
     </div>
@@ -186,23 +211,35 @@
     <!-- Modale Azione Rapida -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
         <div class="bg-white rounded-[48px] w-full max-w-sm p-10 text-center shadow-2xl">
-            <h2 class="text-2xl font-black mb-10 text-slate-900 tracking-tight">Nuovo Elemento</h2>
+            <h2 class="text-2xl font-black mb-10 text-slate-900 tracking-tight">Azione Mappa</h2>
             <div class="flex flex-col gap-4">
-                <button onclick="selectNewField()" class="flex items-center justify-between bg-green-50 text-green-700 p-8 rounded-[32px] border-2 border-green-100 active:bg-green-100 active:scale-95 transition-all shadow-sm">
+                <button onclick="selectNewFieldAction()" class="flex items-center justify-between bg-green-50 text-green-700 p-8 rounded-[32px] border-2 border-green-100 active:bg-green-100 transition-all">
                     <div class="flex items-center gap-5 text-left">
                         <div class="bg-green-600 p-3 rounded-2xl text-white shadow-lg"><i data-lucide="plus"></i></div>
-                        <span class="font-black text-xl leading-tight text-slate-800">Crea<br>Isolamento</span>
+                        <span class="font-black text-xl leading-tight text-slate-800">Nuovo<br>Isolamento</span>
                     </div>
                     <i data-lucide="chevron-right"></i>
                 </button>
-                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-8 rounded-[32px] border-2 border-blue-100 active:bg-blue-100 active:scale-95 transition-all shadow-sm">
+                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-8 rounded-[32px] border-2 border-blue-100 active:bg-blue-100 transition-all">
                     <div class="flex items-center gap-5 text-left">
                         <div class="bg-blue-600 p-3 rounded-2xl text-white shadow-lg"><i data-lucide="clipboard-check"></i></div>
                         <span class="font-black text-xl leading-tight text-slate-800">Aggiungi<br>Nota</span>
                     </div>
                     <i data-lucide="chevron-right"></i>
                 </button>
-                <button onclick="closeActionChoiceModal()" class="mt-8 text-slate-400 font-black uppercase text-xs tracking-[0.3em] active:scale-90 transition-all">Chiudi</button>
+                <button onclick="closeActionChoiceModal()" class="mt-8 text-slate-400 font-black uppercase text-xs tracking-[0.3em]">Annulla</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Ricerca Manuale -->
+    <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
+        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl text-center">
+            <h2 class="text-2xl font-black text-slate-900 mb-6">Cerca Posizione</h2>
+            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate..." class="w-full border-2 border-slate-50 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 mb-6">
+            <div class="flex gap-4">
+                <button onclick="closeSearchModal()" class="flex-1 py-5 text-slate-400 font-bold text-sm uppercase">Esci</button>
+                <button onclick="executeManualSearch()" class="flex-1 py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm uppercase shadow-lg">Vai</button>
             </div>
         </div>
     </div>
@@ -220,10 +257,19 @@
         const firebaseConfig = { apiKey: "AIzaSyCOmo-r782E20Sq7sLKUqGnTFK9zLb4OoE", authDomain: "isolamenti-923d0.firebaseapp.com", projectId: "isolamenti-923d0", storageBucket: "isolamenti-923d0.firebasestorage.app", messagingSenderId: "907661900494", appId: "1:907661900494:web:dbb5c4a4235ee2ada3ae9f" };
         const appId = 'isolamenti-923d0';
 
+        const categoryColors = {
+            cipolle: '#f97316',
+            bunching: '#22c55e',
+            brassiche: '#a855f7',
+            cavoli: '#3b82f6',
+            cicoria: '#059669',
+            altro: '#64748b'
+        };
+
         let db, auth, map, userMarker, watchId = null, fields = []; 
         let isTracking = false, isFollowing = true, currentProjectName = null, isLocalMode = false, mapReady = false;
         let isSaving = false, isInitialized = false, mapRotationEnabled = false;
-        let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false;
+        let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null;
 
         const firebaseApp = initializeApp(firebaseConfig);
         auth = getAuth(firebaseApp);
@@ -245,7 +291,7 @@
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: nameSafe, pass }));
                 isInitialized = true; enterApp();
             } catch (err) { 
-                showNotification("Errore di rete. Uso locale."); 
+                showNotification("Errore. Uso locale."); 
                 handleLocalMode();
             }
         };
@@ -262,7 +308,7 @@
             }
         }
 
-        // --- LOGICA SINCRONIZZAZIONE ---
+        // --- SYNC ---
         function loadLocalCache() { 
             const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); 
             if (raw) { try { mergeData(JSON.parse(raw), true); } catch(e) {} }
@@ -333,8 +379,8 @@
             isSaving = true;
             try {
                 const prepared = {
-                    id: field.id.toString(), name: field.name,
-                    latlng: field.latlng, radius: field.radius || 500,
+                    id: field.id.toString(), name: field.name, code: field.code || "---", category: field.category || "altro",
+                    latlng: field.latlng, radius: field.radius || 300,
                     pathCoords: JSON.stringify(field.pathCoords || []),
                     checkpoints: (field.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, checked: !!cp.checked, customNumber: cp.customNumber })),
                     lastUpdated: field.lastUpdated
@@ -346,7 +392,7 @@
             } finally { setTimeout(() => isSaving = false, 500); }
         }
 
-        // --- GPS E TRACCIAMENTO ---
+        // --- GPS ---
         window.toggleTracking = () => {
             if (isTracking) { 
                 navigator.geolocation.clearWatch(watchId); 
@@ -401,8 +447,9 @@
         // --- RENDERING MAPPA ---
         function renderFieldOnMap(f) {
             if (f.latlng[0] !== 0) {
-                f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:#f97316;border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:18px;height:18px;"></i></div>`, className: 'f-icon', iconSize:[34,34] }) }).addTo(map);
-                f.circle = L.circle(f.latlng, { radius: f.radius, color: '#f97316', fillOpacity: 0.05, weight: 2, dashArray: '5,10' }).addTo(map);
+                const color = categoryColors[f.category] || '#64748b';
+                f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:18px;height:18px;"></i></div>`, className: 'f-icon', iconSize:[34,34] }) }).addTo(map);
+                f.circle = L.circle(f.latlng, { radius: f.radius, color: color, fillOpacity: 0.05, weight: 2, dashArray: '5,10' }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 5, opacity: 0.6 }).addTo(map);
                 f.marker.on('click', () => { map.flyTo(f.latlng, 17); togglePanel(); });
             }
@@ -434,9 +481,75 @@
             });
         }
 
-        // --- INTERFACCIA E CANCELLAZIONE ---
+        // --- INTERFACCIA ---
+        window.confirmAddField = async () => {
+            const name = document.getElementById('fieldNameInput').value.trim() || "Area";
+            const code = document.getElementById('fieldCodeInput').value.trim() || "---";
+            const cat = document.getElementById('fieldCategoryInput').value;
+            const rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300;
+            
+            const f = { 
+                id: Date.now(), 
+                name: name, 
+                code: code,
+                category: cat,
+                latlng: [tempFieldCoords.lat, tempFieldCoords.lng], 
+                radius: rad, 
+                pathCoords: [], 
+                checkpoints: [], 
+                lastUpdated: Date.now() 
+            }; 
+            
+            fields.push(f); 
+            renderFieldOnMap(f); 
+            await saveFieldToCloud(f); 
+            closeFieldModal();
+            closeActionChoiceModal();
+            showNotification("Isolamento creato");
+        };
+
+        window.updateFieldUI = () => {
+            const container = document.getElementById('fieldsSection'); container.innerHTML = "";
+            const valid = fields.filter(f => f.id !== 'field_gen');
+            document.getElementById('fieldCount').innerText = valid.length + " Campi In Database";
+            
+            const categories = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
+            
+            categories.forEach(cat => {
+                const catFields = valid.filter(f => f.category === cat);
+                if (catFields.length > 0) {
+                    const group = document.createElement('div');
+                    group.className = "mb-4";
+                    group.innerHTML = `<h3 class="text-[10px] font-black uppercase text-slate-400 mb-2 border-l-4 border-blue-500 pl-2 tracking-widest">${cat}</h3>`;
+                    const list = document.createElement('div');
+                    list.className = "space-y-2";
+                    
+                    catFields.forEach(f => {
+                        const div = document.createElement('div');
+                        const color = categoryColors[f.category] || '#64748b';
+                        div.className = "p-4 bg-slate-50 border-2 border-transparent rounded-[24px] flex justify-between items-center active:border-blue-200 transition-all shadow-sm";
+                        div.onclick = () => { map.flyTo(f.latlng, 17); togglePanel(); };
+                        div.innerHTML = `
+                            <div class="flex items-center gap-3">
+                                <div class="bg-white p-2 rounded-xl shadow-sm" style="color:${color}"><i data-lucide="sprout" class="w-5 h-5"></i></div>
+                                <div class="text-xs font-black uppercase text-slate-800 tracking-tight">${f.name} <span class="text-slate-400 font-normal">(${f.code})</span></div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2.5 text-red-500 bg-white rounded-xl shadow-sm active:bg-red-50 transition-all">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>`;
+                        list.appendChild(div);
+                    });
+                    group.appendChild(list);
+                    container.appendChild(group);
+                }
+            });
+            lucide.createIcons();
+        };
+
         window.deleteField = async (id) => {
-            if (!confirm("Eliminare definitivamente questo isolamento? Operazione irreversibile.")) return;
+            if (!confirm("Eliminare definitivamente?")) return;
             const idx = fields.findIndex(f => f.id == id);
             if (idx !== -1) {
                 const f = fields[idx];
@@ -444,16 +557,9 @@
                 if (f.circle) map.removeLayer(f.circle);
                 if (f.polyline) map.removeLayer(f.polyline);
                 if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
-                
-                if (!isLocalMode) {
-                    try {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
-                    } catch(e) { console.error("Errore cancellazione Cloud", e); }
-                }
+                if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString()));
                 fields.splice(idx, 1);
-                saveToLocalStorage();
-                window.updateFieldUI();
-                showNotification("Isolamento eliminato");
+                saveToLocalStorage(); window.updateFieldUI(); showNotification("Eliminato");
             }
         };
 
@@ -479,7 +585,7 @@
         };
 
         window.deleteCheckpoint = async () => {
-            if(!confirm("Eliminare questa nota?")) return;
+            if(!confirm("Eliminare nota?")) return;
             let field = fields.find(f => f.id === 'field_gen');
             const idx = field.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId);
             if(idx !== -1) {
@@ -491,39 +597,16 @@
             }
         };
 
-        window.updateFieldUI = () => {
-            const container = document.getElementById('fieldsSection'); container.innerHTML = "";
-            const valid = fields.filter(f => f.id !== 'field_gen');
-            document.getElementById('fieldCount').innerText = valid.length + " Campi In Database";
-            valid.forEach(f => {
-                const div = document.createElement('div');
-                div.className = "p-4 bg-slate-50 border-2 border-transparent rounded-[24px] flex justify-between items-center active:border-blue-200 transition-all shadow-sm";
-                div.onclick = () => { map.flyTo(f.latlng, 17); togglePanel(); };
-                div.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="bg-white p-2 rounded-xl shadow-sm text-orange-500"><i data-lucide="sprout" class="w-5 h-5"></i></div>
-                        <div class="text-xs font-black uppercase text-slate-800 tracking-tight">${f.name}</div>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2.5 text-red-500 bg-white rounded-xl shadow-sm active:bg-red-50 transition-all">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 ml-1"></i>
-                    </div>`;
-                container.appendChild(div);
-            });
-            lucide.createIcons();
-        };
-
         // --- UTILITY ---
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').classList.toggle('opacity-0', !isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.openSearchModal = () => document.getElementById('searchModal').classList.remove('hidden');
         window.closeSearchModal = () => document.getElementById('searchModal').classList.add('hidden');
         window.executeManualSearch = () => { handleSearch(document.getElementById('manualSearchInput').value); closeSearchModal(); };
-        window.selectNewField = () => { const f = { id: Date.now(), name: "AREA " + (fields.length + 1), latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: 300, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); renderFieldOnMap(f); saveFieldToCloud(f); closeActionChoiceModal(); };
+        window.selectNewFieldAction = () => { document.getElementById('fieldModal').classList.remove('hidden'); };
+        window.closeFieldModal = () => document.getElementById('fieldModal').classList.add('hidden');
         window.selectNewCheckpoint = () => { tempCheckpointCoords = tempFieldCoords; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('deleteCPBtn').classList.add('hidden'); document.getElementById('checkpointModal').classList.remove('hidden'); closeActionChoiceModal(); };
-        window.exportBackupJSON = () => { const data = localStorage.getItem('isolamenti_db_' + currentProjectName); const blob = new Blob([data], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `IsolamenTom_Backup_${currentProjectName}.json`; a.click(); };
+        window.exportBackupJSON = () => { const data = localStorage.getItem('isolamenti_db_' + currentProjectName); const blob = new Blob([data], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName}.json`; a.click(); };
         window.handleSearch = async (val) => {
             const q = val || document.getElementById('searchInput').value.trim();
             if(!q) return;
@@ -535,7 +618,7 @@
         };
         function updateStorageInfo() { const size = (JSON.stringify(localStorage).length / 1024).toFixed(1); document.getElementById('storageSize').innerText = size; }
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); }
-        window.logoutProject = () => { if(confirm("Vuoi uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
 
