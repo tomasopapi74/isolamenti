@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v2.9.5 - ADMIN CONTROL</title>
+    <title>IsolamenTom v2.9.6 - ADMIN ABSOLUTE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -49,7 +49,7 @@
                     <i data-lucide="shield" class="text-white w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 2.9.5 Stable</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 2.9.6 Stable</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
@@ -142,22 +142,22 @@
                 </div>
 
                 <!-- Strumenti Admin -->
-                <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-100 space-y-3">
+                <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200 space-y-3">
                     <div class="flex items-center justify-between">
-                        <p class="text-[10px] font-black text-red-600 uppercase tracking-widest flex items-center gap-2">
-                            <i data-lucide="shield-alert" class="w-3 h-3"></i> Pannello Amministrazione
+                        <p class="text-[10px] font-black text-red-700 uppercase tracking-widest flex items-center gap-2">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Modalità Admin Attiva
                         </p>
-                        <span class="bg-red-600 text-white text-[7px] font-black px-2 py-0.5 rounded-full">ACTIVE</span>
+                        <span class="bg-red-600 text-white text-[7px] font-black px-2 py-0.5 rounded-full animate-pulse">SISTEMA</span>
                     </div>
                     <button onclick="clearAllData()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-red-100 active:scale-95 transition-all">
-                        Svuota Database Progetto
+                        Formatta Database Progetto
                     </button>
                 </div>
 
                 <div id="fieldsSection" class="space-y-4"></div>
 
                 <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
-                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v2.9.5</p>
+                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v2.9.6</p>
                     <p class="text-[8px] font-bold text-slate-400">Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
@@ -288,7 +288,7 @@
             const btn = document.getElementById('loginBtn');
             const name = document.getElementById('projectInput').value.trim().toLowerCase();
             const pass = document.getElementById('passwordInput').value.trim();
-            if (!name || !pass) return showNotification("Inserisci ID e Password");
+            if (!name || !pass) return showNotification("Dati Mancanti");
             
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>';
             
@@ -297,12 +297,14 @@
                 const nameSafe = name.replace(/[^a-z0-9_]/g, '');
                 currentProjectName = nameSafe;
                 
-                checkAdminStatus(pass);
+                // Controllo Admin
+                isAdmin = (pass.toUpperCase() === 'ADMIN');
 
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: nameSafe, pass }));
-                isInitialized = true; enterApp();
+                isInitialized = true; 
+                enterApp();
             } catch (err) { 
-                showNotification("Errore di rete. Uso locale."); 
+                showNotification("Offline. Uso locale."); 
                 handleLocalMode();
             }
         };
@@ -312,20 +314,15 @@
             currentProjectName = "locale"; 
             isLocalMode = true; 
             isInitialized = true; 
-            checkAdminStatus(pass);
+            isAdmin = (pass.toUpperCase() === 'ADMIN');
             enterApp(); 
         };
-
-        function checkAdminStatus(pass) {
-            // Verifica rigorosa della password admin
-            isAdmin = (pass && pass.toUpperCase() === 'ADMIN');
-        }
 
         function enterApp() {
             const disp = document.getElementById('displayProjName');
             const adminBox = document.getElementById('adminTools');
 
-            // Reset UI
+            // Reset UI Header
             disp.innerText = currentProjectName.toUpperCase();
             disp.classList.remove('text-red-600');
             adminBox.classList.add('hidden');
@@ -334,7 +331,7 @@
                 disp.innerText = "ADMIN: " + currentProjectName.toUpperCase();
                 disp.classList.add('text-red-600');
                 adminBox.classList.remove('hidden');
-                showNotification("Accesso Amministratore");
+                showNotification("Privilegi Admin Attivati");
             }
 
             document.getElementById('loginOverlay').style.display = 'none';
@@ -545,11 +542,10 @@
         // --- ADMIN FUNCTIONS ---
         window.clearAllData = async () => {
             if (!isAdmin) return;
-            if (!confirm("ATTENZIONE: Questa azione svuoterà COMPLETAMENTE il database di questo progetto. Continuare?")) return;
-            if (!confirm("CONFERMA FINALE: Sei assolutamente sicuro? Tutti gli isolamenti e i percorsi verranno persi.")) return;
+            if (!confirm("ATTENZIONE: Stai per formattare l'intero database di questo progetto. Continuare?")) return;
+            if (!confirm("CONFERMA FINALE: L'azione è irreversibile. Procedere?")) return;
 
             showNotification("Svuotamento in corso...");
-            
             try {
                 const fieldsToDelete = [...fields];
                 for (const field of fieldsToDelete) {
@@ -561,20 +557,13 @@
                     if (field.polyline) map.removeLayer(field.polyline);
                     if (field.checkpoints) field.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); });
                 }
-                
                 fields = [];
                 saveToLocalStorage();
                 window.updateFieldUI();
-                showNotification("Database Svuotato");
+                showNotification("Database Formattato");
             } catch (err) {
-                showNotification("Errore durante lo svuotamento");
+                showNotification("Errore Sistema");
             }
-        };
-
-        // --- NAVIGAZIONE ---
-        window.openNavigation = (lat, lng) => {
-            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-            window.open(url, '_blank');
         };
 
         // --- INTERFACCIA ---
@@ -609,14 +598,13 @@
                     showNotification("Modificato");
                 }
             } else {
-                if(!tempFieldCoords) return showNotification("Tocca la mappa prima!");
+                if(!tempFieldCoords) return showNotification("Tocca la mappa!");
                 const f = { id: Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; 
                 fields.push(f); 
                 renderFieldOnMap(f); 
                 await saveFieldToCloud(f); 
                 showNotification("Creato");
             }
-            
             closeFieldModal();
             closeActionChoiceModal();
             tempFieldId = null;
@@ -715,78 +703,27 @@
         window.openSearchModal = () => document.getElementById('searchModal').classList.remove('hidden');
         window.closeSearchModal = () => document.getElementById('searchModal').classList.add('hidden');
         window.executeManualSearch = () => { handleSearch(document.getElementById('manualSearchInput').value); closeSearchModal(); };
-        window.selectNewFieldAction = () => { 
-            tempFieldId = null; 
-            closeActionChoiceModal();
-            document.getElementById('fieldModalTitle').innerText = "Dettagli Isolamento";
-            document.getElementById('fieldNameInput').value = "";
-            document.getElementById('fieldCodeInput').value = "";
-            document.getElementById('fieldRadiusInput').value = "300";
-            document.getElementById('fieldModal').classList.remove('hidden'); 
-        };
+        window.selectNewFieldAction = () => { tempFieldId = null; closeActionChoiceModal(); document.getElementById('fieldModalTitle').innerText = "Dettagli Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldRadiusInput').value = "300"; document.getElementById('fieldModal').classList.remove('hidden'); };
         window.closeFieldModal = () => document.getElementById('fieldModal').classList.add('hidden');
-        window.selectNewCheckpoint = () => { 
-            tempCheckpointCoords = tempFieldCoords; 
-            document.getElementById('checkpointNumberInput').value = ""; 
-            document.getElementById('checkpointNoteInput').value = ""; 
-            document.getElementById('deleteCPBtn').classList.add('hidden'); 
-            closeActionChoiceModal();
-            document.getElementById('checkpointModal').classList.remove('hidden'); 
-        };
-        window.exportBackupJSON = () => { 
-            const data = localStorage.getItem('isolamenti_db_' + currentProjectName); 
-            if (!data) return showNotification("Nessun dato da salvare");
-            const blob = new Blob([data], {type: 'application/json'}); 
-            const a = document.createElement('a'); 
-            a.href = URL.createObjectURL(blob); 
-            a.download = `Backup_${currentProjectName}.json`; 
-            a.click(); 
-        };
-        window.importBackupJSON = (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                try {
-                    const data = JSON.parse(ev.target.result);
-                    mergeData(data, true);
-                    showNotification("Importazione completata!");
-                } catch(err) { showNotification("Errore nel file JSON"); }
-            };
-            reader.readAsText(file);
-        };
-        window.handleSearch = async (val) => {
-            const q = val || document.getElementById('searchInput').value.trim();
-            if(!q) return;
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`);
-                const data = await res.json();
-                if(data.length) map.flyTo([data[0].lat, data[0].lon], 16);
-            } catch(e) { showNotification("Ricerca fallita"); }
-        };
+        window.selectNewCheckpoint = () => { tempCheckpointCoords = tempFieldCoords; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('deleteCPBtn').classList.add('hidden'); closeActionChoiceModal(); document.getElementById('checkpointModal').classList.remove('hidden'); };
+        window.exportBackupJSON = () => { const data = localStorage.getItem('isolamenti_db_' + currentProjectName); if (!data) return showNotification("Nessun dato"); const blob = new Blob([data], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName}.json`; a.click(); };
+        window.importBackupJSON = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const data = JSON.parse(ev.target.result); mergeData(data, true); showNotification("Importazione OK"); } catch(err) { showNotification("JSON Corrotto"); } }; reader.readAsText(file); };
+        window.handleSearch = async (val) => { const q = val || document.getElementById('searchInput').value.trim(); if(!q) return; try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`); const data = await res.json(); if(data.length) map.flyTo([data[0].lat, data[0].lon], 16); } catch(e) { showNotification("Errore Mappa"); } };
         function updateStorageInfo() { const size = (JSON.stringify(localStorage).length / 1024).toFixed(1); document.getElementById('storageSize').innerText = size; }
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); }
         window.logoutProject = () => { if(confirm("Vuoi uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
+        window.openNavigation = (lat, lng) => { const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`; window.open(url, '_blank'); };
 
         window.onload = () => { 
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 6);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-            map.on('click', (e) => { 
-                tempFieldCoords = e.latlng; 
-                document.getElementById('actionChoiceModal').classList.remove('hidden'); 
-                lucide.createIcons(); 
-            });
+            map.on('click', (e) => { tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); });
             map.on('dragstart', () => { isFollowing = false; });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
-            if(s) { 
-                const d = JSON.parse(s); 
-                document.getElementById('projectInput').value = d.name; 
-                document.getElementById('passwordInput').value = d.pass; 
-                handleLogin(); 
-            }
+            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); }
             lucide.createIcons();
         };
     </script>
