@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v2.8.7 - CATEGORIES RESTORED</title>
+    <title>IsolamenTom v2.8.8 - RESTORATION</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -34,6 +34,10 @@
             width: 44px !important;
             height: 44px !important;
         }
+
+        /* Custom Popup Styling */
+        .leaflet-popup-content-wrapper { border-radius: 20px; padding: 5px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .leaflet-popup-tip { background: white; }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -46,13 +50,13 @@
                     <i data-lucide="shield" class="text-white w-10 h-10"></i>
                 </div>
                 <h1 class="text-3xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mt-3">Versione 2.8.7 Categories</p>
+                <p class="text-blue-600 text-[10px] font-black uppercase tracking-[0.2em] mt-3">Versione 2.8.8 Stable</p>
             </div>
             <div class="space-y-4">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-50 rounded-2xl p-4 text-lg outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
                 <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-50 rounded-2xl p-4 text-lg outline-none focus:border-blue-600 bg-slate-50 font-bold transition-all">
                 <button id="loginBtn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl hover:bg-blue-700 active:scale-95 transition-all uppercase tracking-widest">Accedi</button>
-                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all text-sm uppercase">Locale</button>
+                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all text-sm uppercase text-white/80">Lavora Locale</button>
             </div>
         </div>
     </div>
@@ -67,7 +71,7 @@
             </div>
         </div>
         <div class="flex-1 flex gap-2">
-            <input type="text" id="searchInput" placeholder="Cerca..." class="flex-1 pl-4 pr-4 py-3 border-2 border-slate-50 rounded-2xl text-sm bg-slate-50 outline-none focus:border-blue-500 transition-all">
+            <input type="text" id="searchInput" placeholder="Cerca indirizzo..." class="flex-1 pl-4 pr-4 py-3 border-2 border-slate-50 rounded-2xl text-sm bg-slate-50 outline-none focus:border-blue-500 transition-all">
             <button onclick="handleSearch()" class="bg-blue-600 text-white px-5 rounded-xl font-bold shadow-md hover:bg-blue-700 transition-colors uppercase text-xs">Cerca</button>
         </div>
         <button onclick="logoutProject()" class="bg-slate-100 text-slate-500 p-3 rounded-2xl active:bg-red-50 active:text-red-600 transition-all shadow-sm">
@@ -96,11 +100,11 @@
             <div class="bg-white/90 backdrop-blur px-4 py-2 rounded-2xl border border-slate-100 text-[10px] font-black text-slate-600 flex items-center gap-3 shadow-xl">
                 <div class="flex flex-col items-center">
                     <span class="text-blue-600" id="accuracyVal">--m</span>
-                    <span class="text-[8px] text-slate-400 font-bold uppercase">GPS</span>
+                    <span class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">GPS</span>
                 </div>
                 <div id="syncIndicator" class="flex flex-col items-center border-l pl-3 border-slate-200">
                     <i data-lucide="cloud-off" id="syncIcon" class="w-4 h-4 text-slate-300"></i>
-                    <span id="lastSyncTime" class="text-[8px] text-slate-400 font-bold uppercase">Sync</span>
+                    <span id="lastSyncTime" class="text-[8px] text-slate-400 font-bold uppercase tracking-widest">Sync</span>
                 </div>
             </div>
             <button id="forceSyncBtn" onclick="manualSync()" class="hidden bg-orange-500 text-white px-4 py-1.5 rounded-full text-[9px] font-black shadow-lg uppercase">Sincronizza</button>
@@ -113,7 +117,7 @@
                 <div class="flex items-center justify-between">
                     <div class="flex flex-col">
                         <span class="text-xs font-black uppercase text-slate-800 tracking-widest">Dashboard Isolamenti</span>
-                        <span id="fieldCount" class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Database in caricamento...</span>
+                        <span id="fieldCount" class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Aggiornamento dati...</span>
                     </div>
                     <div class="bg-slate-50 p-2 rounded-xl text-slate-400">
                         <i data-lucide="chevron-up" class="w-5 h-5 transition-transform duration-500" id="panelChevron"></i>
@@ -138,32 +142,31 @@
                     </div>
                 </div>
 
-                <!-- SEZIONE CATEGORIE RIPRISTINATA -->
                 <div id="fieldsSection" class="space-y-6"></div>
 
                 <div class="p-6 bg-slate-50 rounded-[32px] border border-slate-100 text-center">
-                    <p class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">System Status v2.8.7</p>
-                    <p class="text-[10px] font-bold text-slate-400">Archiviazione locale: <span id="storageSize">0</span> KB</p>
+                    <p class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">System Status v2.8.8</p>
+                    <p class="text-[10px] font-bold text-slate-400">Storage Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Modale Nuovo Isolamento (Dettagliato) -->
+    <!-- Modale Nuovo Isolamento -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
-        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl">
+        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl border border-white/10">
             <h2 class="text-2xl font-black text-green-700 mb-6">Dettagli Isolamento</h2>
             <div class="space-y-4">
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Nome Campo</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Nome Campo</label>
                     <input type="text" id="fieldNameInput" placeholder="es: Campo Nord" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-bold outline-none focus:border-green-600 transition-all">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Codice Progetto</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Codice Progetto</label>
                     <input type="text" id="fieldCodeInput" placeholder="es: ABC-123" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-bold outline-none focus:border-green-600 transition-all uppercase">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Categoria</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Categoria</label>
                     <select id="fieldCategoryInput" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-black outline-none focus:border-green-600 transition-all">
                         <option value="cipolle">Cipolle</option>
                         <option value="bunching">Bunching</option>
@@ -174,7 +177,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Raggio Isolamento (m)</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 tracking-widest">Raggio (m)</label>
                     <input type="number" id="fieldRadiusInput" value="300" class="w-full border-2 border-slate-50 rounded-2xl p-4 bg-slate-50 font-bold outline-none focus:border-green-600 transition-all">
                 </div>
                 <div class="flex gap-4 pt-4">
@@ -193,7 +196,7 @@
                 <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Numero Nota</label>
                 <input type="number" id="checkpointNumberInput" class="w-full border-2 border-slate-50 rounded-2xl p-3 bg-slate-50 font-bold text-lg outline-none focus:border-blue-600">
             </div>
-            <textarea id="checkpointNoteInput" rows="3" class="w-full border-2 border-slate-50 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 transition-all mb-4" placeholder="Inserisci osservazioni..."></textarea>
+            <textarea id="checkpointNoteInput" rows="3" class="w-full border-2 border-slate-100 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 transition-all mb-4" placeholder="Inserisci osservazioni..."></textarea>
             <div class="flex items-center gap-4 p-5 bg-slate-50 rounded-[24px] mb-8 border border-slate-100 shadow-inner">
                 <input type="checkbox" id="checkpointCheckedInput" class="w-7 h-7 rounded-xl text-blue-600 border-2 border-slate-300">
                 <label for="checkpointCheckedInput" class="text-sm font-black text-slate-700 uppercase tracking-tight">Isolamento OK (X)</label>
@@ -234,18 +237,18 @@
 
     <!-- Modale Ricerca Manuale -->
     <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
-        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl text-center">
+        <div class="bg-white rounded-[40px] w-full max-w-md p-10 shadow-2xl text-center border border-white/20">
             <h2 class="text-2xl font-black text-slate-900 mb-6">Cerca Posizione</h2>
-            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate..." class="w-full border-2 border-slate-50 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 mb-6">
+            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate..." class="w-full border-2 border-slate-50 rounded-[24px] p-5 bg-slate-50 text-base outline-none focus:border-blue-600 mb-6 transition-all">
             <div class="flex gap-4">
                 <button onclick="closeSearchModal()" class="flex-1 py-5 text-slate-400 font-bold text-sm uppercase">Esci</button>
-                <button onclick="executeManualSearch()" class="flex-1 py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm uppercase shadow-lg">Vai</button>
+                <button onclick="executeManualSearch()" class="flex-1 py-5 bg-blue-600 text-white rounded-[24px] font-black text-sm uppercase shadow-lg shadow-blue-100">Vai</button>
             </div>
         </div>
     </div>
 
     <!-- Notifiche -->
-    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[9000] opacity-0 transition-all duration-500 bg-slate-900 text-white px-10 py-4 rounded-full shadow-2xl text-xs font-black pointer-events-none text-center">
+    <div id="notification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[9000] opacity-0 transition-all duration-500 bg-slate-900 text-white px-10 py-4 rounded-full shadow-2xl text-xs font-black pointer-events-none text-center min-w-[280px]">
         <span id="notifText">Sincronizzazione...</span>
     </div>
 
@@ -269,7 +272,7 @@
         let db, auth, map, userMarker, watchId = null, fields = []; 
         let isTracking = false, isFollowing = true, currentProjectName = null, isLocalMode = false, mapReady = false;
         let isSaving = false, isInitialized = false, mapRotationEnabled = false;
-        let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null;
+        let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false;
 
         const firebaseApp = initializeApp(firebaseConfig);
         auth = getAuth(firebaseApp);
@@ -280,7 +283,7 @@
             const btn = document.getElementById('loginBtn');
             const name = document.getElementById('projectInput').value.trim().toLowerCase();
             const pass = document.getElementById('passwordInput').value.trim();
-            if (!name || !pass) return showNotification("Inserisci ID e Password");
+            if (!name || !pass) return showNotification("Dati mancanti");
             
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>';
             
@@ -392,7 +395,7 @@
             } finally { setTimeout(() => isSaving = false, 500); }
         }
 
-        // --- GPS ---
+        // --- GPS E TRACCIAMENTO RIPRISTINATO ---
         window.toggleTracking = () => {
             if (isTracking) { 
                 navigator.geolocation.clearWatch(watchId); 
@@ -426,32 +429,59 @@
             }, null, { enableHighAccuracy: true });
         };
 
+        // --- TRACCIAMENTO SOLO SE DENTRO CERCHIO ---
         function updateTrajectory(up) {
-            let activeField = null;
-            let minDist = Infinity;
             fields.forEach(f => {
-                const d = up.distanceTo(L.latLng(f.latlng));
-                if(d < minDist) { minDist = d; activeField = f; }
-            });
-            if (activeField) {
-                activeField.pathCoords = activeField.pathCoords || [];
-                const last = activeField.pathCoords[activeField.pathCoords.length - 1];
-                if (!last || up.distanceTo(L.latLng(last[0], last[1])) > 4) {
-                    activeField.pathCoords.push([up.lat, up.lng]);
-                    if (activeField.polyline) activeField.polyline.setLatLngs(activeField.pathCoords);
-                    saveFieldToCloud(activeField);
+                if (f.id === 'field_gen') return;
+                const dist = up.distanceTo(L.latLng(f.latlng));
+                if (dist <= f.radius) {
+                    f.pathCoords = f.pathCoords || [];
+                    const last = f.pathCoords[f.pathCoords.length - 1];
+                    // Salva se distanza > 5m dall'ultimo punto
+                    if (!last || up.distanceTo(L.latLng(last[0], last[1])) > 5) {
+                        f.pathCoords.push([up.lat, up.lng]);
+                        if (activeFieldPolyline(f)) f.polyline.setLatLngs(f.pathCoords);
+                        saveFieldToCloud(f);
+                    }
                 }
-            }
+            });
         }
 
-        // --- RENDERING MAPPA ---
+        function activeFieldPolyline(f) {
+            if (!f.polyline) {
+                f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 5, opacity: 0.6 }).addTo(map);
+            }
+            return true;
+        }
+
+        // --- RENDERING MAPPA E POPUP RIPRISTINATI ---
         function renderFieldOnMap(f) {
             if (f.latlng[0] !== 0) {
                 const color = categoryColors[f.category] || '#64748b';
                 f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:34px;height:34px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:18px;height:18px;"></i></div>`, className: 'f-icon', iconSize:[34,34] }) }).addTo(map);
+                
+                // --- RIPRISTINO INFO POPUP ---
+                f.marker.bindPopup(`
+                    <div class="p-2 min-w-[160px]">
+                        <h3 class="font-black text-slate-800 text-sm uppercase mb-1">${f.name}</h3>
+                        <p class="text-[10px] text-slate-500 font-bold mb-2">COD: ${f.code} | RAD: ${f.radius}m</p>
+                        <div class="flex gap-2">
+                            <button onclick="window.openNavigation(${f.latlng[0]}, ${f.latlng[1]})" class="flex-1 bg-blue-600 text-white p-2 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-1 shadow-md shadow-blue-100">
+                                <i data-lucide="navigation" style="width:12px;height:12px;"></i> Vai
+                            </button>
+                            <button onclick="window.deleteField('${f.id}')" class="bg-red-50 text-red-600 p-2 rounded-xl">
+                                <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                `, { className: 'custom-popup' });
+
                 f.circle = L.circle(f.latlng, { radius: f.radius, color: color, fillOpacity: 0.05, weight: 2, dashArray: '5,10' }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 5, opacity: 0.6 }).addTo(map);
-                f.marker.on('click', () => { map.flyTo(f.latlng, 17); togglePanel(); });
+                
+                f.marker.on('click', () => { 
+                    // Non interferisce col popup di Leaflet
+                });
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, i) => renderCheckpointOnMap(cp, i));
             lucide.createIcons();
@@ -481,25 +511,19 @@
             });
         }
 
+        // --- NAVIGAZIONE ---
+        window.openNavigation = (lat, lng) => {
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            window.open(url, '_blank');
+        };
+
         // --- INTERFACCIA ---
         window.confirmAddField = async () => {
             const name = document.getElementById('fieldNameInput').value.trim() || "Area";
             const code = document.getElementById('fieldCodeInput').value.trim() || "---";
             const cat = document.getElementById('fieldCategoryInput').value;
             const rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300;
-            
-            const f = { 
-                id: Date.now(), 
-                name: name, 
-                code: code,
-                category: cat,
-                latlng: [tempFieldCoords.lat, tempFieldCoords.lng], 
-                radius: rad, 
-                pathCoords: [], 
-                checkpoints: [], 
-                lastUpdated: Date.now() 
-            }; 
-            
+            const f = { id: Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; 
             fields.push(f); 
             renderFieldOnMap(f); 
             await saveFieldToCloud(f); 
@@ -512,9 +536,7 @@
             const container = document.getElementById('fieldsSection'); container.innerHTML = "";
             const valid = fields.filter(f => f.id !== 'field_gen');
             document.getElementById('fieldCount').innerText = valid.length + " Campi In Database";
-            
             const categories = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
-            
             categories.forEach(cat => {
                 const catFields = valid.filter(f => f.category === cat);
                 if (catFields.length > 0) {
@@ -523,7 +545,6 @@
                     group.innerHTML = `<h3 class="text-[10px] font-black uppercase text-slate-400 mb-2 border-l-4 border-blue-500 pl-2 tracking-widest">${cat}</h3>`;
                     const list = document.createElement('div');
                     list.className = "space-y-2";
-                    
                     catFields.forEach(f => {
                         const div = document.createElement('div');
                         const color = categoryColors[f.category] || '#64748b';
@@ -569,14 +590,12 @@
             const customNum = document.getElementById('checkpointNumberInput').value;
             let field = fields.find(f => f.id === 'field_gen');
             if(!field) { field = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; fields.push(field); }
-            
             if(tempCheckpointCoords.checkpointId) {
                 const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId);
                 cp.note = note; cp.checked = checked; cp.customNumber = customNum;
             } else {
                 field.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked, customNumber: customNum });
             }
-            
             field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); });
             field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
             await saveFieldToCloud(field);
@@ -618,7 +637,7 @@
         };
         function updateStorageInfo() { const size = (JSON.stringify(localStorage).length / 1024).toFixed(1); document.getElementById('storageSize').innerText = size; }
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); }
-        window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        window.logoutProject = () => { if(confirm("Vuoi uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.closeCheckpointModal = () => document.getElementById('checkpointModal').classList.add('hidden');
         window.closeActionChoiceModal = () => document.getElementById('actionChoiceModal').classList.add('hidden');
 
