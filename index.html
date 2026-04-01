@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v2.9.1 - STABLE</title>
+    <title>IsolamenTom v2.9.2 - STABLE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -49,7 +49,7 @@
                     <i data-lucide="shield" class="text-white w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 2.9.1 Stable</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 2.9.2 Stable</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
@@ -144,7 +144,7 @@
                 <div id="fieldsSection" class="space-y-4"></div>
 
                 <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
-                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v2.9.1</p>
+                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v2.9.2</p>
                     <p class="text-[8px] font-bold text-slate-400">Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
@@ -651,6 +651,8 @@
         window.executeManualSearch = () => { handleSearch(document.getElementById('manualSearchInput').value); closeSearchModal(); };
         window.selectNewFieldAction = () => { 
             tempFieldId = null; 
+            // Risolvo sovrapposizione chiudendo la modale di scelta
+            closeActionChoiceModal();
             document.getElementById('fieldModalTitle').innerText = "Dettagli Isolamento";
             document.getElementById('fieldNameInput').value = "";
             document.getElementById('fieldCodeInput').value = "";
@@ -663,10 +665,33 @@
             document.getElementById('checkpointNumberInput').value = ""; 
             document.getElementById('checkpointNoteInput').value = ""; 
             document.getElementById('deleteCPBtn').classList.add('hidden'); 
+            // Risolvo sovrapposizione chiudendo la modale di scelta
+            closeActionChoiceModal();
             document.getElementById('checkpointModal').classList.remove('hidden'); 
-            closeActionChoiceModal(); 
         };
-        window.exportBackupJSON = () => { const data = localStorage.getItem('isolamenti_db_' + currentProjectName); const blob = new Blob([data], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName}.json`; a.click(); };
+        window.exportBackupJSON = () => { 
+            const data = localStorage.getItem('isolamenti_db_' + currentProjectName); 
+            if (!data) return showNotification("Nessun dato da salvare");
+            const blob = new Blob([data], {type: 'application/json'}); 
+            const a = document.createElement('a'); 
+            a.href = URL.createObjectURL(blob); 
+            a.download = `Backup_${currentProjectName}.json`; 
+            a.click(); 
+        };
+        window.importBackupJSON = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    // Ripristino logica: leggo come testo e non come dataURL
+                    const data = JSON.parse(ev.target.result);
+                    mergeData(data, true);
+                    showNotification("Importazione completata!");
+                } catch(err) { showNotification("Errore nel file JSON"); }
+            };
+            reader.readAsText(file);
+        };
         window.handleSearch = async (val) => {
             const q = val || document.getElementById('searchInput').value.trim();
             if(!q) return;
