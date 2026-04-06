@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v2.9.6 - ADMIN ABSOLUTE</title>
+    <title>IsolamenTom v2.9.8 - MASTER25</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -49,7 +49,7 @@
                     <i data-lucide="shield" class="text-white w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 2.9.6 Stable</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 2.9.8 Stable</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
@@ -60,7 +60,7 @@
         </div>
     </div>
 
-    <!-- Header Ridotto -->
+    <!-- Header Ridotto (60px) -->
     <header class="bg-white shadow-md px-3 sticky top-0 z-50 border-b h-[60px] flex items-center gap-3">
         <div class="flex items-center gap-2 shrink-0">
             <div class="bg-green-600 p-1.5 rounded-lg shadow-md"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
@@ -70,7 +70,7 @@
             </div>
         </div>
         <div class="flex-1 flex gap-1.5">
-            <input type="text" id="searchInput" placeholder="Indirizzo..." class="flex-1 pl-3 py-1.5 border border-slate-100 rounded-lg text-xs bg-slate-50 outline-none focus:border-blue-500 transition-all">
+            <input type="text" id="searchInput" placeholder="Cerca indirizzo..." class="flex-1 pl-3 py-1.5 border border-slate-100 rounded-lg text-xs bg-slate-50 outline-none focus:border-blue-500 transition-all">
             <button onclick="handleSearch()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow active:bg-blue-700 transition-colors uppercase text-[10px]">Cerca</button>
         </div>
         <button onclick="logoutProject()" class="bg-slate-50 text-slate-400 p-2 rounded-lg active:bg-red-50 active:text-red-600 transition-all">
@@ -106,7 +106,7 @@
                     <span id="lastSyncTime" class="text-[7px] text-slate-400 font-bold uppercase mt-0.5">Sync</span>
                 </div>
             </div>
-            <button id="forceSyncBtn" onclick="manualSync()" class="hidden bg-orange-500 text-white px-4 py-1 rounded-full text-[8px] font-black shadow-md uppercase">Sync</button>
+            <button id="forceSyncBtn" onclick="manualSync()" class="hidden bg-orange-500 text-white px-3 py-1 rounded-full text-[8px] font-black shadow-md uppercase">Sync</button>
         </div>
 
         <!-- Dashboard -->
@@ -157,14 +157,14 @@
                 <div id="fieldsSection" class="space-y-4"></div>
 
                 <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
-                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v2.9.6</p>
+                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v2.9.8</p>
                     <p class="text-[8px] font-bold text-slate-400">Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Modali (Field/Nota/Action/Search) -->
+    <!-- Modali -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
         <div class="bg-white rounded-[32px] w-full max-w-sm p-8 shadow-2xl border border-white/10">
             <h2 id="fieldModalTitle" class="text-xl font-black text-green-700 mb-5">Dettagli Isolamento</h2>
@@ -286,8 +286,12 @@
         // --- AUTH ---
         window.handleLogin = async function() {
             const btn = document.getElementById('loginBtn');
-            const name = document.getElementById('projectInput').value.trim().toLowerCase();
-            const pass = document.getElementById('passwordInput').value.trim();
+            const nameInput = document.getElementById('projectInput');
+            const passInput = document.getElementById('passwordInput');
+            
+            const name = nameInput.value.trim().toLowerCase();
+            const pass = passInput.value.trim();
+            
             if (!name || !pass) return showNotification("Dati Mancanti");
             
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>';
@@ -297,10 +301,9 @@
                 const nameSafe = name.replace(/[^a-z0-9_]/g, '');
                 currentProjectName = nameSafe;
                 
-                // Controllo Admin
-                isAdmin = (pass.toUpperCase() === 'ADMIN');
-
+                // Salvataggio sessione
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: nameSafe, pass }));
+                
                 isInitialized = true; 
                 enterApp();
             } catch (err) { 
@@ -310,17 +313,28 @@
         };
 
         window.handleLocalMode = () => { 
-            const pass = document.getElementById('passwordInput').value.trim();
-            currentProjectName = "locale"; 
+            const name = document.getElementById('projectInput').value.trim() || 'locale';
+            currentProjectName = name.toLowerCase(); 
             isLocalMode = true; 
             isInitialized = true; 
-            isAdmin = (pass.toUpperCase() === 'ADMIN');
             enterApp(); 
         };
+
+        function checkAdminPrivileges(password) {
+            const normalized = (password || "").toLowerCase();
+            // Accetta sia "ADMIN" che la password legacy "master25"
+            return (normalized === "admin" || normalized === "master25");
+        }
 
         function enterApp() {
             const disp = document.getElementById('displayProjName');
             const adminBox = document.getElementById('adminTools');
+            
+            // Verifica password per stato Admin
+            const session = JSON.parse(localStorage.getItem('isolamenti_last_session') || '{}');
+            const currentPass = document.getElementById('passwordInput').value.trim() || session.pass;
+            
+            isAdmin = checkAdminPrivileges(currentPass);
 
             // Reset UI Header
             disp.innerText = currentProjectName.toUpperCase();
@@ -328,7 +342,7 @@
             adminBox.classList.add('hidden');
 
             if (isAdmin) {
-                disp.innerText = "ADMIN: " + currentProjectName.toUpperCase();
+                disp.innerHTML = `<span class="flex items-center gap-1">ADMIN: ${currentProjectName.toUpperCase()} <i data-lucide="shield-check" class="w-2.5 h-2.5"></i></span>`;
                 disp.classList.add('text-red-600');
                 adminBox.classList.remove('hidden');
                 showNotification("Privilegi Admin Attivati");
@@ -542,10 +556,10 @@
         // --- ADMIN FUNCTIONS ---
         window.clearAllData = async () => {
             if (!isAdmin) return;
-            if (!confirm("ATTENZIONE: Stai per formattare l'intero database di questo progetto. Continuare?")) return;
+            if (!confirm("ATTENZIONE: Stai per svuotare l'intero database di questo progetto. Continuare?")) return;
             if (!confirm("CONFERMA FINALE: L'azione è irreversibile. Procedere?")) return;
 
-            showNotification("Svuotamento in corso...");
+            showNotification("Svuotamento Database...");
             try {
                 const fieldsToDelete = [...fields];
                 for (const field of fieldsToDelete) {
@@ -723,7 +737,12 @@
             map.on('dragstart', () => { isFollowing = false; });
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session');
-            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); }
+            if(s) { 
+                const d = JSON.parse(s); 
+                document.getElementById('projectInput').value = d.name; 
+                document.getElementById('passwordInput').value = d.pass; 
+                handleLogin(); 
+            }
             lucide.createIcons();
         };
     </script>
