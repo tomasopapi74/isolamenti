@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.1.1 - SEARCH MARKER</title>
+    <title>IsolamenTom v3.1.2 - RED STAR SEARCH</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -42,12 +42,13 @@
         .admin-badge { background: #ef4444; color: white; padding: 2px 6px; border-radius: 6px; font-size: 8px; font-weight: 900; }
         .modal-higher { z-index: 8000 !important; }
 
-        /* Animazione per il punto di ricerca */
-        @keyframes pulse-blue {
-            0% { r: 5; opacity: 1; stroke-width: 2; }
-            100% { r: 12; opacity: 0; stroke-width: 1; }
+        /* Animazione per la stella di ricerca */
+        @keyframes star-pulse {
+            0% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(239, 68, 68, 0)); }
+            50% { transform: scale(1.1); filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.5)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 0px rgba(239, 68, 68, 0)); }
         }
-        .search-pulse { animation: pulse-blue 1.5s infinite; }
+        .search-star-container { animation: star-pulse 2s infinite ease-in-out; }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -60,7 +61,7 @@
                     <i data-lucide="shield" class="text-white w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.1.1 Registry</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.1.2 Registry</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM / ADMIN" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
@@ -203,7 +204,7 @@
                 <div id="fieldsSection" class="space-y-4"></div>
 
                 <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
-                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.1.1</p>
+                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.1.2</p>
                     <p class="text-[8px] font-bold text-slate-400">Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
@@ -482,12 +483,12 @@
 
         function activeFieldPolyline(f) { if (!f.polyline) { f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.6 }).addTo(map); } return true; }
 
-        // --- MAPPA & SEARCH MARKER ---
+        // --- MAPPA & SEARCH INDICATOR (RED STAR) ---
         function renderFieldOnMap(f) {
             if (f.latlng[0] !== 0) {
                 const color = categoryColors[f.category] || '#64748b';
-                f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
-                f.marker.bindPopup(`<div class="p-1 min-w-[140px]"><h3 class="font-black text-slate-800 text-[11px] uppercase mb-1">${f.name}</h3><p class="text-[9px] text-slate-500 font-bold mb-2">COD: ${f.code} | RAD: ${f.radius}m</p><div class="flex gap-1.5"><button onclick="window.openNavigation(${f.latlng[0]}, ${f.latlng[1]})" class="flex-1 bg-blue-600 text-white p-1.5 rounded-lg text-[9px] font-black uppercase shadow-md">Vai</button><button onclick="window.editField('${f.id}')" class="bg-slate-100 text-slate-600 p-1.5 rounded-lg"><i data-lucide="pencil" style="width:12px;height:12px;"></i></button><button onclick="window.deleteField('${f.id}')" class="bg-red-50 text-red-600 p-1.5 rounded-lg"><i data-lucide="trash-2" style="width:12px;height:12px;"></i></button></div></div>`, { className: 'custom-popup' });
+                f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:50%;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" class="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
+                f.marker.bindPopup(`<div class="p-1 min-w-[140px]"><h3 class="font-black text-slate-800 text-[11px] uppercase mb-1">${f.name}</h3><p class="text-[9px] text-slate-500 font-bold mb-2">COD: ${f.code} | RAD: ${f.radius}m</p><div class="flex gap-1.5"><button onclick="window.openNavigation(${f.latlng[0]}, ${f.latlng[1]})" class="flex-1 bg-blue-600 text-white p-1.5 rounded-lg text-[9px] font-black uppercase shadow-md">Vai</button><button onclick="window.editField('${f.id}')" class="bg-slate-100 text-slate-600 p-1.5 rounded-lg"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button><button onclick="window.deleteField('${f.id}')" class="bg-red-50 text-red-600 p-1.5 rounded-lg"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button></div></div>`, { className: 'custom-popup' });
                 f.circle = L.circle(f.latlng, { radius: f.radius, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.6 }).addTo(map);
             }
@@ -501,12 +502,25 @@
             cp.marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); tempCheckpointCoords = { checkpointId: cp.id, fieldId: 'field_gen', cpRef: cp }; document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; document.getElementById('checkpointNoteInput').value = cp.note || ""; document.getElementById('checkpointCheckedInput').checked = !!cp.checked; document.getElementById('deleteCPBtn').classList.remove('hidden'); document.getElementById('checkpointModal').classList.remove('hidden'); });
         }
 
-        // --- SEARCH INDICATOR LOGIC ---
+        // --- SEARCH INDICATOR LOGIC (RED STAR) ---
         function placeSearchMarker(lat, lng, label) {
             if (searchIndicator) map.removeLayer(searchIndicator);
-            searchIndicator = L.circleMarker([lat, lng], { radius: 8, color: '#2563eb', weight: 3, opacity: 0.8, fillColor: '#3b82f6', fillOpacity: 0.4, className: 'search-pulse' }).addTo(map);
-            searchIndicator.bindPopup(`<div class="p-2 text-center"><p class="text-[10px] font-black text-slate-800 uppercase mb-2">${label || 'Punto trovato'}</p><button onclick="map.removeLayer(searchIndicator)" class="text-[8px] font-bold text-red-500 uppercase tracking-widest">Rimuovi</button></div>`, { className: 'custom-popup' }).openPopup();
-            map.flyTo([lat, lng], 16);
+            
+            // Marker a forma di stella rossa (RED STAR)
+            const starIcon = L.divIcon({
+                html: `<div class="search-star-container"><svg viewBox="0 0 24 24" width="40" height="40" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#ef4444" stroke="white" stroke-width="2"/></svg></div>`,
+                className: 'search-star-marker',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            });
+
+            searchIndicator = L.marker([lat, lng], { icon: starIcon }).addTo(map);
+            searchIndicator.bindPopup(`<div class="p-2 text-center"><p class="text-[10px] font-black text-slate-800 uppercase mb-2">Punto Trovato</p><p class="text-[8px] text-slate-500 mb-3">${label}</p><button onclick="map.removeLayer(searchIndicator)" class="text-[8px] font-bold text-red-500 uppercase tracking-widest border border-red-100 px-2 py-1 rounded-lg">Rimuovi Stella</button></div>`, { className: 'custom-popup' }).openPopup();
+            
+            // Blocca la schermata sul punto trovato disattivando il follow GPS
+            isFollowing = false;
+            map.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
+            showNotification("Visualizzazione bloccata sul punto trovato");
         }
 
         // --- INTERFACCIA ---
@@ -540,7 +554,7 @@
 
         // --- UTILITY ---
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').classList.toggle('opacity-0', !isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
-        window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
+        window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); showNotification("Centratura su GPS attiva"); };
         window.openSearchModal = () => document.getElementById('searchModal').classList.remove('hidden');
         window.closeSearchModal = () => document.getElementById('searchModal').classList.add('hidden');
         window.executeManualSearch = () => { handleSearch(document.getElementById('manualSearchInput').value); closeSearchModal(); };
