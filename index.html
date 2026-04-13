@@ -207,7 +207,7 @@
                 <div id="fieldsSection" class="space-y-4"></div>
 
                 <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
-                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.1.6</p>
+                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.1.7</p>
                     <p class="text-[8px] font-bold text-slate-400">Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
@@ -409,19 +409,20 @@
                 f.circle = L.circle(f.latlng, { radius: f.radius, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
                 f.polyline = L.polyline(f.pathCoords || [], { color: '#334155', weight: 4, opacity: 0.6 }).addTo(map);
             }
-            if (f.checkpoints) f.checkpoints.forEach((cp, i) => renderCheckpointOnMap(cp, i));
+            if (f.checkpoints) f.checkpoints.forEach((cp, i) => renderCheckpointOnMap(cp, i, f.id));
             lucide.createIcons();
         }
 
-        function renderCheckpointOnMap(cp, index) {
+        function renderCheckpointOnMap(cp, index, fieldId = 'field_gen') {
             const label = cp.customNumber || (index + 1);
             // FIX VISIVO: Il pin diventa Verde se OK, altrimenti Rosso.
             const pinColor = cp.checked ? '#10b981' : '#ef4444'; 
-            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/><text x="12" y="17" font-size="8" font-weight="900" fill="white" text-anchor="middle">${label}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
+            const cross = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" opacity="0.7" />' : '';
+            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/>${cross}<text x="12" y="17" font-size="8" font-weight="900" fill="white" text-anchor="middle">${label}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
             
             cp.marker.on('click', (ev) => { 
                 L.DomEvent.stopPropagation(ev); 
-                tempCheckpointCoords = { checkpointId: cp.id, fieldId: 'field_gen', cpRef: cp }; 
+                tempCheckpointCoords = { checkpointId: cp.id, fieldId: fieldId, cpRef: cp }; 
                 document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; 
                 document.getElementById('checkpointNoteInput').value = cp.note || ""; 
                 // FIX: Carica correttamente lo stato salvato nella spunta
@@ -463,13 +464,15 @@
             const isChecked = !!checkedInput.checked; 
             const customNum = customNumInput.value;
             
-            let field = fields.find(f => f.id === 'field_gen'); 
+            let targetFieldId = tempCheckpointCoords?.fieldId || 'field_gen';
+            let field = fields.find(f => f.id === targetFieldId); 
+            
             if(!field) { 
                 field = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; 
                 fields.push(field); 
             }
             
-            if(tempCheckpointCoords.checkpointId) { 
+            if(tempCheckpointCoords && tempCheckpointCoords.checkpointId) { 
                 const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); 
                 if(cp) { 
                     cp.note = note; 
@@ -481,7 +484,7 @@
             }
             
             field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
-            field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
+            field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i, field.id));
             
             await saveFieldToCloud(field); 
             closeCheckpointModal(); 
@@ -491,7 +494,21 @@
         // --- UTILITY ---
         window.clearAllData = async () => { if (!isAdmin) return; if (!confirm("Svuotare il database corrente?") || !confirm("Sei assolutamente sicuro?")) return; try { const fieldsToDelete = [...fields]; for (const field of fieldsToDelete) { if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, field.id.toString())); if (field.marker) map.removeLayer(field.marker); if (field.circle) map.removeLayer(field.circle); if (field.polyline) map.removeLayer(field.polyline); if (field.checkpoints) field.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); } fields = []; saveToLocalStorage(); window.updateFieldUI(); showNotification("Database Formattato"); closeAdminConsole(); } catch (err) {} };
         window.deleteField = async (id) => { if (!confirm("Eliminare definitivamente?")) return; const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { const f = fields[idx]; if (f.marker) map.removeLayer(f.marker); if (f.circle) map.removeLayer(f.circle); if (f.polyline) map.removeLayer(f.polyline); if (f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); saveToLocalStorage(); window.updateFieldUI(); showNotification("Eliminato"); } };
-        window.deleteCheckpoint = async () => { if(!confirm("Eliminare nota?")) return; let field = fields.find(f => f.id === 'field_gen'); const idx = field.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(field.checkpoints[idx].marker); field.checkpoints.splice(idx, 1); await saveFieldToCloud(field); closeCheckpointModal(); showNotification("Nota eliminata"); } };
+        window.deleteCheckpoint = async () => { 
+            if(!confirm("Eliminare nota?")) return; 
+            let targetFieldId = tempCheckpointCoords?.fieldId || 'field_gen';
+            let field = fields.find(f => f.id === targetFieldId); 
+            if(field) {
+                const idx = field.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); 
+                if(idx !== -1) { 
+                    map.removeLayer(field.checkpoints[idx].marker); 
+                    field.checkpoints.splice(idx, 1); 
+                    await saveFieldToCloud(field); 
+                    closeCheckpointModal(); 
+                    showNotification("Nota eliminata"); 
+                }
+            } 
+        };
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); showNotification("Focus su tua posizione"); };
         window.executeManualSearch = () => { handleSearch(document.getElementById('manualSearchInput').value); closeSearchModal(); };
         window.handleSearch = async (val) => { const q = val || document.getElementById('searchInput').value.trim(); if(!q) return; try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`); const data = await res.json(); if(data.length) { if(searchIndicator) map.removeLayer(searchIndicator); const starIcon = L.divIcon({ html: `<div class="search-star-container"><svg viewBox="0 0 24 24" width="40" height="40"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#ef4444" stroke="white" stroke-width="2"/></svg></div>`, className: 'search-star-marker', iconSize: [40, 40], iconAnchor: [20, 20] }); searchIndicator = L.marker([data[0].lat, data[0].lon], { icon: starIcon }).addTo(map); searchIndicator.bindPopup(`<div class="p-2 text-center text-[10px] font-bold uppercase"><p class="mb-2">Trovato</p><p class="text-slate-500 mb-2">${data[0].display_name}</p><button onclick="map.removeLayer(searchIndicator)" class="text-red-500">Rimuovi</button></div>`).openPopup(); isFollowing = false; map.flyTo([data[0].lat, data[0].lon], 17); } else showNotification("Nessun risultato"); } catch(e) {} };
@@ -502,7 +519,7 @@
         window.closeFieldModal = () => document.getElementById('fieldModal').classList.add('hidden');
         
         window.selectNewCheckpoint = () => { 
-            tempCheckpointCoords = tempFieldCoords; 
+            tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; 
             document.getElementById('checkpointNumberInput').value = ""; 
             document.getElementById('checkpointNoteInput').value = ""; 
             // FIX: Assicura che la spunta sia vuota per le nuove note
