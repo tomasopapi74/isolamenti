@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.1.5 - STATE RECOVERY</title>
+    <title>IsolamenTom v3.1.6 - OK FLAG FIX</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -60,7 +60,7 @@
                     <i data-lucide="shield" class="text-white w-8 h-8"></i>
                 </div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.1.5 Stable</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.1.6 Stable</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM / ADMIN" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
@@ -207,7 +207,7 @@
                 <div id="fieldsSection" class="space-y-4"></div>
 
                 <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
-                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.1.5</p>
+                    <p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.1.6</p>
                     <p class="text-[8px] font-bold text-slate-400">Locale: <span id="storageSize">0</span> KB</p>
                 </div>
             </div>
@@ -235,7 +235,7 @@
             <textarea id="checkpointNoteInput" rows="3" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 text-sm outline-none focus:border-blue-600 mb-4" placeholder="Inserisci dettagli..."></textarea>
             <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl mb-6 border border-slate-100">
                 <input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded-lg text-blue-600 border-2 border-slate-300">
-                <label for="checkpointCheckedInput" class="text-xs font-black text-slate-700 uppercase">Isolamento OK (X)</label>
+                <label for="checkpointCheckedInput" class="text-xs font-black text-slate-700 uppercase">Isolamento OK</label>
             </div>
             <div class="flex flex-col gap-2">
                 <div class="flex gap-3"><button onclick="closeCheckpointModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Chiudi</button><button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs shadow-md uppercase active:scale-95 transition-all">Salva</button></div>
@@ -363,7 +363,7 @@
         
         async function saveFieldToCloud(field) {
             field.lastUpdated = Date.now(); saveToLocalStorage();
-            if (isLocalMode || !isInitialized) return;
+            if (isLocalMode || !isInitialized) return; // FIX: Rimosso il blocco isAdmin. Ora l'Admin salva sul cloud.
             isSaving = true;
             try {
                 const prepared = { 
@@ -414,9 +414,21 @@
         }
 
         function renderCheckpointOnMap(cp, index) {
-            const label = cp.customNumber || (index + 1), cross = cp.checked ? '<path d="M7 10 L17 20 M17 10 L7 20" stroke="black" stroke-width="3" opacity="0.7" />' : '';
-            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="#ef4444" stroke="#fff" stroke-width="2"/>${cross}<text x="12" y="18" font-size="8" font-weight="900" fill="white" text-anchor="middle">${label}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
-            cp.marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); tempCheckpointCoords = { checkpointId: cp.id, fieldId: 'field_gen', cpRef: cp }; document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; document.getElementById('checkpointNoteInput').value = cp.note || ""; document.getElementById('checkpointCheckedInput').checked = !!cp.checked; document.getElementById('deleteCPBtn').classList.remove('hidden'); document.getElementById('checkpointModal').classList.remove('hidden'); });
+            const label = cp.customNumber || (index + 1);
+            // FIX VISIVO: Il pin diventa Verde se OK, altrimenti Rosso.
+            const pinColor = cp.checked ? '#10b981' : '#ef4444'; 
+            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/><text x="12" y="17" font-size="8" font-weight="900" fill="white" text-anchor="middle">${label}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
+            
+            cp.marker.on('click', (ev) => { 
+                L.DomEvent.stopPropagation(ev); 
+                tempCheckpointCoords = { checkpointId: cp.id, fieldId: 'field_gen', cpRef: cp }; 
+                document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; 
+                document.getElementById('checkpointNoteInput').value = cp.note || ""; 
+                // FIX: Carica correttamente lo stato salvato nella spunta
+                document.getElementById('checkpointCheckedInput').checked = !!cp.checked; 
+                document.getElementById('deleteCPBtn').classList.remove('hidden'); 
+                document.getElementById('checkpointModal').classList.remove('hidden'); 
+            });
         }
 
         // --- ACTIONS ---
@@ -445,12 +457,35 @@
 
         window.confirmAddCheckpoint = async () => {
             const noteInput = document.getElementById('checkpointNoteInput'), checkedInput = document.getElementById('checkpointCheckedInput'), customNumInput = document.getElementById('checkpointNumberInput');
-            const note = noteInput.value.trim(), checked = !!checkedInput.checked, customNum = customNumInput.value;
-            let field = fields.find(f => f.id === 'field_gen'); if(!field) { field = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; fields.push(field); }
-            if(tempCheckpointCoords.checkpointId) { const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); if(cp) { cp.note = note; cp.checked = checked; cp.customNumber = customNum; } }
-            else { field.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked, customNumber: customNum }); }
-            field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
-            await saveFieldToCloud(field); closeCheckpointModal(); showNotification("Dati Salvati con Successo");
+            
+            // FIX: Acquisizione sicura del valore booleano e della nota
+            const note = noteInput.value.trim();
+            const isChecked = !!checkedInput.checked; 
+            const customNum = customNumInput.value;
+            
+            let field = fields.find(f => f.id === 'field_gen'); 
+            if(!field) { 
+                field = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; 
+                fields.push(field); 
+            }
+            
+            if(tempCheckpointCoords.checkpointId) { 
+                const cp = field.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); 
+                if(cp) { 
+                    cp.note = note; 
+                    cp.checked = isChecked; 
+                    cp.customNumber = customNum; 
+                } 
+            } else { 
+                field.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: customNum }); 
+            }
+            
+            field.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
+            field.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i));
+            
+            await saveFieldToCloud(field); 
+            closeCheckpointModal(); 
+            showNotification("Dati Salvati con Successo");
         };
 
         // --- UTILITY ---
@@ -463,9 +498,20 @@
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelContent').classList.toggle('opacity-0', !isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
         window.openSearchModal = () => document.getElementById('searchModal').classList.remove('hidden');
         window.closeSearchModal = () => document.getElementById('searchModal').classList.add('hidden');
-        window.selectNewFieldAction = () => { tempFieldId = null; closeActionChoiceModal(); document.getElementById('fieldModalTitle').innerText = "Dettagli Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldModal').classList.remove('hidden'); };
+        window.selectNewFieldAction = () => { tempFieldId = null; closeActionChoiceModal(); document.getElementById('fieldModalTitle').innerText = "Dettagli Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldRadiusInput').value = "300"; document.getElementById('fieldModal').classList.remove('hidden'); };
         window.closeFieldModal = () => document.getElementById('fieldModal').classList.add('hidden');
-        window.selectNewCheckpoint = () => { tempCheckpointCoords = tempFieldCoords; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('deleteCPBtn').classList.add('hidden'); closeActionChoiceModal(); document.getElementById('checkpointModal').classList.remove('hidden'); };
+        
+        window.selectNewCheckpoint = () => { 
+            tempCheckpointCoords = tempFieldCoords; 
+            document.getElementById('checkpointNumberInput').value = ""; 
+            document.getElementById('checkpointNoteInput').value = ""; 
+            // FIX: Assicura che la spunta sia vuota per le nuove note
+            document.getElementById('checkpointCheckedInput').checked = false; 
+            document.getElementById('deleteCPBtn').classList.add('hidden'); 
+            closeActionChoiceModal(); 
+            document.getElementById('checkpointModal').classList.remove('hidden'); 
+        };
+        
         window.exportBackupJSON = () => { const data = localStorage.getItem('isolamenti_db_' + currentProjectName); if (!data) return showNotification("Vuoto"); const blob = new Blob([data], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Backup_${currentProjectName}.json`; a.click(); };
         window.importBackupJSON = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const data = JSON.parse(ev.target.result); mergeData(data, true); showNotification("Importazione OK"); } catch(err) { showNotification("Errore"); } }; reader.readAsText(file); };
         function updateStorageInfo() { const size = (JSON.stringify(localStorage).length / 1024).toFixed(1); document.getElementById('storageSize').innerText = size; }
