@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.2.2 - DASHBOARD RESTORED</title>
+    <title>IsolamenTom v3.2.3 - AUTO-RECOVERY</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -33,8 +33,6 @@
         .leaflet-popup-tip { background: white; }
         
         .modal-higher { z-index: 8000 !important; }
-        .search-star-container { animation: star-pulse 2s infinite ease-in-out; }
-        @keyframes star-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -45,7 +43,7 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.2.2 Stable</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.2.3 Stable</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM / ADMIN" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
@@ -61,20 +59,9 @@
         <div class="w-full max-w-4xl mx-auto space-y-6 pb-12">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3"><div class="bg-red-600 p-2 rounded-xl text-white shadow-lg"><i data-lucide="shield-check"></i></div><h2 class="text-xl font-black text-slate-800 uppercase">Gestione Sicurezza</h2></div>
-                <button onclick="closeAdminConsole()" class="bg-white p-2 rounded-xl border shadow-sm"><i data-lucide="x" class="text-slate-400"></i></button>
+                <button onclick="closeAdminConsole()" class="bg-white p-2 rounded-xl border shadow-sm active:scale-90"><i data-lucide="x" class="text-slate-400"></i></button>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-                    <h3 class="font-black text-xs uppercase text-slate-400 tracking-widest flex items-center gap-2"><i data-lucide="users" class="w-3 h-3 text-blue-500"></i> Registro Team</h3>
-                    <div id="adminTeamList" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
-                </div>
-                <div class="bg-white p-6 rounded-3xl border shadow-sm space-y-6">
-                    <div class="space-y-2">
-                        <button onclick="clearAllData()" class="w-full bg-red-600 text-white py-3 rounded-xl font-bold text-[10px] uppercase active:scale-95">Formatta Team Attivo</button>
-                        <button onclick="exportBackupJSON()" class="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-[10px] uppercase active:scale-95">Backup Team Attivo</button>
-                    </div>
-                </div>
-            </div>
+            <div id="adminTeamList" class="space-y-3"></div>
         </div>
     </div>
 
@@ -112,7 +99,6 @@
             </div>
         </div>
 
-        <!-- Dashboard Pannello Status -->
         <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] flex flex-col overflow-hidden border-t border-slate-100">
             <div id="dragArea" class="cursor-pointer p-4 pb-2" onclick="togglePanel()">
                 <div class="drag-handle"></div>
@@ -128,8 +114,8 @@
                         <i data-lucide="play" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">Avvia GPS</span>
                     </button>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="exportBackupJSON()" class="bg-blue-50 text-blue-700 py-3 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-1.5 border border-blue-100 shadow-sm active:scale-95"><i data-lucide="download" class="w-3.5 h-3.5"></i> Backup</button>
-                        <button onclick="document.getElementById('importFile').click()" class="bg-slate-50 text-slate-500 py-3 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-1.5 border border-slate-100 shadow-sm active:scale-95"><i data-lucide="upload" class="w-3.5 h-3.5"></i> Import</button>
+                        <button onclick="exportBackupJSON()" class="bg-blue-50 text-blue-700 py-3 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-1.5 border border-blue-100 shadow-sm"><i data-lucide="download" class="w-3.5 h-3.5"></i> Backup</button>
+                        <button onclick="document.getElementById('importFile').click()" class="bg-slate-50 text-slate-500 py-3 rounded-xl font-bold text-[10px] uppercase flex items-center justify-center gap-1.5 border border-slate-100 shadow-sm"><i data-lucide="upload" class="w-3.5 h-3.5"></i> Import</button>
                         <input type="file" id="importFile" class="hidden" onchange="importBackupJSON(event)">
                     </div>
                 </div>
@@ -137,19 +123,17 @@
                 <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200 space-y-3">
                     <div class="flex items-center justify-between">
                         <p class="text-[10px] font-black text-red-700 uppercase tracking-widest flex items-center gap-2"><i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Admin Active</p>
-                        <button onclick="window.openAdminConsole()" class="bg-red-600 text-white text-[8px] font-black px-3 py-1.5 rounded-full uppercase shadow-lg active:scale-95">Gestisci Team</button>
+                        <button onclick="window.openAdminConsole()" class="bg-red-600 text-white text-[8px] font-black px-3 py-1.5 rounded-full uppercase shadow-lg">Gestisci Team</button>
                     </div>
                 </div>
 
-                <!-- SEZIONE LISTA ISOLAMENTI (RIPRISTINATA) -->
                 <div id="fieldsSection" class="space-y-4"></div>
-
-                <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center"><p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.2.2</p></div>
+                <div class="p-4 bg-slate-50 rounded-[24px] border border-slate-100 text-center"><p class="text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] mb-0.5">System Status v3.2.3</p></div>
             </div>
         </div>
     </main>
 
-    <!-- Modali -->
+    <!-- Modali (Field, Nota, Search) -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6 modal-higher">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h2 id="fieldModalTitle" class="text-xl font-black text-green-700 mb-5">Dettagli Isolamento</h2>
@@ -158,7 +142,7 @@
                 <div><label class="text-[9px] font-black text-slate-400 uppercase ml-1">Codice</label><input type="text" id="fieldCodeInput" class="w-full border border-slate-100 rounded-xl p-3 bg-slate-50 font-bold text-sm outline-none focus:border-green-600 uppercase"></div>
                 <div><label class="text-[9px] font-black text-slate-400 uppercase ml-1">Categoria</label><select id="fieldCategoryInput" class="w-full border border-slate-100 rounded-xl p-3 bg-slate-50 font-black text-sm outline-none focus:border-green-600"><option value="cipolle">Cipolle</option><option value="bunching">Bunching</option><option value="brassiche">Brassiche</option><option value="cavoli">Cavoli</option><option value="cicoria">Cicoria</option><option value="altro">Altro</option></select></div>
                 <div><label class="text-[9px] font-black text-slate-400 uppercase ml-1">Raggio (m)</label><input type="number" id="fieldRadiusInput" class="w-full border border-slate-100 rounded-xl p-3 bg-slate-50 font-bold text-sm outline-none focus:border-green-600"></div>
-                <div class="flex gap-3 pt-3"><button onclick="closeFieldModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Annulla</button><button onclick="confirmAddField()" class="flex-1 py-4 bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md active:scale-95 transition-all">Salva</button></div>
+                <div class="flex gap-3 pt-3"><button onclick="closeFieldModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Annulla</button><button onclick="confirmAddField()" class="flex-1 py-4 bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md">Salva</button></div>
             </div>
         </div>
     </div>
@@ -169,7 +153,7 @@
             <div class="mb-3"><label class="text-[9px] font-black text-slate-400 uppercase ml-1">Numero Nota</label><input type="number" id="checkpointNumberInput" class="w-full border border-slate-100 rounded-xl p-2.5 bg-slate-50 font-bold text-base outline-none"></div>
             <textarea id="checkpointNoteInput" rows="3" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 text-sm outline-none mb-4" placeholder="Dettagli..."></textarea>
             <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl mb-6 border border-slate-100"><input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded-lg text-blue-600 border-2 border-slate-300"><label for="checkpointCheckedInput" class="text-xs font-black text-slate-700 uppercase">Isolamento OK</label></div>
-            <div class="flex flex-col gap-2"><div class="flex gap-3"><button onclick="closeCheckpointModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Chiudi</button><button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs shadow-md uppercase active:scale-95 transition-all">Salva</button></div><button id="deleteCPBtn" onclick="deleteCheckpoint()" class="hidden py-3 text-red-500 font-bold text-[10px] uppercase border-t transition-colors">Elimina Nota</button></div>
+            <div class="flex flex-col gap-2"><div class="flex gap-3"><button onclick="closeCheckpointModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Chiudi</button><button onclick="confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs shadow-md">Salva</button></div><button id="deleteCPBtn" onclick="deleteCheckpoint()" class="hidden py-3 text-red-500 font-bold text-[10px] uppercase border-t">Elimina</button></div>
         </div>
     </div>
 
@@ -177,9 +161,9 @@
         <div class="bg-white rounded-[40px] w-full max-w-xs p-8 text-center shadow-2xl">
             <h2 class="text-xl font-black mb-6 text-slate-900 tracking-tight">Azione Mappa</h2>
             <div class="flex flex-col gap-3">
-                <button onclick="selectNewFieldAction()" class="flex items-center justify-between bg-green-50 text-green-700 p-6 rounded-[24px] border-2 border-green-100 active:bg-green-100 transition-all shadow-sm"><div class="flex items-center gap-4 text-left"><div class="bg-green-600 p-2 rounded-lg text-white shadow-md"><i data-lucide="plus" class="w-5 h-5"></i></div><span class="font-black text-base leading-tight">Nuovo<br>Isolamento</span></div><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-6 rounded-[24px] border-2 border-blue-100 active:bg-blue-100 transition-all shadow-sm"><div class="flex items-center gap-4 text-left"><div class="bg-blue-600 p-2 rounded-lg text-white shadow-md"><i data-lucide="clipboard-check" class="w-5 h-5"></i></div><span class="font-black text-base leading-tight">Aggiungi<br>Nota</span></div><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-                <button onclick="closeActionChoiceModal()" class="mt-4 text-slate-400 font-black uppercase text-[10px] active:scale-95 transition-all">Annulla</button>
+                <button onclick="selectNewFieldAction()" class="flex items-center justify-between bg-green-50 text-green-700 p-6 rounded-[24px] border-2 border-green-100 active:bg-green-100 shadow-sm"><div class="flex items-center gap-4 text-left"><div class="bg-green-600 p-2 rounded-lg text-white shadow-md"><i data-lucide="plus" class="w-5 h-5"></i></div><span class="font-black text-base leading-tight">Nuovo<br>Isolamento</span></div><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                <button onclick="selectNewCheckpoint()" class="flex items-center justify-between bg-blue-50 text-blue-700 p-6 rounded-[24px] border-2 border-blue-100 active:bg-blue-100 shadow-sm"><div class="flex items-center gap-4 text-left"><div class="bg-blue-600 p-2 rounded-lg text-white shadow-md"><i data-lucide="clipboard-check" class="w-5 h-5"></i></div><span class="font-black text-base leading-tight">Aggiungi<br>Nota</span></div><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                <button onclick="closeActionChoiceModal()" class="mt-4 text-slate-400 font-black uppercase text-[10px]">Annulla</button>
             </div>
         </div>
     </div>
@@ -187,8 +171,8 @@
     <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6 modal-higher">
         <div class="bg-white rounded-[32px] w-full max-w-xs p-8 shadow-2xl text-center">
             <h2 class="text-xl font-black text-slate-900 mb-5">Cerca</h2>
-            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate..." class="w-full border border-slate-100 rounded-xl p-3.5 bg-slate-50 text-sm outline-none focus:border-blue-600 mb-5 transition-all">
-            <div class="flex gap-3"><button onclick="closeSearchModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Esci</button><button onclick="executeManualSearch()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow-md active:scale-95 transition-all">Vai</button></div>
+            <input type="text" id="manualSearchInput" placeholder="Indirizzo o Coordinate..." class="w-full border border-slate-100 rounded-xl p-3.5 bg-slate-50 text-sm outline-none mb-5">
+            <div class="flex gap-3"><button onclick="closeSearchModal()" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Esci</button><button onclick="executeManualSearch()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow-md">Vai</button></div>
         </div>
     </div>
 
@@ -214,11 +198,11 @@
         auth = getAuth(firebaseApp);
         db = getFirestore(firebaseApp);
 
-        // --- AUTH ---
+        // --- AUTH & AUTO-GPS ---
         window.handleLogin = async function() {
             const btn = document.getElementById('loginBtn'), n = document.getElementById('projectInput'), p = document.getElementById('passwordInput');
             const name = n.value.trim().toLowerCase(), pass = p.value.trim();
-            if (!name || !pass) return showNotification("Dati Mancanti");
+            if (!name || !pass) return;
             btn.disabled = true; btn.innerHTML = '<span class="loader"></span>';
             try { await signInAnonymously(auth); currentProjectName = name.replace(/[^a-z0-9_]/g, ''); localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: currentProjectName, pass })); isInitialized = true; enterApp(pass); }
             catch (err) { handleLocalMode(); }
@@ -228,52 +212,43 @@
 
         function enterApp(pass) {
             const disp = document.getElementById('displayProjName'), adminBox = document.getElementById('adminTools');
-            const currentPass = pass || JSON.parse(localStorage.getItem('isolamenti_last_session') || '{}').pass;
+            const session = JSON.parse(localStorage.getItem('isolamenti_last_session') || '{}');
+            const currentPass = pass || session.pass;
             isAdmin = (currentProjectName === 'admin' && currentPass === 'master25');
             disp.innerText = currentProjectName.toUpperCase();
             if (isAdmin) { disp.innerHTML = `<span class="flex items-center gap-1 text-red-600">ADMIN: ${currentProjectName.toUpperCase()} <i data-lucide="shield-check" class="w-2.5 h-2.5"></i></span>`; adminBox.classList.remove('hidden'); }
-            else { registerTeamInRegistry(currentPass); }
+            else registerTeamInRegistry(currentPass);
             document.getElementById('loginOverlay').style.display = 'none';
-            if (mapReady) { loadLocalCache(); if (!isLocalMode) startSync(); }
+            if (mapReady) { 
+                loadLocalCache(); 
+                if (!isLocalMode) startSync(); 
+                // AUTO-GPS ACTIVATION
+                setTimeout(() => { if(!isTracking) window.toggleTracking(); }, 1500);
+            }
             lucide.createIcons();
         }
 
         async function registerTeamInRegistry(pass) { if (!currentProjectName || isAdmin || currentProjectName === 'locale') return; try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'team_registry', currentProjectName), { teamId: currentProjectName, password: pass, lastSeen: Date.now() }); } catch(e) {} }
 
-        // --- CORE UI LIST (RIPRISTINATA) ---
+        // --- DASHBOARD LIST ---
         window.updateFieldUI = () => {
-            const container = document.getElementById('fieldsSection'); 
-            container.innerHTML = ""; 
+            const container = document.getElementById('fieldsSection'); container.innerHTML = ""; 
             const validFields = fields.filter(f => f.id !== 'field_gen');
             document.getElementById('fieldCount').innerText = validFields.length + " Aree";
-            
-            const categories = ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'];
-            categories.forEach(cat => {
+            ['cipolle', 'bunching', 'brassiche', 'cavoli', 'cicoria', 'altro'].forEach(cat => {
                 const catFields = validFields.filter(f => f.category === cat);
                 if (catFields.length > 0) {
-                    const group = document.createElement('div');
-                    group.className = "mb-4";
+                    const group = document.createElement('div'); group.className = "mb-4";
                     group.innerHTML = `<h3 class="text-[9px] font-black uppercase text-slate-400 mb-2 border-l-2 border-blue-500 pl-2 tracking-widest">${cat}</h3>`;
-                    const list = document.createElement('div');
-                    list.className = "space-y-2";
+                    const list = document.createElement('div'); list.className = "space-y-2";
                     catFields.forEach(f => {
                         const div = document.createElement('div');
-                        const color = categoryColors[f.category] || '#64748b';
                         div.className = "p-3 bg-slate-50 border border-transparent rounded-xl flex justify-between items-center active:border-blue-200 transition-all shadow-sm";
                         div.onclick = () => { isFollowing = false; map.flyTo(f.latlng, 17); togglePanel(); };
-                        div.innerHTML = `
-                            <div class="flex items-center gap-2.5">
-                                <div class="bg-white p-1.5 rounded-lg shadow-sm" style="color:${color}"><i data-lucide="sprout" class="w-4 h-4"></i></div>
-                                <div class="text-[11px] font-black text-slate-800 tracking-tight">${f.name} <span class="text-slate-400 font-normal">(${f.code})</span></div>
-                            </div>
-                            <div class="flex items-center gap-1.5">
-                                <button onclick="event.stopPropagation(); window.editField('${f.id}')" class="p-2 text-blue-600 bg-white rounded-lg active:bg-blue-50"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
-                                <button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2 text-red-500 bg-white rounded-lg active:bg-red-50"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                            </div>`;
+                        div.innerHTML = `<div class="flex items-center gap-2.5"><div class="bg-white p-1.5 rounded-lg shadow-sm" style="color:${categoryColors[f.category]}"><i data-lucide="sprout" class="w-4 h-4"></i></div><div class="text-[11px] font-black text-slate-800 tracking-tight">${f.name} <span class="text-slate-400 font-normal">(${f.code})</span></div></div><div class="flex items-center gap-1.5"><button onclick="event.stopPropagation(); window.editField('${f.id}')" class="p-2 text-blue-600 bg-white rounded-lg active:bg-blue-50"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button><button onclick="event.stopPropagation(); window.deleteField('${f.id}')" class="p-2 text-red-500 bg-white rounded-lg active:bg-red-50"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button></div>`;
                         list.appendChild(div);
                     });
-                    group.appendChild(list);
-                    container.appendChild(group);
+                    group.appendChild(list); container.appendChild(group);
                 }
             });
             lucide.createIcons();
@@ -287,8 +262,7 @@
                 if (dist <= f.radius) {
                     if (!f.wasInside) {
                         f.wasInside = true;
-                        if (f.pathCoords && f.pathCoords.length > 5) { currentLap = 2; showNotification("Inizio Giro 2"); } 
-                        else { currentLap = 1; showNotification("Inizio Giro 1"); }
+                        currentLap = (f.pathCoords && f.pathCoords.length > 5) ? 2 : 1;
                         updateLapUI();
                     }
                     let ck = (currentLap === 1) ? 'pathCoords' : 'pathCoords2', pk = (currentLap === 1) ? 'polyline' : 'polyline2';
@@ -305,7 +279,7 @@
             if (lap === 2 && !f.polyline2) f.polyline2 = L.polyline(f.pathCoords2, { color: '#000000', weight: 4, opacity: 0.8 }).addTo(map);
         }
 
-        // --- CORE SYNC ---
+        // --- SYNC ---
         function loadLocalCache() { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) { try { mergeData(JSON.parse(raw), true); } catch(e) {} } }
         function startSync() { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (isSaving || snap.metadata.hasPendingWrites) return; const cloudData = snap.docs.map(d => d.data()); if (cloudData.length > 0) mergeData(cloudData, false); }); }
         function mergeData(newData, isInitialLoad) {
@@ -319,12 +293,11 @@
                     localMap.set(id, merged);
                 }
             });
-            fields.forEach(f => clearMapField(f));
+            fields.forEach(f => { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); if(f.polyline2) map.removeLayer(f.polyline2); if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); });
             fields = Array.from(localMap.values()).map(f => { renderFieldOnMap(f); return f; });
             window.updateFieldUI(); saveToLocalStorage();
         }
         function parsePath(p) { if (typeof p === 'string') { try { return JSON.parse(p); } catch(e) { return []; } } return p || []; }
-        function clearMapField(f) { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); if(f.polyline2) map.removeLayer(f.polyline2); if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); }
         function saveToLocalStorage() { localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; delete c.polyline2; delete c.wasInside; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }))); }
         async function saveFieldToCloud(field) {
             field.lastUpdated = Date.now(); saveToLocalStorage();
@@ -334,14 +307,16 @@
             catch(e) {} finally { setTimeout(() => isSaving = false, 500); }
         }
 
-        // --- MAP UTILS ---
+        // --- MAP RENDER & GPS ---
         function renderFieldOnMap(f) {
             if (f.latlng[0] !== 0) {
                 const color = categoryColors[f.category] || '#64748b';
                 f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
                 f.marker.bindPopup(`<div class="p-1 min-w-[140px] text-center"><h3 class="font-black text-slate-800 text-[11px] uppercase mb-1">${f.name}</h3><div class="flex gap-1.5"><button onclick="window.openNavigation(${f.latlng[0]}, ${f.latlng[1]})" class="flex-1 bg-blue-600 text-white p-1.5 rounded-lg text-[9px] font-black uppercase">Vai</button><button onclick="window.editField('${f.id}')" class="bg-slate-100 text-slate-600 p-1.5 rounded-lg"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button><button onclick="window.deleteField('${f.id}')" class="bg-red-50 text-red-600 p-1.5 rounded-lg"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button></div></div>`, { className: 'custom-popup' });
                 f.circle = L.circle(f.latlng, { radius: f.radius, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
-                if (f.pathCoords?.length) ensurePolyline(f, 1); if (f.pathCoords2?.length) ensurePolyline(f, 2);
+                // FORCE RENDER OF BOTH PATHS
+                if (f.pathCoords?.length) ensurePolyline(f, 1); 
+                if (f.pathCoords2?.length) ensurePolyline(f, 2);
             }
             if (f.checkpoints) f.checkpoints.forEach((cp, i) => renderCheckpointOnMap(cp, i, f.id));
         }
@@ -360,7 +335,7 @@
                 if (!isTracking) { isTracking = true; document.getElementById('trackIcon').setAttribute('data-lucide', 'square'); document.getElementById('trackLabel').innerText = 'STOP GPS'; document.getElementById('trackBtn').classList.replace('bg-slate-900', 'bg-red-600'); lucide.createIcons(); }
                 if (!userMarker) { userMarker = L.marker(ll, { icon: L.divIcon({ className: 'gps-arrow-container', html: `<div class="gps-arrow-icon" style="transform: rotate(${heading}deg); transition: transform 0.3s"><svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="12" r="8" fill="rgba(37, 99, 235, 0.2)"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg></div>` }) }).addTo(map); } 
                 else { userMarker.setLatLng(ll); userMarker.setIcon(L.divIcon({ className: 'gps-arrow-container', html: `<div class="gps-arrow-icon" style="transform: rotate(${heading}deg); transition: transform 0.3s"><svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="12" r="8" fill="rgba(37, 99, 235, 0.2)"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg></div>` })); }
-                if(isFollowing) { map.panTo(ll); if (mapRotationEnabled) { document.getElementById('map').style.transform = `scale(1.4) rotate(${-heading}deg)`; document.getElementById('map').style.transition = 'transform 0.5s ease-out'; } }
+                if(isFollowing) { map.panTo(ll); if (mapRotationEnabled) { document.getElementById('map').style.transform = `scale(1.4) rotate(${-heading}deg)`; } }
                 if(!isAdmin) updateTrajectory(ll);
             }, null, { enableHighAccuracy: true });
         };
@@ -372,24 +347,11 @@
         window.toggleLapMode = () => { currentLap = (currentLap === 1) ? 2 : 1; updateLapUI(); };
         function updateLapUI() { const btn = document.getElementById('lapToggle'), icon = document.getElementById('lapIcon'), label = document.getElementById('lapLabel'); if (currentLap === 2) { btn.classList.add('border-slate-900', 'bg-slate-50'); icon.classList.replace('text-slate-400', 'text-slate-900'); label.classList.replace('text-slate-400', 'text-slate-900'); label.innerText = "Giro 2"; } else { btn.classList.remove('border-slate-900', 'bg-slate-50'); icon.classList.replace('text-slate-900', 'text-slate-400'); label.classList.replace('text-slate-900', 'text-slate-400'); label.innerText = "Auto"; } }
         window.handleSearch = async () => { const q = document.getElementById('searchInput').value.trim(); if(!q) return; try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`); const data = await res.json(); if(data.length) { if(searchIndicator) map.removeLayer(searchIndicator); const starIcon = L.divIcon({ html: `<div class="search-star-container"><svg viewBox="0 0 24 24" width="40" height="40"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#ef4444" stroke="white" stroke-width="2"/></svg></div>`, iconSize:[40,40], iconAnchor:[20,20] }); searchIndicator = L.marker([data[0].lat, data[0].lon], { icon: starIcon }).addTo(map); isFollowing = false; map.flyTo([data[0].lat, data[0].lon], 17); } } catch(e) {} };
-        window.confirmAddField = async () => { const name = document.getElementById('fieldNameInput').value.trim() || "Area", code = document.getElementById('fieldCodeInput').value.trim() || "---", cat = document.getElementById('fieldCategoryInput').value, rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300; if (tempFieldId) { const f = fields.find(field => field.id == tempFieldId); if (f) { f.name = name; f.code = code; f.category = cat; f.radius = rad; clearMapField(f); renderFieldOnMap(f); await saveFieldToCloud(f); } } else { if(!tempFieldCoords) return; const f = { id: Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], pathCoords2: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); renderFieldOnMap(f); await saveFieldToCloud(f); } document.getElementById('fieldModal').classList.add('hidden'); document.getElementById('actionChoiceModal').classList.add('hidden'); tempFieldId = null; window.updateFieldUI(); };
+        window.confirmAddField = async () => { const name = document.getElementById('fieldNameInput').value.trim() || "Area", code = document.getElementById('fieldCodeInput').value.trim() || "---", cat = document.getElementById('fieldCategoryInput').value, rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300; if(!tempFieldCoords) return; const f = { id: Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], pathCoords2: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); renderFieldOnMap(f); await saveFieldToCloud(f); document.getElementById('fieldModal').classList.add('hidden'); document.getElementById('actionChoiceModal').classList.add('hidden'); window.updateFieldUI(); };
         window.confirmAddCheckpoint = async () => { const note = document.getElementById('checkpointNoteInput').value.trim(), checked = !!document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value; let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); if(!f) { f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, pathCoords: [], pathCoords2: [], checkpoints: [] }; fields.push(f); } if(tempCheckpointCoords?.checkpointId) { const cp = f.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); if(cp) { cp.note = note; cp.checked = checked; cp.customNumber = num; } } else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked, customNumber: num }); } f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); f.checkpoints.forEach((c, i) => renderCheckpointOnMap(c, i, f.id)); await saveFieldToCloud(f); document.getElementById('checkpointModal').classList.add('hidden'); };
-        window.deleteField = async (id) => { if (!confirm("Eliminare definitivamente?")) return; const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { const f = fields[idx]; clearMapField(f); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); saveToLocalStorage(); window.updateFieldUI(); } };
-        window.deleteCheckpoint = async () => { if(!confirm("Eliminare nota?")) return; let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await saveFieldToCloud(f); document.getElementById('checkpointModal').classList.add('hidden'); } };
         window.logoutProject = () => { if(confirm("Vuoi uscire?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
-        window.openAdminConsole = () => { if (!isAdmin) return; onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'team_registry'), (snap) => { const listEl = document.getElementById('adminTeamList'); listEl.innerHTML = ""; snap.docs.forEach(docSnap => { const d = docSnap.data(); const item = document.createElement('div'); item.className = "flex flex-col p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-3"; item.innerHTML = `<div class="flex items-center justify-between"><div class="flex flex-col"><span class="text-xs font-black text-slate-700 uppercase">${d.teamId}</span></div><button onclick="window.switchAdminTeam('${d.teamId}')" class="bg-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black text-white uppercase">Gestisci</button></div>`; listEl.appendChild(item); }); lucide.createIcons(); }); document.getElementById('adminConsole').style.display = 'flex'; };
-        window.switchAdminTeam = (newTeam) => { currentProjectName = newTeam; fields.forEach(f => clearMapField(f)); fields = []; loadLocalCache(); if (!isLocalMode) startSync(); document.getElementById('adminConsole').style.display = 'none'; };
-        function updateStorageInfo() { document.getElementById('storageSize').innerText = (JSON.stringify(localStorage).length / 1024).toFixed(1); }
         function showNotification(t) { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); }
-        window.onload = () => { 
-            map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 6); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
-            map.on('dragstart', () => { if(isFollowing) { isFollowing = false; if(mapRotationEnabled) document.getElementById('map').style.transform = 'scale(1) rotate(0deg)'; } }); 
-            map.on('click', (e) => { tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); }); 
-            mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); } lucide.createIcons(); 
-        };
+        window.onload = () => { map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 6); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); map.on('dragstart', () => { if(isFollowing) { isFollowing = false; if(mapRotationEnabled) document.getElementById('map').style.transform = 'scale(1) rotate(0deg)'; } }); map.on('click', (e) => { tempFieldCoords = e.latlng; document.getElementById('actionChoiceModal').classList.remove('hidden'); lucide.createIcons(); }); mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); } lucide.createIcons(); };
     </script>
 </body>
 </html>
-```eof
-
-Ora la lista degli isolamenti apparirà correttamente nel menù a scomparsa, permettendoti di selezionarli e volare sopra di essi come prima. Fammi sapere se è tutto a posto!
