@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.4.7 - FIELD RESCUE FINAL</title>
+    <title>IsolamenTom v3.5.0 - ABSOLUTE OVERRIDE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -11,7 +11,6 @@
     
     <style>
         #map-container { height: calc(100vh - 60px); width: 100%; position: relative; background: #e2e8f0; overflow: hidden; }
-        /* Il cursor:pointer forza iOS Safari a riconoscere i tap ovunque */
         #map { height: 100%; width: 100%; z-index: 1; transform-origin: center center; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); cursor: pointer; }
         #statusPanel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 6000; max-height: 85vh; transform: translateY(calc(100% - 75px)); }
         #statusPanel.expanded { transform: translateY(0) !important; }
@@ -23,15 +22,15 @@
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
 
-    <!-- Login Overlay -->
+    <!-- Login -->
     <div id="loginOverlay">
         <div class="bg-white p-8 rounded-[32px] shadow-2xl w-full max-w-md space-y-6 border border-slate-100">
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.4.7 Field Rescue Final</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.0 Absolute Override</p>
             </div>
-            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Sincronizzazione in corso...</div>
+            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione...</div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
                 <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold transition-all">
@@ -90,7 +89,7 @@
                 <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200 mb-2">
                     <button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg">Console Amministratore</button>
                 </div>
-                <!-- PULSANTE GPS CON FEEDBACK VISIVO E STATO DI RICERCA -->
+                <!-- PULSANTE GPS RIPRISTINATO E PROTETTO -->
                 <button id="trackBtn" onclick="window.toggleTracking()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">
                     <i data-lucide="navigation" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">AVVIA GPS</span>
                 </button>
@@ -168,7 +167,6 @@
         let db, auth, map, userMarker, watchId = null, fields = [], searchIndicator = null;
         let currentProjectName = null, isLocalMode = false, mapReady = false, isSaving = false, isInitialized = false, mapRotationEnabled = false;
         let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, lastLatlng = null, tempFieldId = null, isAdmin = false;
-        let ignoreMapClick = false;
 
         window.openModal = (id) => { const el = document.getElementById(id); if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } };
         window.closeModal = (id) => { const el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } };
@@ -177,12 +175,21 @@
         auth = getAuth(firebaseApp);
         db = getFirestore(firebaseApp);
 
-        // --- 1. AUTH BLINDATA E SBLOCCO ADMIN ---
+        // --- 1. LOGIN & SINCRONIZZAZIONE GPS IMMEDIATA ---
         window.handleLogin = async function() {
             const name = document.getElementById('projectInput').value.trim().toLowerCase();
             const pass = document.getElementById('passwordInput').value.trim();
             
             if (!name || !pass) return alert("Inserisci ID Team e Password");
+
+            // Esecuzione immediata sincrona per sbloccare i permessi GPS del browser
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { console.log("GPS pronto"); },
+                    (e) => { console.warn("GPS in attesa di permessi manuali", e); }
+                );
+            }
+
             document.getElementById('loginStatus').classList.remove('hidden');
 
             try { 
@@ -200,7 +207,7 @@
                 isInitialized = true; 
                 window.enterApp(); 
             } catch (err) { 
-                alert("Connessione fallita. Lavorerai in modalità offline locale.");
+                alert("Connessione fallita. Offline attivato.");
                 window.handleLocalMode(); 
             }
         };
@@ -238,7 +245,7 @@
             window.openModal('adminConsole');
         };
 
-        // --- 2. RECUPERO DATI E NOTE ---
+        // --- 2. RECUPERO DATI STORICO E NOTE ---
         window.mergeData = (newData, isInitialLoad) => {
             if (!mapReady || !Array.isArray(newData)) return;
             const localMap = new Map(fields.map(f => [f.id.toString(), f]));
@@ -291,7 +298,7 @@
 
         window.zoomToField = (id) => { const f = fields.find(x => x.id == id); if(f && f.latlng) { isFollowing = false; map.flyTo(f.latlng, 17); window.togglePanel(); } };
 
-        // --- 3. MAP RENDERING E TOCCO SICURO (SENZA tap:false) ---
+        // --- 3. RENDER MAPPA E TOCCO SICURO RISOLTO (L.DomEvent.stopPropagation) ---
         window.renderFieldOnMap = (f) => {
             if (!f) return;
             if (f.checkpoints && Array.isArray(f.checkpoints)) {
@@ -302,11 +309,10 @@
             const color = categoryColors[f.category] || '#64748b';
             f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
             
+            // Il comando nativo Leaflet ferma il tocco dall'arrivare alla mappa sottostante. Addio Timer instabili.
             f.marker.on('click', (ev) => { 
-                L.DomEvent.stopPropagation(ev); // Blocca la propagazione nativa
-                ignoreMapClick = true; 
+                L.DomEvent.stopPropagation(ev); 
                 f.marker.bindPopup(`<div class="p-2 text-center text-xs font-black uppercase">${f.name}<br><button onclick="window.openNavigation(${f.latlng[0]},${f.latlng[1]})" class="bg-blue-600 text-white px-4 py-2 rounded-lg mt-2">VAI AL CAMPO</button></div>`).openPopup(); 
-                setTimeout(() => ignoreMapClick = false, 500); 
             });
             
             f.circle = L.circle(f.latlng, { radius: f.radius || 300, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
@@ -319,14 +325,12 @@
             
             cp.marker.on('click', (ev) => { 
                 L.DomEvent.stopPropagation(ev); 
-                ignoreMapClick = true;
                 tempCheckpointCoords = { checkpointId: cp.id, fieldId, cpRef: cp }; 
                 document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; 
                 document.getElementById('checkpointNoteInput').value = cp.note || ""; 
                 document.getElementById('checkpointCheckedInput').checked = !!cp.checked; 
                 document.getElementById('deleteCPBtn').classList.remove('hidden'); 
                 window.openModal('checkpointModal'); 
-                setTimeout(() => ignoreMapClick = false, 500); 
             });
         }
 
@@ -356,7 +360,7 @@
         window.deleteField = async (id) => { if (confirm("Eliminare definitivamente?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
         window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await window.saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
 
-        // --- 4. GPS E TRACCIAMENTO (ATTIVAZIONE MANUALE CON FEEDBACK VISUAL) ---
+        // --- 4. GPS MANUALE CON INDICATORI ---
         window.toggleTracking = () => {
             const btn = document.getElementById('trackBtn');
             const lbl = document.getElementById('trackLabel');
@@ -365,8 +369,7 @@
                 navigator.geolocation.clearWatch(watchId); 
                 isTracking = false; 
                 lbl.innerText = 'AVVIA GPS'; 
-                btn.classList.remove('bg-green-600', 'bg-yellow-500');
-                btn.classList.add('bg-slate-900');
+                btn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
                 return; 
             }
             
@@ -377,14 +380,11 @@
 
             isTracking = true; 
             lbl.innerText = 'RICERCA SATELLITI...';
-            btn.classList.remove('bg-slate-900', 'bg-green-600');
-            btn.classList.add('bg-yellow-500');
+            btn.className = "w-full bg-yellow-500 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
             
             watchId = navigator.geolocation.watchPosition((pos) => {
-                // Non appena riceve il primo segnale, il bottone diventa Verde e dice STOP GPS
                 lbl.innerText = 'STOP GPS';
-                btn.classList.remove('bg-yellow-500', 'bg-slate-900');
-                btn.classList.add('bg-green-600');
+                btn.className = "w-full bg-green-600 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
 
                 const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); 
                 document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
@@ -396,9 +396,11 @@
                 
                 fields.forEach(f => { if (f.id !== 'field_gen' && f.latlng && ll.distanceTo(L.latLng(f.latlng)) <= f.radius) { f.pathCoords = f.pathCoords || []; if (!f.pathCoords.length || ll.distanceTo(L.latLng(f.pathCoords[f.pathCoords.length-1][0], f.pathCoords[f.pathCoords.length-1][1])) > 5) { f.pathCoords.push([ll.lat, ll.lng]); if(!f.polyline) f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map); f.polyline.setLatLngs(f.pathCoords); window.saveFieldToCloud(f); } } });
             }, (err) => { 
-                alert("Errore GPS: Assicurati di aver dato i permessi di localizzazione al browser nelle impostazioni del telefono."); 
-                if(isTracking) window.toggleTracking(); // Resetta il bottone
-            }, { enableHighAccuracy: true });
+                alert("Errore GPS (" + err.code + "): " + err.message + "\n\nAutorizza la posizione dalle impostazioni del browser."); 
+                isTracking = false;
+                lbl.innerText = 'AVVIA GPS';
+                btn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
+            }, { enableHighAccuracy: true, maximumAge: 0 });
         };
 
         window.executeManualSearch = async () => { 
@@ -423,13 +425,12 @@
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (!isSaving) window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
         window.onload = () => { 
-            // Inizializzazione pulita (Senza tap:false che blocca iPhone/Android)
+            // Leaflet default puro, senza limitazioni artificiali che bloccano gli smartphone
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
             
-            // Sensibilità Tocco Mappa
+            // Clic pulito sulla mappa (che ora non è bloccato da ignoreMapClick)
             map.on('click', (e) => { 
-                if (ignoreMapClick) return; 
                 tempFieldCoords = e.latlng; 
                 isFollowing = false; 
                 window.openModal('actionChoiceModal'); 
