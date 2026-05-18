@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.3.0 - LEGACY SHIELD</title>
+    <title>IsolamenTom v3.3.1 - LOGIN FIX</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -11,7 +11,6 @@
     
     <style>
         #map-container { height: calc(100vh - 60px); width: 100%; position: relative; background: #e2e8f0; overflow: hidden; }
-        /* Transizione fluida per la rotazione della bussola in modalità guida */
         #map { height: 100%; width: 100%; z-index: 1; transform-origin: center center; transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
         
         #statusPanel { 
@@ -31,11 +30,8 @@
         
         .cp-icon-wrapper { display: flex; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; }
         .leaflet-popup-content-wrapper { border-radius: 16px; padding: 2px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .leaflet-popup-tip { background: white; }
         
         .modal-higher { z-index: 8000 !important; }
-        .search-star-container { animation: star-pulse 2s infinite ease-in-out; }
-        @keyframes star-pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -46,46 +42,46 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight leading-none">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.3.0 Stable</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-[0.2em] mt-2">Versione 3.3.1 Stable</p>
             </div>
             <div class="space-y-3">
-                <input type="text" id="projectInput" placeholder="ID TEAM / ADMIN" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all cursor-pointer">
-                <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold transition-all cursor-pointer">
-                <button id="loginBtn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-base shadow-lg hover:bg-blue-700 active:scale-95 transition-all cursor-pointer">Accedi</button>
-                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all text-xs uppercase text-white/70 cursor-pointer">Lavora Locale</button>
+                <input type="text" id="projectInput" placeholder="ID TEAM / ADMIN" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold uppercase transition-all">
+                <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-50 rounded-xl p-3 text-base outline-none focus:border-blue-600 bg-slate-50 font-bold transition-all">
+                <button id="loginBtn" onclick="handleLogin()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-black text-base shadow-lg hover:bg-blue-700 active:scale-95 transition-all">Accedi al Cloud</button>
+                <button onclick="handleLocalMode()" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold active:scale-95 transition-all text-xs uppercase text-white/70">Lavora solo in Locale</button>
             </div>
+            <div id="loginError" class="hidden p-3 bg-red-50 border border-red-100 rounded-xl text-[10px] text-red-600 font-bold text-center uppercase tracking-tighter"></div>
         </div>
     </div>
 
-    <!-- Console Admin Overlay -->
+    <!-- Resto della UI (Invariato per stabilità) -->
     <div id="adminConsole">
         <div class="w-full max-w-4xl mx-auto space-y-6 pb-12">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3"><div class="bg-red-600 p-2 rounded-xl text-white shadow-lg"><i data-lucide="shield-check"></i></div><h2 class="text-xl font-black text-slate-800 uppercase">Amministrazione</h2></div>
-                <button onclick="window.closeModal('adminConsole')" class="bg-white p-2 rounded-xl border shadow-sm active:scale-90 cursor-pointer"><i data-lucide="x"></i></button>
+                <button onclick="window.closeModal('adminConsole')" class="bg-white p-2 rounded-xl border shadow-sm active:scale-90"><i data-lucide="x"></i></button>
             </div>
             <div id="adminTeamList" class="space-y-3"></div>
         </div>
     </div>
 
-    <!-- Header -->
     <header class="bg-white shadow-md px-3 sticky top-0 z-50 border-b h-[60px] flex items-center gap-3">
         <div class="flex items-center gap-2 shrink-0">
             <div class="bg-green-600 p-1.5 rounded-lg shadow-md"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
             <div class="hidden xs:flex flex-col"><h1 class="text-sm font-black text-slate-900 leading-none">IsolamenTom</h1><span id="displayProjName" class="text-[8px] font-black text-blue-600 uppercase tracking-tight">Sync...</span></div>
         </div>
         <div class="flex-1"></div>
-        <button onclick="logoutProject()" class="bg-slate-50 text-slate-400 p-2 rounded-lg active:bg-red-50 active:text-red-600 transition-all cursor-pointer"><i data-lucide="log-out" class="w-4 h-4"></i></button>
+        <button onclick="logoutProject()" class="bg-slate-50 text-slate-400 p-2 rounded-lg active:bg-red-50 active:text-red-600 transition-all"><i data-lucide="log-out" class="w-4 h-4"></i></button>
     </header>
 
     <main class="relative">
         <div id="map-container"><div id="map"></div></div>
         
-        <!-- Pulsanti Flottanti Sinistra -->
+        <!-- Pulsanti Flottanti -->
         <div class="absolute top-3 left-3 z-[1000] flex flex-col gap-2">
-            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg border border-slate-50 active:scale-90 text-slate-700 cursor-pointer"><i data-lucide="crosshair" class="w-5 h-5"></i></button>
-            <button id="rotationToggle" onclick="toggleMapRotation()" class="bg-white p-3 rounded-xl shadow-lg border border-slate-50 active:scale-90 text-slate-700 cursor-pointer"><i data-lucide="compass" class="w-5 h-5"></i></button>
-            <button onclick="window.openModal('searchModal')" class="bg-white p-3 rounded-xl shadow-lg border border-slate-50 active:scale-90 text-blue-600 cursor-pointer"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
+            <button onclick="recenterOnUser()" class="bg-white p-3 rounded-xl shadow-lg border border-slate-50 active:scale-90 text-slate-700"><i data-lucide="crosshair" class="w-5 h-5"></i></button>
+            <button id="rotationToggle" onclick="toggleMapRotation()" class="bg-white p-3 rounded-xl shadow-lg border border-slate-50 active:scale-90 text-slate-700"><i data-lucide="compass" class="w-5 h-5"></i></button>
+            <button onclick="window.openModal('searchModal')" class="bg-white p-3 rounded-xl shadow-lg border border-slate-50 active:scale-90 text-blue-600"><i data-lucide="map-pin" class="w-5 h-5"></i></button>
         </div>
 
         <div id="telemetryPanel" class="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
@@ -95,27 +91,26 @@
             </div>
         </div>
 
-        <!-- Dashboard -->
         <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] flex flex-col overflow-hidden border-t border-slate-100">
             <div id="dragArea" class="cursor-pointer p-4 pb-2" onclick="togglePanel()">
                 <div class="drag-handle"></div>
                 <div class="flex items-center justify-between">
-                    <div class="flex flex-col"><span class="text-[10px] font-black uppercase text-slate-800 tracking-wider">Dashboard Isolamenti</span><span id="fieldCount" class="text-[8px] font-bold text-slate-400 uppercase">0 Aree</span></div>
+                    <div class="flex flex-col"><span class="text-[10px] font-black uppercase text-slate-800 tracking-wider">Dashboard Isolamenti</span><span id="fieldCount" class="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">0 Aree</span></div>
                     <div class="bg-slate-50 p-1.5 rounded-lg text-slate-400"><i data-lucide="chevron-up" class="w-4 h-4 transition-transform duration-500" id="panelChevron"></i></div>
                 </div>
             </div>
             <div id="panelContent" class="space-y-4 overflow-y-auto px-5 pb-10 transition-opacity duration-300 h-[70vh]">
                 <div class="flex flex-col gap-2">
-                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all cursor-pointer">
-                        <i data-lucide="play" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">GPS</span>
+                    <button id="trackBtn" onclick="toggleTracking()" class="bg-slate-900 text-white py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+                        <i data-lucide="play" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">Avvia GPS</span>
                     </button>
                     <div class="grid grid-cols-2 gap-2">
-                        <button onclick="exportBackupJSON()" class="bg-blue-50 text-blue-700 py-3 rounded-xl font-bold text-[10px] uppercase active:scale-95 cursor-pointer">Backup</button>
-                        <button onclick="document.getElementById('importFile').click()" class="bg-slate-50 text-slate-500 py-3 rounded-xl font-bold text-[10px] uppercase active:scale-95 cursor-pointer">Import</button>
+                        <button onclick="exportBackupJSON()" class="bg-blue-50 text-blue-700 py-3 rounded-xl font-bold text-[10px] uppercase active:scale-95">Backup</button>
+                        <button onclick="document.getElementById('importFile').click()" class="bg-slate-50 text-slate-500 py-3 rounded-xl font-bold text-[10px] uppercase active:scale-95">Import</button>
                         <input type="file" id="importFile" class="hidden" onchange="importBackupJSON(event)">
                     </div>
                 </div>
-                <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200"><button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-2 rounded-xl font-black text-[10px] uppercase cursor-pointer">Console Admin</button></div>
+                <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200"><button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-2 rounded-xl font-black text-[10px] uppercase">Console Admin</button></div>
                 <div id="fieldsSection" class="space-y-4"></div>
             </div>
         </div>
@@ -169,7 +164,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { 
@@ -190,20 +185,14 @@
         let ignoreMapClick = false; 
         let lastLatlng = null;
 
-        // Gestore visivo modali con forzatura display flex per eliminare glitch di centratura su iOS/Android
+        // Gestore visivo modali
         window.openModal = (id) => {
             const el = document.getElementById(id);
-            if (el) { 
-                el.classList.remove('hidden'); 
-                el.classList.add('flex'); 
-            }
+            if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
         };
         window.closeModal = (id) => {
             const el = document.getElementById(id);
-            if (el) { 
-                el.classList.add('hidden'); 
-                el.classList.remove('flex'); 
-            }
+            if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
         };
 
         const firebaseApp = initializeApp(firebaseConfig);
@@ -212,19 +201,49 @@
 
         // --- AUTH ---
         window.handleLogin = async function() {
+            const btn = document.getElementById('loginBtn');
+            const errBox = document.getElementById('loginError');
             const name = document.getElementById('projectInput').value.trim().toLowerCase(), pass = document.getElementById('passwordInput').value.trim();
-            if (!name || !pass) return;
+            
+            if (!name || !pass) {
+                errBox.innerText = "Inserisci ID e Password";
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> Accesso...';
+
             try { 
-                await signInAnonymously(auth); 
+                // Priorità al token personalizzato se fornito dall'ambiente
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                
                 currentProjectName = name.replace(/[^a-z0-9_]/g, ''); 
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: currentProjectName, pass })); 
                 isInitialized = true; 
                 enterApp(pass); 
             }
-            catch (err) { handleLocalMode(); }
+            catch (err) { 
+                console.error("Login fallito:", err);
+                errBox.innerText = "Errore Server: Assicurati che 'Anonymous Login' sia attivo su Firebase";
+                errBox.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerText = "Accedi al Cloud";
+                // In caso di errore cloud critico, non forziamo la modalità locale se l'utente vuole il cloud
+            }
         };
 
-        window.handleLocalMode = () => { const name = document.getElementById('projectInput').value.trim() || 'locale', pass = document.getElementById('passwordInput').value.trim(); currentProjectName = name.toLowerCase(); isLocalMode = true; isInitialized = true; enterApp(pass); };
+        window.handleLocalMode = () => { 
+            const name = document.getElementById('projectInput').value.trim() || 'locale', pass = document.getElementById('passwordInput').value.trim(); 
+            currentProjectName = name.toLowerCase(); 
+            isLocalMode = true; 
+            isInitialized = true; 
+            enterApp(pass); 
+        };
 
         function enterApp(pass) {
             const disp = document.getElementById('displayProjName'), adminBox = document.getElementById('adminTools');
@@ -272,11 +291,8 @@
                 const id = cloudField.id.toString(), existing = localMap.get(id);
                 if (!existing || cloudField.lastUpdated > (existing.lastUpdated || 0) || isInitialLoad) {
                     const merged = { ...cloudField };
-                    
-                    // FUSIONE INTELLIGENTE: Giro 1 e Giro 2 storici uniti in un unico tracciato per non perdere i dati
                     const p1 = parsePath(cloudField.pathCoords);
                     const p2 = parsePath(cloudField.pathCoords2);
-                    
                     const combined = [];
                     const set = new Set();
                     const addPoint = (pt) => {
@@ -284,13 +300,10 @@
                         const key = `${pt[0].toFixed(5)},${pt[1].toFixed(5)}`;
                         if (!set.has(key)) { set.add(key); combined.push(pt); }
                     };
-                    p1.forEach(addPoint);
-                    p2.forEach(addPoint);
-
+                    p1.forEach(addPoint); p2.forEach(addPoint);
                     const pLocal = existing ? parsePath(existing.pathCoords) : [];
                     merged.pathCoords = (pLocal.length > combined.length && !isInitialLoad) ? pLocal : combined;
                     merged.checkpoints = merged.checkpoints || [];
-                    
                     localMap.set(id, merged);
                 }
             });
@@ -305,6 +318,7 @@
         
         async function saveFieldToCloud(field) {
             if (isLocalMode || !isInitialized || isSaving) return;
+            if (!auth.currentUser) return;
             isSaving = true; field.lastUpdated = Date.now(); saveToLocalStorage();
             try { 
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, field.id.toString()), { 
@@ -314,7 +328,7 @@
                     checkpoints: (field.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, checked: !!cp.checked, customNumber: cp.customNumber })), 
                     lastUpdated: field.lastUpdated 
                 }); 
-            } catch(e) { console.error("Errore salvataggio Cloud:", e); } finally { isSaving = false; }
+            } catch(e) { console.error("Cloud Save error:", e); } finally { isSaving = false; }
         }
 
         // --- GPS E BUSSOLA ---
@@ -381,7 +395,7 @@
             if (!f.polyline) f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
         }
 
-        // --- MAP RENDER & SOLUZIONE INTEGRATA TOCCO MARKER (SAFEGUARD CONTRO I CRASH) ---
+        // --- MAP RENDER & TOUCH FIX ---
         function renderFieldOnMap(f) {
             if (!f) return;
             try {
@@ -390,7 +404,6 @@
                         const color = categoryColors[f.category] || '#64748b';
                         f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
                         
-                        // BARRIERA TOCCO: Rende il tocco sul pin dell'isolamento fluido ed evita l'apertura del modale di creazione sotto
                         f.marker.on('click', (ev) => { 
                             ignoreMapClick = true;
                             setTimeout(() => { ignoreMapClick = false; }, 300);
@@ -402,22 +415,14 @@
                     }
                 }
                 if (f.checkpoints && Array.isArray(f.checkpoints)) {
-                    f.checkpoints.forEach((cp, i) => {
-                        if (cp && cp.latlng && Array.isArray(cp.latlng) && cp.latlng.length === 2) {
-                            renderCheckpointOnMap(cp, i, f.id);
-                        }
-                    });
+                    f.checkpoints.forEach((cp, i) => { if (cp && cp.latlng) renderCheckpointOnMap(cp, i, f.id); });
                 }
-            } catch (err) {
-                console.error("Errore rendering isolamento:", f, err);
-            }
+            } catch (err) {}
         }
 
         function renderCheckpointOnMap(cp, index, fieldId) {
             const pinColor = cp.checked ? '#10b981' : '#ef4444';
             cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))"><path d="M12 2 L22 21 L2 21 Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/><text x="12" y="17" font-size="8" font-weight="900" fill="white" text-anchor="middle">${cp.customNumber || index+1}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
-            
-            // BARRIERA TOCCO CHECKPOINT: Apre la nota bloccando il click della mappa in modo pulito e fulmineo
             cp.marker.on('click', (ev) => { 
                 L.DomEvent.stopPropagation(ev);
                 ignoreMapClick = true;
@@ -433,13 +438,7 @@
 
         // --- UTILS ---
         window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) mergeData(JSON.parse(raw), true); };
-        window.startSync = () => { 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { 
-                if (isSaving || snap.metadata.hasPendingWrites) return; 
-                mergeData(snap.docs.map(d => d.data()), false); 
-            }, (err) => { console.error("Sync error:", err); }); 
-        };
-        
+        window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (isSaving || snap.metadata.hasPendingWrites) return; mergeData(snap.docs.map(d => d.data()), false); }); };
         window.executeManualSearch = async () => { 
             const q = document.getElementById('manualSearchInput').value.trim(); if(!q) return;
             try { 
@@ -455,99 +454,41 @@
                 } 
             } catch(e) {} 
         };
-
-        window.editField = (id) => { const f = fields.find(field => field.id == id); if (!f) return; tempFieldId = id; document.getElementById('fieldModalTitle').innerText = "Modifica Area"; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldCategoryInput').value = f.category; document.getElementById('fieldRadiusInput').value = f.radius || 300; window.openModal('fieldModal'); map.closePopup(); };
+        window.editField = (id) => { const f = fields.find(field => field.id == id); if (!f) return; tempFieldId = id; document.getElementById('fieldModalTitle').innerText = "Modifica Area"; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldCategoryInput').value = f.category; document.getElementById('fieldRadiusInput').value = f.radius; window.openModal('fieldModal'); map.closePopup(); };
         window.confirmAddField = async () => { const name = document.getElementById('fieldNameInput').value.trim(), code = document.getElementById('fieldCodeInput').value.trim(), cat = document.getElementById('fieldCategoryInput').value, rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300; if(!tempFieldCoords) return; const f = { id: Date.now(), name, code, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); renderFieldOnMap(f); await saveFieldToCloud(f); window.closeModal('fieldModal'); window.closeModal('actionChoiceModal'); window.updateFieldUI(); };
-        
         window.confirmAddCheckpoint = async () => { 
             const note = document.getElementById('checkpointNoteInput').value.trim(), checked = !!document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value; 
             let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); 
             if(!f) { f = { id: 'field_gen', name: 'NOTE', latlng: [0,0], radius: 0, pathCoords: [], checkpoints: [] }; fields.push(f); } 
-            
-            f.checkpoints = f.checkpoints || [];
-            if(tempCheckpointCoords && tempCheckpointCoords.checkpointId) { 
-                const cp = f.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); 
-                if(cp) { cp.note = note; cp.checked = checked; cp.customNumber = num; } 
-            } else { 
-                f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked, customNumber: num }); 
-            } 
+            if(tempCheckpointCoords?.checkpointId) { const cp = f.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); if(cp) { cp.note = note; cp.checked = checked; cp.customNumber = num; } } 
+            else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked, customNumber: num }); } 
             f.checkpoints.forEach(c => { if(c && c.marker) map.removeLayer(c.marker); }); 
             f.checkpoints.forEach((c, i) => { if(c) renderCheckpointOnMap(c, i, f.id); }); 
             await saveFieldToCloud(f); 
             window.closeModal('checkpointModal'); 
         };
-
         window.deleteField = async (id) => { if (!confirm("Eliminare?")) return; const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { const f = fields[idx]; clearMapField(f); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); saveToLocalStorage(); window.updateFieldUI(); } };
         window.deleteCheckpoint = async () => { if(!confirm("Eliminare nota?")) return; let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); if(f && f.checkpoints) { const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
         window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
         window.showNotification = (t) => { const el = document.getElementById('notification'); document.getElementById('notifText').innerText = t; el.classList.replace('opacity-0', 'opacity-100'); setTimeout(() => el.classList.replace('opacity-100', 'opacity-0'), 3000); };
-        
         window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Dettagli Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; window.openModal('fieldModal'); };
-        
-        // Risoluzione pulsante Aggiungi Nota
-        window.selectNewCheckpoint = () => { 
-            if (!tempFieldCoords) {
-                showNotification("Errore: posizione mappa non rilevata");
-                return;
-            }
-            tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; 
-            document.getElementById('checkpointNumberInput').value = ""; 
-            document.getElementById('checkpointNoteInput').value = ""; 
-            document.getElementById('checkpointCheckedInput').checked = false; 
-            document.getElementById('deleteCPBtn').classList.add('hidden'); 
-            window.closeModal('actionChoiceModal'); 
-            window.openModal('checkpointModal'); 
-        };
-
+        window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); };
         window.exportBackupJSON = () => { const d = localStorage.getItem('isolamenti_db_' + currentProjectName); if (!d) return; const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([d], {type: 'application/json'})); a.download = `Backup_${currentProjectName}.json`; a.click(); };
         window.importBackupJSON = (e) => { const file = e.target.files[0]; if (!file) return; const r = new FileReader(); r.onload = (ev) => { try { mergeData(JSON.parse(ev.target.result), true); } catch(err) {} }; r.readAsText(file); };
         function updateStorageInfo() { document.getElementById('storageSize').innerText = (JSON.stringify(localStorage).length / 1024).toFixed(1); }
         window.openNavigation = (lat, lng) => { window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank'); };
-
         window.openAdminConsole = () => { if (!isAdmin) return; onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'team_registry'), (snap) => { const listEl = document.getElementById('adminTeamList'); listEl.innerHTML = ""; snap.docs.forEach(docSnap => { const d = docSnap.data(); const item = document.createElement('div'); item.className = "flex flex-col p-4 bg-slate-50 rounded-2xl border border-slate-100 gap-3"; item.innerHTML = `<div class="flex items-center justify-between"><div class="flex flex-col"><span class="text-xs font-black text-slate-700 uppercase">${d.teamId}</span><span class="text-[8px] text-slate-400">Visto: ${new Date(d.lastSeen).toLocaleString()}</span></div><button onclick="window.switchAdminTeam('${d.teamId}')" class="bg-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black text-white uppercase shadow-sm cursor-pointer">Gestisci</button></div>`; listEl.appendChild(item); }); lucide.createIcons(); }); window.openModal('adminConsole'); };
         window.switchAdminTeam = (newTeam) => { currentProjectName = newTeam; fields.forEach(f => clearMapField(f)); fields = []; loadLocalCache(); if (!isLocalMode) startSync(); window.closeModal('adminConsole'); };
 
         window.onload = () => { 
-            // Inizializzazione Leaflet disabilitando tap nativo conflittuale per mobile
             map = L.map('map', { zoomControl: false, tap: false }).setView([44.5, 11.5], 6); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
-            
-            map.on('dragstart', () => { 
-                isFollowing = false; 
-                if (mapRotationEnabled) { document.getElementById('map').style.transform = 'scale(1) rotate(0deg)'; }
-            }); 
-            
-            // Gestione clic mappa esente da interferenze con i marker e pulsanti mobile
-            map.on('click', (e) => { 
-                if (ignoreMapClick) return; 
-                
-                // Filtra i click originati da elementi grafici o marker Leaflet
-                if (e.originalEvent && e.originalEvent.target) {
-                    const target = e.originalEvent.target;
-                    if (target.closest('.leaflet-marker-icon') || 
-                        target.closest('.leaflet-popup') || 
-                        target.closest('.leaflet-control') ||
-                        target.closest('.f-icon') ||
-                        target.closest('.cp-marker')) {
-                        return;
-                    }
-                }
-
-                tempFieldCoords = e.latlng; 
-                isFollowing = false; 
-                window.openModal('actionChoiceModal'); 
-                try { lucide.createIcons(); } catch(err) {}
-            }); 
-            
+            map.on('dragstart', () => { isFollowing = false; if (mapRotationEnabled) { document.getElementById('map').style.transform = 'scale(1) rotate(0deg)'; } }); 
+            map.on('click', (e) => { if (ignoreMapClick) return; tempFieldCoords = e.latlng; isFollowing = false; window.openModal('actionChoiceModal'); try { lucide.createIcons(); } catch(err) {} }); 
             mapReady = true; 
             const s = localStorage.getItem('isolamenti_last_session'); 
-            if(s) { 
-                const d = JSON.parse(s); 
-                document.getElementById('projectInput').value = d.name; 
-                document.getElementById('passwordInput').value = d.pass; 
-                handleLogin(); 
-            } 
+            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; handleLogin(); } 
             try { lucide.createIcons(); } catch(e) {}
         };
     </script>
