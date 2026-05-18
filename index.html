@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.0 - ABSOLUTE OVERRIDE</title>
+    <title>IsolamenTom v3.5.1 - TITANIUM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -15,9 +15,9 @@
         #statusPanel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 6000; max-height: 85vh; transform: translateY(calc(100% - 75px)); }
         #statusPanel.expanded { transform: translateY(0) !important; }
         .drag-handle { width: 40px; height: 4px; background-color: #cbd5e1; border-radius: 10px; margin: 0 auto 8px auto; }
-        #loginOverlay { position: fixed; inset: 0; background: #f8fafc; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        #adminConsole { position: fixed; inset: 0; background: #f8fafc; z-index: 10000; display: none; flex-direction: column; padding: 20px; overflow-y: auto; }
+        #loginOverlay { position: fixed; inset: 0; background: #f8fafc; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .cp-icon-wrapper { display: flex; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; }
+        .modal-super { z-index: 99999 !important; }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
@@ -28,9 +28,9 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.0 Absolute Override</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.1 Titanium Core</p>
             </div>
-            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione...</div>
+            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione in corso...</div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
                 <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold transition-all">
@@ -40,10 +40,10 @@
     </div>
 
     <!-- Admin Console -->
-    <div id="adminConsole" class="hidden">
-        <div class="w-full max-w-4xl mx-auto space-y-6 pb-12">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3"><div class="bg-red-600 p-2 rounded-xl text-white shadow-lg"><i data-lucide="shield-alert"></i></div><h2 class="text-xl font-black text-slate-800 uppercase">Gestione Team</h2></div>
+    <div id="adminConsole" class="hidden modal-super">
+        <div class="w-full max-w-4xl mx-auto space-y-6 pb-12 p-6 bg-slate-50 min-h-screen">
+            <div class="flex items-center justify-between pt-4">
+                <div class="flex items-center gap-3"><div class="bg-red-600 p-2 rounded-xl text-white shadow-lg"><i data-lucide="shield-alert"></i></div><h2 class="text-xl font-black text-slate-800 uppercase">Team Control</h2></div>
                 <button onclick="window.closeModal('adminConsole')" class="bg-white p-2 rounded-xl border shadow-sm active:scale-90"><i data-lucide="x"></i></button>
             </div>
             <div id="adminTeamList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
@@ -72,24 +72,23 @@
         <div id="telemetryPanel" class="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end pointer-events-none">
             <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded-xl border border-slate-100 text-[9px] font-black text-slate-600 flex items-center gap-2 shadow-lg">
                 <div class="flex flex-col items-center"><span class="text-blue-600 leading-none" id="accuracyVal">--m</span><span class="text-[7px] text-slate-400 font-bold uppercase mt-0.5">GPS</span></div>
-                <div id="syncIndicator" class="flex flex-col items-center border-l pl-2 border-slate-200"><i data-lucide="cloud-off" id="syncIcon" class="w-3.5 h-3.5 text-slate-300"></i><span id="lastSyncTime" class="text-[7px] text-slate-400 font-bold uppercase mt-0.5">Sync</span></div>
             </div>
         </div>
 
-        <!-- Dashboard Panel -->
+        <!-- Dashboard -->
         <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] flex flex-col border-t border-slate-100">
             <div id="dragArea" class="cursor-pointer p-4 pb-2" onclick="window.togglePanel()">
                 <div class="drag-handle"></div>
                 <div class="flex items-center justify-between px-2">
-                    <div class="flex flex-col"><span class="text-[10px] font-black uppercase text-slate-800 tracking-wider">Mappa Isolamenti</span><span id="fieldCount" class="text-[8px] font-bold text-slate-400 uppercase">Caricamento...</span></div>
+                    <div class="flex flex-col"><span class="text-[10px] font-black uppercase text-slate-800 tracking-wider">Dashboard</span><span id="fieldCount" class="text-[8px] font-bold text-slate-400 uppercase">Inizializzazione...</span></div>
                     <div class="bg-slate-50 p-1.5 rounded-lg text-slate-400"><i data-lucide="chevron-up" class="w-4 h-4 transition-transform duration-500" id="panelChevron"></i></div>
                 </div>
             </div>
             <div id="panelContent" class="space-y-4 overflow-y-auto px-5 pb-10 transition-opacity duration-300 h-[70vh]">
                 <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200 mb-2">
-                    <button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg">Console Amministratore</button>
+                    <button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg">Pannello Amministratore</button>
                 </div>
-                <!-- PULSANTE GPS RIPRISTINATO E PROTETTO -->
+                <!-- GPS BUTTON -->
                 <button id="trackBtn" onclick="window.toggleTracking()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">
                     <i data-lucide="navigation" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">AVVIA GPS</span>
                 </button>
@@ -98,8 +97,8 @@
         </div>
     </main>
 
-    <!-- Modali UI -->
-    <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
+    <!-- MODALI CREAZIONE/SCELTA (Z-INDEX FORZATO) -->
+    <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[40px] w-full max-w-xs p-8 text-center shadow-2xl">
             <h2 class="text-xl font-black mb-6 text-slate-900">Azione Mappa</h2>
             <div class="flex flex-col gap-3">
@@ -110,20 +109,10 @@
         </div>
     </div>
 
-    <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
-        <div class="bg-white rounded-[32px] w-full max-w-xs p-8 shadow-2xl text-center">
-            <h2 class="text-xl font-black text-slate-900 mb-5 uppercase tracking-tight">Cerca Luogo</h2>
-            <input type="text" id="manualSearchInput" placeholder="Via o Coordinate..." class="w-full border border-slate-100 rounded-xl p-3.5 bg-slate-50 text-sm outline-none mb-5">
-            <div class="flex gap-3">
-                <button onclick="window.closeModal('searchModal')" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Esci</button>
-                <button onclick="window.executeManualSearch()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow-md active:scale-95">Trova</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
+    <!-- Modale Area -->
+    <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
-            <h2 id="fieldModalTitle" class="text-xl font-black text-green-700 mb-5">Dati Area</h2>
+            <h2 id="fieldModalTitle" class="text-xl font-black text-green-700 mb-5 text-center">Dati Area</h2>
             <div class="space-y-3">
                 <input type="text" id="fieldNameInput" placeholder="Nome Campo" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 font-bold text-sm outline-none">
                 <input type="text" id="fieldCodeInput" placeholder="Codice" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 font-bold text-sm uppercase outline-none">
@@ -136,7 +125,8 @@
         </div>
     </div>
 
-    <div id="checkpointModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center z-[7000] p-6">
+    <!-- Modale Nota -->
+    <div id="checkpointModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h2 class="text-xl font-black text-blue-800 mb-5 text-center">Nota Tecnica</h2>
             <input type="number" id="checkpointNumberInput" placeholder="Numero Nota" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 font-bold text-base mb-3 outline-none">
@@ -155,6 +145,18 @@
         </div>
     </div>
 
+    <!-- Modale Ricerca -->
+    <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
+        <div class="bg-white rounded-[32px] w-full max-w-xs p-8 shadow-2xl text-center">
+            <h2 class="text-xl font-black text-slate-900 mb-5 uppercase tracking-tight">Cerca Luogo</h2>
+            <input type="text" id="manualSearchInput" placeholder="Via o Coordinate..." class="w-full border border-slate-100 rounded-xl p-3.5 bg-slate-50 text-sm outline-none mb-5">
+            <div class="flex gap-3">
+                <button onclick="window.closeModal('searchModal')" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Esci</button>
+                <button onclick="window.executeManualSearch()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs uppercase shadow-md active:scale-95">Trova</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -166,7 +168,7 @@
         
         let db, auth, map, userMarker, watchId = null, fields = [], searchIndicator = null;
         let currentProjectName = null, isLocalMode = false, mapReady = false, isSaving = false, isInitialized = false, mapRotationEnabled = false;
-        let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, lastLatlng = null, tempFieldId = null, isAdmin = false;
+        let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null, isAdmin = false;
 
         window.openModal = (id) => { const el = document.getElementById(id); if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } };
         window.closeModal = (id) => { const el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } };
@@ -175,26 +177,15 @@
         auth = getAuth(firebaseApp);
         db = getFirestore(firebaseApp);
 
-        // --- 1. LOGIN & SINCRONIZZAZIONE GPS IMMEDIATA ---
+        // --- AUTH & ADMIN ---
         window.handleLogin = async function() {
             const name = document.getElementById('projectInput').value.trim().toLowerCase();
             const pass = document.getElementById('passwordInput').value.trim();
-            
             if (!name || !pass) return alert("Inserisci ID Team e Password");
-
-            // Esecuzione immediata sincrona per sbloccare i permessi GPS del browser
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (p) => { console.log("GPS pronto"); },
-                    (e) => { console.warn("GPS in attesa di permessi manuali", e); }
-                );
-            }
-
             document.getElementById('loginStatus').classList.remove('hidden');
 
             try { 
                 await signInAnonymously(auth); 
-                
                 if (name === 'admin' && pass === 'master25') { 
                     isAdmin = true; 
                     currentProjectName = 'admin'; 
@@ -202,12 +193,11 @@
                     currentProjectName = name.replace(/[^a-z0-9_]/g, ''); 
                     window.registerTeamInRegistry(pass); 
                 }
-
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: currentProjectName, pass })); 
                 isInitialized = true; 
                 window.enterApp(); 
             } catch (err) { 
-                alert("Connessione fallita. Offline attivato.");
+                alert("Errore Server. Modalità Offline locale attivata.");
                 window.handleLocalMode(); 
             }
         };
@@ -245,7 +235,7 @@
             window.openModal('adminConsole');
         };
 
-        // --- 2. RECUPERO DATI STORICO E NOTE ---
+        // --- MOTORE DATI (ASSICURA SALVATAGGIO PERCORSI E NOTE) ---
         window.mergeData = (newData, isInitialLoad) => {
             if (!mapReady || !Array.isArray(newData)) return;
             const localMap = new Map(fields.map(f => [f.id.toString(), f]));
@@ -259,7 +249,6 @@
                     merged.pathCoords = [...p1, ...p2];
                     const pLocal = existing ? window.parsePath(existing.pathCoords) : [];
                     if (pLocal.length > merged.pathCoords.length) merged.pathCoords = pLocal;
-                    
                     merged.checkpoints = cloudField.checkpoints || []; 
                     localMap.set(id, merged);
                 }
@@ -298,7 +287,7 @@
 
         window.zoomToField = (id) => { const f = fields.find(x => x.id == id); if(f && f.latlng) { isFollowing = false; map.flyTo(f.latlng, 17); window.togglePanel(); } };
 
-        // --- 3. RENDER MAPPA E TOCCO SICURO RISOLTO (L.DomEvent.stopPropagation) ---
+        // --- MAPPA E TOCCO (RISOLUZIONE GHOST-CLICK LEAFLET) ---
         window.renderFieldOnMap = (f) => {
             if (!f) return;
             if (f.checkpoints && Array.isArray(f.checkpoints)) {
@@ -309,10 +298,9 @@
             const color = categoryColors[f.category] || '#64748b';
             f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
             
-            // Il comando nativo Leaflet ferma il tocco dall'arrivare alla mappa sottostante. Addio Timer instabili.
             f.marker.on('click', (ev) => { 
-                L.DomEvent.stopPropagation(ev); 
-                f.marker.bindPopup(`<div class="p-2 text-center text-xs font-black uppercase">${f.name}<br><button onclick="window.openNavigation(${f.latlng[0]},${f.latlng[1]})" class="bg-blue-600 text-white px-4 py-2 rounded-lg mt-2">VAI AL CAMPO</button></div>`).openPopup(); 
+                L.DomEvent.stopPropagation(ev); // Intercetta in modo nativo per impedire il clic sullo sfondo
+                f.marker.bindPopup(`<div class="p-2 text-center text-xs font-black uppercase">${f.name}<br><button onclick="window.openNavigation(${f.latlng[0]},${f.latlng[1]})" class="bg-blue-600 text-white px-4 py-2 rounded-lg mt-2">VAI</button></div>`).openPopup(); 
             });
             
             f.circle = L.circle(f.latlng, { radius: f.radius || 300, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
@@ -334,7 +322,7 @@
             });
         }
 
-        // --- CREAZIONE E MODIFICA ---
+        // --- GESTIONE MODULI DATI ---
         window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Crea Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; window.closeModal('actionChoiceModal'); window.openModal('fieldModal'); };
         window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); };
         
@@ -360,21 +348,25 @@
         window.deleteField = async (id) => { if (confirm("Eliminare definitivamente?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
         window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await window.saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
 
-        // --- 4. GPS MANUALE CON INDICATORI ---
+        // --- 4. GPS DIAGNOSTICO ESPLICITO ---
+        window.stopTrackingUI = () => {
+            isTracking = false; 
+            document.getElementById('trackLabel').innerText = 'AVVIA GPS'; 
+            document.getElementById('trackBtn').className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
+        };
+
         window.toggleTracking = () => {
             const btn = document.getElementById('trackBtn');
             const lbl = document.getElementById('trackLabel');
 
             if (isTracking) { 
                 navigator.geolocation.clearWatch(watchId); 
-                isTracking = false; 
-                lbl.innerText = 'AVVIA GPS'; 
-                btn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
+                window.stopTrackingUI();
                 return; 
             }
             
             if (!navigator.geolocation) {
-                alert("GPS non supportato dal browser!");
+                alert("ERRORE: Il browser in uso non supporta il GPS. Assicurati di usare HTTPS o un browser aggiornato.");
                 return;
             }
 
@@ -396,11 +388,13 @@
                 
                 fields.forEach(f => { if (f.id !== 'field_gen' && f.latlng && ll.distanceTo(L.latLng(f.latlng)) <= f.radius) { f.pathCoords = f.pathCoords || []; if (!f.pathCoords.length || ll.distanceTo(L.latLng(f.pathCoords[f.pathCoords.length-1][0], f.pathCoords[f.pathCoords.length-1][1])) > 5) { f.pathCoords.push([ll.lat, ll.lng]); if(!f.polyline) f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map); f.polyline.setLatLngs(f.pathCoords); window.saveFieldToCloud(f); } } });
             }, (err) => { 
-                alert("Errore GPS (" + err.code + "): " + err.message + "\n\nAutorizza la posizione dalle impostazioni del browser."); 
-                isTracking = false;
-                lbl.innerText = 'AVVIA GPS';
-                btn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
-            }, { enableHighAccuracy: true, maximumAge: 0 });
+                let msg = "Errore Sconosciuto";
+                if(err.code === 1) msg = "Permesso Negato dal telefono! Vai nelle impostazioni di Safari/Chrome e attiva la Localizzazione per questo sito.";
+                if(err.code === 2) msg = "Posizione non disponibile. Sei al chiuso?";
+                if(err.code === 3) msg = "Ricerca GPS andata in Timeout.";
+                alert("GPS BLOCCATO:\n" + msg); 
+                window.stopTrackingUI();
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
         };
 
         window.executeManualSearch = async () => { 
@@ -425,17 +419,19 @@
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (!isSaving) window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
         window.onload = () => { 
-            // Leaflet default puro, senza limitazioni artificiali che bloccano gli smartphone
+            // Inizializzazione pulita Leaflet. tap: false rimosso per permettere il corretto funzionamento touch nativo
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
             
-            // Clic pulito sulla mappa (che ora non è bloccato da ignoreMapClick)
-            map.on('click', (e) => { 
+            // Assicurazione assoluta per il tocco mappa: registriamo sia click che la pressione lunga (contextmenu)
+            const mapClickHandler = (e) => { 
                 tempFieldCoords = e.latlng; 
                 isFollowing = false; 
                 window.openModal('actionChoiceModal'); 
                 try { lucide.createIcons(); } catch(err){} 
-            });
+            };
+            map.on('click', mapClickHandler);
+            map.on('contextmenu', mapClickHandler); // Permette di aprire il menu tenendo premuto il dito
             
             mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); 
             if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
