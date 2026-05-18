@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.2 - GPS FOCUS</title>
+    <title>IsolamenTom v3.5.2 - TITANIUM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,9 +28,9 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.2 GPS Fix</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.2 Titanium Core</p>
             </div>
-            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione...</div>
+            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione in corso...</div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
                 <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold transition-all">
@@ -88,7 +88,7 @@
                 <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200 mb-2">
                     <button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg">Pannello Amministratore</button>
                 </div>
-                <!-- PULSANTE GPS RIPROGRAMMATO -->
+                <!-- GPS BUTTON -->
                 <button id="trackBtn" onclick="window.toggleTracking()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">
                     <i data-lucide="navigation" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">AVVIA GPS</span>
                 </button>
@@ -166,9 +166,11 @@
         const appId = 'isolamenti-923d0';
         const categoryColors = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', altro: '#64748b' };
         
+        // VARIABILI RIPRISTINATE CORRETTAMENTE
         let db, auth, map, userMarker, watchId = null, fields = [], searchIndicator = null;
         let currentProjectName = null, isLocalMode = false, mapReady = false, isSaving = false, isInitialized = false, mapRotationEnabled = false;
         let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null, isAdmin = false;
+        let isTracking = false, isFollowing = true, ignoreMapClick = false, lastLatlng = null;
 
         window.openModal = (id) => { const el = document.getElementById(id); if (el) { el.classList.remove('hidden'); el.classList.add('flex'); } };
         window.closeModal = (id) => { const el = document.getElementById(id); if (el) { el.classList.add('hidden'); el.classList.remove('flex'); } };
@@ -177,7 +179,7 @@
         auth = getAuth(firebaseApp);
         db = getFirestore(firebaseApp);
 
-        // --- AUTH ---
+        // --- AUTH & ADMIN ---
         window.handleLogin = async function() {
             const name = document.getElementById('projectInput').value.trim().toLowerCase();
             const pass = document.getElementById('passwordInput').value.trim();
@@ -196,7 +198,7 @@
                 isInitialized = true; 
                 window.enterApp(); 
             } catch (err) { 
-                alert("Errore Server. Modalità Offline attivata.");
+                alert("Errore Server. Modalità Offline locale attivata.");
                 window.handleLocalMode(); 
             }
         };
@@ -210,7 +212,6 @@
             if (mapReady) { 
                 window.loadLocalCache(); 
                 if (!isLocalMode) window.startSync(); 
-                // NESSUN AVVIO AUTOMATICO DEL GPS QUI!
             }
             try { lucide.createIcons(); } catch(e){}
         }
@@ -348,12 +349,11 @@
         window.deleteField = async (id) => { if (confirm("Eliminare definitivamente?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
         window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await window.saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
 
-        // --- IL MOTORE GPS FIXATO (TUTTO MANUALE E ROBUSTO) ---
+        // --- IL MOTORE GPS FIXATO ---
         window.toggleTracking = () => {
             const btn = document.getElementById('trackBtn');
             const lbl = document.getElementById('trackLabel');
 
-            // Se è già attivo, lo spengiamo.
             if (isTracking) { 
                 if (watchId !== null) navigator.geolocation.clearWatch(watchId); 
                 isTracking = false; 
@@ -371,7 +371,6 @@
             lbl.innerText = 'RICERCA SATELLITI...';
             btn.className = "w-full bg-yellow-500 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
             
-            // Creiamo la funzione che aggiorna i dati sulla mappa
             function updateLocation(pos) {
                 lbl.innerText = 'STOP GPS';
                 btn.className = "w-full bg-green-600 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
@@ -415,13 +414,11 @@
                 if(err.code === 2) msg = "Posizione non disponibile (segnale assente o sei al chiuso).";
                 if(err.code === 3) msg = "Timeout della ricerca GPS.";
                 alert("ERRORE GPS:\n" + msg); 
-                window.toggleTracking(); // Resetta il bottone
+                window.toggleTracking(); 
             }
 
-            // Primo "Wake Up" forzato del sensore
             navigator.geolocation.getCurrentPosition(
                 (initialPos) => {
-                    // Se la prima lettura ha successo, avvia il tracciamento continuo
                     watchId = navigator.geolocation.watchPosition(
                         updateLocation, 
                         handleError, 
@@ -458,12 +455,14 @@
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
             
-            map.on('click', (e) => { 
+            const mapClickHandler = (e) => { 
                 tempFieldCoords = e.latlng; 
                 isFollowing = false; 
                 window.openModal('actionChoiceModal'); 
                 try { lucide.createIcons(); } catch(err){} 
-            });
+            };
+            map.on('click', mapClickHandler);
+            map.on('contextmenu', mapClickHandler);
             
             mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); 
             if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
