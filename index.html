@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.1 - TITANIUM</title>
+    <title>IsolamenTom v3.5.2 - GPS FOCUS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,9 +28,9 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.1 Titanium Core</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.2 GPS Fix</p>
             </div>
-            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione in corso...</div>
+            <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione...</div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
                 <input type="password" id="passwordInput" placeholder="PASSWORD" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold transition-all">
@@ -88,7 +88,7 @@
                 <div id="adminTools" class="hidden p-4 bg-red-50 rounded-2xl border border-red-200 mb-2">
                     <button onclick="window.openAdminConsole()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase shadow-lg">Pannello Amministratore</button>
                 </div>
-                <!-- GPS BUTTON -->
+                <!-- PULSANTE GPS RIPROGRAMMATO -->
                 <button id="trackBtn" onclick="window.toggleTracking()" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">
                     <i data-lucide="navigation" id="trackIcon" class="fill-white w-5 h-5"></i> <span id="trackLabel">AVVIA GPS</span>
                 </button>
@@ -97,7 +97,7 @@
         </div>
     </main>
 
-    <!-- MODALI CREAZIONE/SCELTA (Z-INDEX FORZATO) -->
+    <!-- MODALI CREAZIONE/SCELTA -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[40px] w-full max-w-xs p-8 text-center shadow-2xl">
             <h2 class="text-xl font-black mb-6 text-slate-900">Azione Mappa</h2>
@@ -177,7 +177,7 @@
         auth = getAuth(firebaseApp);
         db = getFirestore(firebaseApp);
 
-        // --- AUTH & ADMIN ---
+        // --- AUTH ---
         window.handleLogin = async function() {
             const name = document.getElementById('projectInput').value.trim().toLowerCase();
             const pass = document.getElementById('passwordInput').value.trim();
@@ -187,8 +187,7 @@
             try { 
                 await signInAnonymously(auth); 
                 if (name === 'admin' && pass === 'master25') { 
-                    isAdmin = true; 
-                    currentProjectName = 'admin'; 
+                    isAdmin = true; currentProjectName = 'admin'; 
                 } else { 
                     currentProjectName = name.replace(/[^a-z0-9_]/g, ''); 
                     window.registerTeamInRegistry(pass); 
@@ -197,7 +196,7 @@
                 isInitialized = true; 
                 window.enterApp(); 
             } catch (err) { 
-                alert("Errore Server. Modalità Offline locale attivata.");
+                alert("Errore Server. Modalità Offline attivata.");
                 window.handleLocalMode(); 
             }
         };
@@ -211,6 +210,7 @@
             if (mapReady) { 
                 window.loadLocalCache(); 
                 if (!isLocalMode) window.startSync(); 
+                // NESSUN AVVIO AUTOMATICO DEL GPS QUI!
             }
             try { lucide.createIcons(); } catch(e){}
         }
@@ -235,7 +235,7 @@
             window.openModal('adminConsole');
         };
 
-        // --- MOTORE DATI (ASSICURA SALVATAGGIO PERCORSI E NOTE) ---
+        // --- MOTORE DATI ---
         window.mergeData = (newData, isInitialLoad) => {
             if (!mapReady || !Array.isArray(newData)) return;
             const localMap = new Map(fields.map(f => [f.id.toString(), f]));
@@ -287,7 +287,7 @@
 
         window.zoomToField = (id) => { const f = fields.find(x => x.id == id); if(f && f.latlng) { isFollowing = false; map.flyTo(f.latlng, 17); window.togglePanel(); } };
 
-        // --- MAPPA E TOCCO (RISOLUZIONE GHOST-CLICK LEAFLET) ---
+        // --- MAPPA ---
         window.renderFieldOnMap = (f) => {
             if (!f) return;
             if (f.checkpoints && Array.isArray(f.checkpoints)) {
@@ -299,7 +299,7 @@
             f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
             
             f.marker.on('click', (ev) => { 
-                L.DomEvent.stopPropagation(ev); // Intercetta in modo nativo per impedire il clic sullo sfondo
+                L.DomEvent.stopPropagation(ev); 
                 f.marker.bindPopup(`<div class="p-2 text-center text-xs font-black uppercase">${f.name}<br><button onclick="window.openNavigation(${f.latlng[0]},${f.latlng[1]})" class="bg-blue-600 text-white px-4 py-2 rounded-lg mt-2">VAI</button></div>`).openPopup(); 
             });
             
@@ -322,7 +322,7 @@
             });
         }
 
-        // --- GESTIONE MODULI DATI ---
+        // --- CREAZIONE E MODIFICA ---
         window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Crea Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; window.closeModal('actionChoiceModal'); window.openModal('fieldModal'); };
         window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); };
         
@@ -348,25 +348,22 @@
         window.deleteField = async (id) => { if (confirm("Eliminare definitivamente?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
         window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await window.saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
 
-        // --- 4. GPS DIAGNOSTICO ESPLICITO ---
-        window.stopTrackingUI = () => {
-            isTracking = false; 
-            document.getElementById('trackLabel').innerText = 'AVVIA GPS'; 
-            document.getElementById('trackBtn').className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
-        };
-
+        // --- IL MOTORE GPS FIXATO (TUTTO MANUALE E ROBUSTO) ---
         window.toggleTracking = () => {
             const btn = document.getElementById('trackBtn');
             const lbl = document.getElementById('trackLabel');
 
+            // Se è già attivo, lo spengiamo.
             if (isTracking) { 
-                navigator.geolocation.clearWatch(watchId); 
-                window.stopTrackingUI();
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId); 
+                isTracking = false; 
+                lbl.innerText = 'AVVIA GPS'; 
+                btn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
                 return; 
             }
             
             if (!navigator.geolocation) {
-                alert("ERRORE: Il browser in uso non supporta il GPS. Assicurati di usare HTTPS o un browser aggiornato.");
+                alert("Il tuo browser non supporta il GPS. Devi usare HTTPS e un browser aggiornato.");
                 return;
             }
 
@@ -374,27 +371,66 @@
             lbl.innerText = 'RICERCA SATELLITI...';
             btn.className = "w-full bg-yellow-500 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
             
-            watchId = navigator.geolocation.watchPosition((pos) => {
+            // Creiamo la funzione che aggiorna i dati sulla mappa
+            function updateLocation(pos) {
                 lbl.innerText = 'STOP GPS';
                 btn.className = "w-full bg-green-600 text-white py-4 rounded-2xl font-black text-base shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2";
 
                 const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); 
                 document.getElementById('accuracyVal').innerText = pos.coords.accuracy.toFixed(0) + "m";
                 
-                if (!userMarker) userMarker = L.marker(ll, { icon: L.divIcon({ html: `<div style="transform: rotate(${pos.coords.heading || 0}deg)"><svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="12" r="8" fill="rgba(37, 99, 235, 0.2)"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg></div>` }) }).addTo(map);
-                else userMarker.setLatLng(ll);
+                let isFirstFix = !userMarker;
+
+                if (!userMarker) {
+                    userMarker = L.marker(ll, { icon: L.divIcon({ html: `<div style="transform: rotate(${pos.coords.heading || 0}deg)"><svg viewBox="0 0 24 24" width="40" height="40"><circle cx="12" cy="12" r="8" fill="rgba(37, 99, 235, 0.2)"/><path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" fill="#2563eb" stroke="white" stroke-width="2"/></svg></div>` }) }).addTo(map);
+                } else {
+                    userMarker.setLatLng(ll);
+                }
                 
-                if(isFollowing) { map.panTo(ll); if (mapRotationEnabled) document.getElementById('map').style.transform = `scale(1.3) rotate(${-pos.coords.heading || 0}deg)`; }
+                if(isFollowing || isFirstFix) { 
+                    map.panTo(ll); 
+                    isFollowing = true;
+                    if (mapRotationEnabled) document.getElementById('map').style.transform = `scale(1.3) rotate(${-pos.coords.heading || 0}deg)`; 
+                }
                 
-                fields.forEach(f => { if (f.id !== 'field_gen' && f.latlng && ll.distanceTo(L.latLng(f.latlng)) <= f.radius) { f.pathCoords = f.pathCoords || []; if (!f.pathCoords.length || ll.distanceTo(L.latLng(f.pathCoords[f.pathCoords.length-1][0], f.pathCoords[f.pathCoords.length-1][1])) > 5) { f.pathCoords.push([ll.lat, ll.lng]); if(!f.polyline) f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map); f.polyline.setLatLngs(f.pathCoords); window.saveFieldToCloud(f); } } });
-            }, (err) => { 
+                fields.forEach(f => { 
+                    if (f.id !== 'field_gen' && f.latlng && ll.distanceTo(L.latLng(f.latlng)) <= f.radius) { 
+                        f.pathCoords = f.pathCoords || []; 
+                        if (!f.pathCoords.length || ll.distanceTo(L.latLng(f.pathCoords[f.pathCoords.length-1][0], f.pathCoords[f.pathCoords.length-1][1])) > 5) { 
+                            f.pathCoords.push([ll.lat, ll.lng]); 
+                            if(!f.polyline) {
+                                f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map); 
+                            } else {
+                                f.polyline.setLatLngs(f.pathCoords);
+                            }
+                            window.saveFieldToCloud(f); 
+                        } 
+                    } 
+                });
+            }
+
+            function handleError(err) {
                 let msg = "Errore Sconosciuto";
-                if(err.code === 1) msg = "Permesso Negato dal telefono! Vai nelle impostazioni di Safari/Chrome e attiva la Localizzazione per questo sito.";
-                if(err.code === 2) msg = "Posizione non disponibile. Sei al chiuso?";
-                if(err.code === 3) msg = "Ricerca GPS andata in Timeout.";
-                alert("GPS BLOCCATO:\n" + msg); 
-                window.stopTrackingUI();
-            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+                if(err.code === 1) msg = "Permesso Negato! Devi autorizzare la posizione nelle impostazioni del browser/telefono.";
+                if(err.code === 2) msg = "Posizione non disponibile (segnale assente o sei al chiuso).";
+                if(err.code === 3) msg = "Timeout della ricerca GPS.";
+                alert("ERRORE GPS:\n" + msg); 
+                window.toggleTracking(); // Resetta il bottone
+            }
+
+            // Primo "Wake Up" forzato del sensore
+            navigator.geolocation.getCurrentPosition(
+                (initialPos) => {
+                    // Se la prima lettura ha successo, avvia il tracciamento continuo
+                    watchId = navigator.geolocation.watchPosition(
+                        updateLocation, 
+                        handleError, 
+                        { enableHighAccuracy: true, maximumAge: 0 }
+                    );
+                }, 
+                handleError, 
+                { enableHighAccuracy: true, maximumAge: 0 }
+            );
         };
 
         window.executeManualSearch = async () => { 
@@ -419,19 +455,15 @@
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (!isSaving) window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
         window.onload = () => { 
-            // Inizializzazione pulita Leaflet. tap: false rimosso per permettere il corretto funzionamento touch nativo
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
             
-            // Assicurazione assoluta per il tocco mappa: registriamo sia click che la pressione lunga (contextmenu)
-            const mapClickHandler = (e) => { 
+            map.on('click', (e) => { 
                 tempFieldCoords = e.latlng; 
                 isFollowing = false; 
                 window.openModal('actionChoiceModal'); 
                 try { lucide.createIcons(); } catch(err){} 
-            };
-            map.on('click', mapClickHandler);
-            map.on('contextmenu', mapClickHandler); // Permette di aprire il menu tenendo premuto il dito
+            });
             
             mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); 
             if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
