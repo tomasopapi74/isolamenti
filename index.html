@@ -184,6 +184,7 @@
         let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null;
         let ignoreMapClick = false; 
         let lastLatlng = null;
+        let isAdmin = false;
 
         // Gestore visivo modali
         window.openModal = (id) => {
@@ -233,7 +234,6 @@
                 errBox.classList.remove('hidden');
                 btn.disabled = false;
                 btn.innerText = "Accedi al Cloud";
-                // In caso di errore cloud critico, non forziamo la modalità locale se l'utente vuole il cloud
             }
         };
 
