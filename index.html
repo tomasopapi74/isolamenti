@@ -361,15 +361,38 @@
             window.closeModal('fieldModal'); window.updateFieldUI(); tempFieldId = null;
         };
 
-        window.confirmAddCheckpoint = async () => {
-            const note = document.getElementById('checkpointNoteInput').value, checked = !!document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value;
-            let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid);
-            if(!f) { f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; fields.push(f); }
+       window.confirmAddCheckpoint = async () => {
+            // 1. Legge forzatamente e subito lo stato della spunta (Vero/Falso)
+            const note = document.getElementById('checkpointNoteInput').value;
+            const isChecked = document.getElementById('checkpointCheckedInput').checked; 
+            const num = document.getElementById('checkpointNumberInput').value;
+            
+            // 2. Trova il campo isolamento a cui appartiene
+            let tid = tempCheckpointCoords?.fieldId || 'field_gen';
+            let f = fields.find(x => x.id === tid);
+            if(!f) { 
+                f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; 
+                fields.push(f); 
+            }
             f.checkpoints = f.checkpoints || [];
-            if(tempCheckpointCoords && tempCheckpointCoords.checkpointId) { const cp = f.checkpoints.find(c => c.id === tempCheckpointCoords.checkpointId); if(cp) { cp.note = note; cp.checked = checked; cp.customNumber = num; } }
-            else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked, customNumber: num }); }
-            f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
-            await window.saveFieldToCloud(f); window.closeModal('checkpointModal');
+            
+            // 3. Applica il valore VERO/FALSO della spunta alla memoria
+            let cp = f.checkpoints.find(c => c.id === tempCheckpointCoords?.checkpointId);
+            if(cp) { 
+                cp.note = note; 
+                cp.checked = isChecked; 
+                cp.customNumber = num; 
+            } else { 
+                f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); 
+            }
+            
+            // 4. Rimuove i vecchi pin e li ridisegna immediatamente coi colori aggiornati
+            f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
+            f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
+            
+            // 5. Salva su Firebase
+            await window.saveFieldToCloud(f); 
+            window.closeModal('checkpointModal');
         };
 
         window.editField = (id) => { 
