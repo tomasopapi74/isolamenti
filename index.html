@@ -268,16 +268,40 @@
         window.saveToLocalStorage = () => { localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }))); }
         window.saveFieldToCloud = async (f) => { 
             if (isLocalMode || !isInitialized || isSaving) return; 
-            isSaving = true; f.lastUpdated = Date.now(); window.saveToLocalStorage(); 
+            isSaving = true; 
+            f.lastUpdated = Date.now(); 
+            window.saveToLocalStorage(); 
+            
             try { 
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), { 
-                    id: f.id.toString(), name: f.name, code: f.code || "---", category: f.category || "altro", 
-                    latlng: f.latlng, radius: f.radius || 300, pathCoords: JSON.stringify(f.pathCoords || []), 
-                    checkpoints: (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note, checked: !!cp.checked, customNumber: cp.customNumber })), 
-                    lastUpdated: f.lastUpdated 
-                }); 
-            } catch(e) {} finally { isSaving = false; } 
-        }
+                // Estrae solo i dati puri delle note, ripulendoli dai marker di Leaflet
+                const cleanCheckpoints = (f.checkpoints || []).map(cp => ({
+                    id: cp.id,
+                    latlng: cp.latlng,
+                    note: cp.note || "",
+                    checked: !!cp.checked, // Questo salva definitivamente lo stato del triangolo verde
+                    customNumber: cp.customNumber || ""
+                }));
+
+                // Crea una copia pulita dell'isolamento da inviare a Firebase
+                const cleanField = {
+                    id: f.id.toString(),
+                    name: f.name || "",
+                    code: f.code || "---",
+                    category: f.category || "altro",
+                    latlng: f.latlng || [0,0],
+                    radius: f.radius || 300,
+                    pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []),
+                    checkpoints: cleanCheckpoints,
+                    lastUpdated: f.lastUpdated
+                };
+
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
+            } catch(e) {
+                console.error("Errore di sincronizzazione Firebase:", e);
+            } finally { 
+                isSaving = false; 
+            } 
+        };
 
         window.updateFieldUI = () => {
             const container = document.getElementById('fieldsSection'); if (!container) return; container.innerHTML = "";
