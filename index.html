@@ -326,7 +326,42 @@
         window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords?.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await window.saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
 
         window.toggleTracking = () => { if (isTracking) { navigator.geolocation.clearWatch(watchId); isTracking = false; document.getElementById('trackLabel').innerText = 'AVVIA GPS'; return; } isTracking = true; document.getElementById('trackLabel').innerText = 'STOP GPS'; watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); if (!userMarker) userMarker = L.marker(ll).addTo(map); else userMarker.setLatLng(ll); if (isFollowing) map.panTo(ll); }, null, { enableHighAccuracy: true }); };
-        window.toggleMapRotation = () => { mapRotationEnabled = !mapRotationEnabled; };
+        window.handleOrientation = (event) => {
+            if (!mapRotationEnabled) return;
+            // Calcola l'angolo in base al dispositivo (iOS usa webkitCompassHeading, Android usa alpha)
+            let heading = event.webkitCompassHeading || (360 - event.alpha);
+            if (heading) {
+                // Ruota il contenitore della mappa nel verso opposto per mantenere la direzione davanti a te
+                document.getElementById('map').style.transform = `rotate(${-heading}deg)`;
+            }
+        };
+
+        window.toggleMapRotation = () => { 
+            mapRotationEnabled = !mapRotationEnabled; 
+            const btn = document.getElementById('rotationToggle');
+            
+            if (mapRotationEnabled) {
+                // Accende visivamente il pulsante (diventa blu)
+                btn.classList.add('text-blue-600');
+                btn.classList.remove('text-slate-700');
+                
+                // Richiesta permessi speciali (obbligatoria per iPhone/iOS 13+)
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().then(res => {
+                        if (res === 'granted') window.addEventListener('deviceorientation', window.handleOrientation);
+                    }).catch(e => console.log("Permesso bussola negato"));
+                } else {
+                    // Per Android e browser standard
+                    window.addEventListener('deviceorientation', window.handleOrientation);
+                }
+            } else {
+                // Spegne il pulsante e raddrizza la mappa a Nord
+                btn.classList.remove('text-blue-600');
+                btn.classList.add('text-slate-700');
+                window.removeEventListener('deviceorientation', window.handleOrientation);
+                document.getElementById('map').style.transform = 'rotate(0deg)'; 
+            }
+        };
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
