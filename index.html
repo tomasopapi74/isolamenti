@@ -536,9 +536,9 @@
         window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) window.mergeData(JSON.parse(raw), true); }
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (!isSaving) window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
-        window.onload = () => { 
+       window.onload = () => { 
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
             
             const mapClickHandler = (e) => { 
                 tempFieldCoords = e.latlng; 
@@ -546,6 +546,17 @@
                 window.openModal('actionChoiceModal'); 
                 try { lucide.createIcons(); } catch(err){} 
             };
+            map.on('click', mapClickHandler);
+            map.on('contextmenu', mapClickHandler);
+            
+            // NUOVA REGOLA: Se il dito trascina o zooma la mappa, sgancia l'inseguimento automatico
+            map.on('dragstart', () => { isFollowing = false; });
+            map.on('zoomstart', () => { isFollowing = false; });
+            
+            mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); 
+            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
+            try { lucide.createIcons(); } catch(e){} 
+        };
             map.on('click', mapClickHandler);
             map.on('contextmenu', mapClickHandler);
             
