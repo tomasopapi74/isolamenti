@@ -190,11 +190,21 @@
             
             try { 
                 await signInAnonymously(auth); 
-                if (name === 'admin' && pass === 'master25') { isAdmin = true; currentProjectName = 'admin'; } 
-                else { currentProjectName = name.replace(/[^a-z0-9_]/g, ''); window.registerTeamInRegistry(pass); }
+                if (name === 'admin' && pass === 'master25') { 
+                    isAdmin = true; 
+                    currentProjectName = 'admin'; 
+                } else { 
+                    // FIX: Rimosso il filtro che cancellava spazi e trattini. Ora legge il nome esatto.
+                    currentProjectName = name; 
+                    window.registerTeamInRegistry(pass); 
+                }
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: currentProjectName, pass })); 
-                isInitialized = true; window.enterApp(); 
-            } catch (err) { alert("Errore. Offline attivato."); window.handleLocalMode(); }
+                isInitialized = true; 
+                window.enterApp(); 
+            } catch (err) { 
+                alert("Errore. Offline attivato."); 
+                window.handleLocalMode(); 
+            }
         };
 
         window.handleLocalMode = () => { currentProjectName = document.getElementById('projectInput').value.trim().toLowerCase() || 'locale'; isLocalMode = true; isInitialized = true; window.enterApp(); };
