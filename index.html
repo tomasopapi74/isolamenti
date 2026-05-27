@@ -253,15 +253,16 @@
         window.saveToLocalStorage = () => { localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }))); }
         
         window.saveFieldToCloud = async (f) => { 
-            if (isLocalMode) { alert("⚠️ Salvataggio ignorato: Modalità Locale attiva."); return; }
-            if (!isInitialized) { alert("⚠️ Errore: App non connessa correttamente."); return; }
-            if (isSaving) { alert("⚠️ Attendere: un salvataggio è già in corso..."); return; }
+            if (isLocalMode || !isInitialized) return; 
+            if (isSaving) return; // Se un salvataggio è in corso, ignora i tocchi doppi in silenzio
             
             isSaving = true; 
-            f.lastUpdated = Date.now(); 
-            window.saveToLocalStorage(); 
             
             try { 
+                // Salva PRIMA di tutto in modo blindato nella memoria locale
+                f.lastUpdated = Date.now(); 
+                window.saveToLocalStorage(); 
+                
                 const cleanCheckpoints = (f.checkpoints || []).map(cp => ({
                     id: cp.id,
                     latlng: cp.latlng,
@@ -282,11 +283,10 @@
                     lastUpdated: f.lastUpdated
                 };
 
+                // Invia a Firebase senza bloccare lo schermo
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
-                alert("✅ DATI SALVATI NEL CLOUD!");
             } catch(e) {
-                alert("❌ ERRORE FIREBASE: " + e.message);
-                console.error(e);
+                console.error("Firebase in attesa di connessione...", e);
             } finally { 
                 isSaving = false; 
             } 
@@ -341,14 +341,28 @@
         };
 
         window.confirmAddCheckpoint = async () => {
-            const note = document.getElementById('checkpointNoteInput').value, isChecked = document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value;
-            let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid);
+            const note = document.getElementById('checkpointNoteInput').value;
+            const isChecked = document.getElementById('checkpointCheckedInput').checked;
+            const num = document.getElementById('checkpointNumberInput').value;
+
+            let tid = tempCheckpointCoords?.fieldId || 'field_gen';
+            let f = fields.find(x => x.id === tid);
             if(!f) { f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; fields.push(f); }
             f.checkpoints = f.checkpoints || [];
+
             let cp = f.checkpoints.find(c => c.id === tempCheckpointCoords?.checkpointId);
-            if(cp) { cp.note = note; cp.checked = isChecked; cp.customNumber = num; } else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); }
-            f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
-            await window.saveFieldToCloud(f); window.closeModal('checkpointModal');
+            if(cp) { cp.note = note; cp.checked = isChecked; cp.customNumber = num; } 
+            else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); }
+
+            // 1. AGGIORNAMENTO VISIVO IMMEDIATO (Non aspetta Firebase)
+            f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
+            f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
+
+            // 2. CHIUDE SUBITO LA FINESTRA
+            window.closeModal('checkpointModal');
+
+            // 3. LANCIA IL SALVATAGGIO IN BACKGROUND (Se internet cade, riproverà dopo)
+            window.saveFieldToCloud(f);
         };
 
         window.editField = (id) => { const f = fields.find(x => x.id == id); if(!f) return; tempFieldId = id; document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento"; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldRadiusInput').value = f.radius || 300; window.openModal('fieldModal'); };
