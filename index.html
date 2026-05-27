@@ -186,7 +186,7 @@
                 if (name.toLowerCase() === 'admin' && pass === 'master25') { 
                     isAdmin = true; currentProjectName = 'admin'; 
                 } else { 
-                    currentProjectName = name; // Rispetta gli spazi per evitare mappe vuote
+                    currentProjectName = name; 
                     window.registerTeamInRegistry(pass); 
                 }
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: currentProjectName, pass })); 
@@ -245,19 +245,15 @@
         
         window.saveToLocalStorage = () => { localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }))); }
         
-        // Salvataggio sicuro in background (non aspetta Firebase)
         window.saveFieldToCloud = async (f) => { 
             if (isLocalMode || !isInitialized) return; 
-            
             try { 
                 f.lastUpdated = Date.now(); 
                 window.saveToLocalStorage(); 
-                
                 const cleanCheckpoints = (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note || "", checked: !!cp.checked, customNumber: cp.customNumber || "" }));
                 const cleanField = { id: f.id.toString(), name: f.name || "", code: f.code || "---", category: f.category || "altro", latlng: f.latlng || [0,0], radius: f.radius || 300, pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), checkpoints: cleanCheckpoints, lastUpdated: f.lastUpdated };
-                
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
-            } catch(e) { console.error("Errore di sincronizzazione:", e); } 
+            } catch(e) { console.error("Errore salvataggio:", e); } 
         }
 
         window.updateFieldUI = () => {
@@ -339,7 +335,7 @@
         window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) window.mergeData(JSON.parse(raw), true); }
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
-       window.onload = () => { 
+        window.onload = () => { 
             map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
             
@@ -349,19 +345,15 @@
             
             mapReady = true; 
             
-            // SPAZZANEVE: Prova a leggere l'ultimo accesso, se è corrotto lo disintegra
             try {
                 const s = localStorage.getItem('isolamenti_last_session'); 
-                if(s) { 
-                    const d = JSON.parse(s); 
-                    document.getElementById('projectInput').value = d.name; 
-                    document.getElementById('passwordInput').value = d.pass; 
-                    window.handleLogin(); 
-                }
-            } catch (errore) {
+                if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
+            } catch (e) {
                 localStorage.removeItem('isolamenti_last_session');
-                console.log("Memoria di login corrotta eliminata.");
             }
             
             try { lucide.createIcons(); } catch(e){} 
         };
+    </script>
+</body>
+</html>
