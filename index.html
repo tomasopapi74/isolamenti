@@ -253,14 +253,44 @@
         window.saveToLocalStorage = () => { localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }))); }
         
         window.saveFieldToCloud = async (f) => { 
-            if (isLocalMode || !isInitialized || isSaving) return; 
-            isSaving = true; f.lastUpdated = Date.now(); window.saveToLocalStorage(); 
+            if (isLocalMode) { alert("⚠️ Salvataggio ignorato: Modalità Locale attiva."); return; }
+            if (!isInitialized) { alert("⚠️ Errore: App non connessa correttamente."); return; }
+            if (isSaving) { alert("⚠️ Attendere: un salvataggio è già in corso..."); return; }
+            
+            isSaving = true; 
+            f.lastUpdated = Date.now(); 
+            window.saveToLocalStorage(); 
+            
             try { 
-                const cleanCheckpoints = (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note || "", checked: !!cp.checked, customNumber: cp.customNumber || "" }));
-                const cleanField = { id: f.id.toString(), name: f.name || "", code: f.code || "---", category: f.category || "altro", latlng: f.latlng || [0,0], radius: f.radius || 300, pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), checkpoints: cleanCheckpoints, lastUpdated: f.lastUpdated };
+                const cleanCheckpoints = (f.checkpoints || []).map(cp => ({
+                    id: cp.id,
+                    latlng: cp.latlng,
+                    note: cp.note || "",
+                    checked: !!cp.checked,
+                    customNumber: cp.customNumber || ""
+                }));
+
+                const cleanField = {
+                    id: f.id.toString(),
+                    name: f.name || "",
+                    code: f.code || "---",
+                    category: f.category || "altro",
+                    latlng: f.latlng || [0,0],
+                    radius: f.radius || 300,
+                    pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []),
+                    checkpoints: cleanCheckpoints,
+                    lastUpdated: f.lastUpdated
+                };
+
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
-            } catch(e) { console.error(e); } finally { isSaving = false; } 
-        }
+                alert("✅ DATI SALVATI NEL CLOUD!");
+            } catch(e) {
+                alert("❌ ERRORE FIREBASE: " + e.message);
+                console.error(e);
+            } finally { 
+                isSaving = false; 
+            } 
+        };
 
         window.updateFieldUI = () => {
             const container = document.getElementById('fieldsSection'); if (!container) return; container.innerHTML = "";
