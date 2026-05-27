@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.6 - PRO EDITION</title>
+    <title>IsolamenTom v3.5.7 - PRO EDITION</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -18,17 +18,17 @@
         #loginOverlay { position: fixed; inset: 0; background: #f8fafc; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .cp-icon-wrapper { display: flex; align-items: center; justify-content: center; width: 44px !important; height: 44px !important; }
         .modal-super { z-index: 99999 !important; }
+        #adminConsole { position: fixed; inset: 0; background: #f8fafc; z-index: 100000; flex-direction: column; padding: 20px; overflow-y: auto; }
     </style>
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
 
-    <!-- Login -->
     <div id="loginOverlay">
         <div class="bg-white p-8 rounded-[32px] shadow-2xl w-full max-w-md space-y-6 border border-slate-100">
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.6 Pro Edition</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.7 Pro Edition</p>
             </div>
             <div id="loginStatus" class="hidden text-center py-3 bg-blue-50 text-blue-700 text-[10px] font-black rounded-xl uppercase">Connessione in corso...</div>
             <div class="space-y-3">
@@ -39,8 +39,7 @@
         </div>
     </div>
 
-    <!-- Admin Console -->
-    <div id="adminConsole" class="hidden modal-super">
+    <div id="adminConsole" class="hidden">
         <div class="w-full max-w-4xl mx-auto space-y-6 pb-12 p-6 bg-slate-50 min-h-screen">
             <div class="flex items-center justify-between pt-4">
                 <div class="flex items-center gap-3"><div class="bg-red-600 p-2 rounded-xl text-white shadow-lg"><i data-lucide="shield-alert"></i></div><h2 class="text-xl font-black text-slate-800 uppercase">Team Control</h2></div>
@@ -50,7 +49,6 @@
         </div>
     </div>
 
-    <!-- Header UI -->
     <header class="bg-white shadow-md px-3 sticky top-0 z-50 border-b h-[60px] flex items-center gap-3">
         <div class="flex items-center gap-2">
             <div class="bg-green-600 p-1.5 rounded-lg shadow-md"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
@@ -75,7 +73,6 @@
             </div>
         </div>
 
-        <!-- Dashboard Panel -->
         <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] flex flex-col border-t border-slate-100">
             <div id="dragArea" class="cursor-pointer p-4 pb-2" onclick="window.togglePanel()">
                 <div class="drag-handle"></div>
@@ -96,7 +93,6 @@
         </div>
     </main>
 
-    <!-- Modali Creazione -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[40px] w-full max-w-xs p-8 text-center shadow-2xl">
             <h2 class="text-xl font-black mb-6 text-slate-900">Azione Mappa</h2>
@@ -108,7 +104,6 @@
         </div>
     </div>
 
-    <!-- Modale Area -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h2 id="fieldModalTitle" class="text-xl font-black text-green-700 mb-5 text-center">Dati Area</h2>
@@ -130,7 +125,6 @@
         </div>
     </div>
 
-    <!-- Modale Nota -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h2 class="text-xl font-black text-blue-800 mb-5 text-center">Nota Tecnica</h2>
@@ -150,7 +144,6 @@
         </div>
     </div>
 
-    <!-- Modale Ricerca -->
     <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-w-xs p-8 shadow-2xl text-center">
             <h2 class="text-xl font-black text-slate-900 mb-5 uppercase tracking-tight">Cerca Luogo</h2>
@@ -171,7 +164,7 @@
         const appId = 'isolamenti-923d0';
         const categoryColors = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', altro: '#64748b' };
         
-        let db, auth, map, userMarker, watchId = null, fields = [], searchIndicator = null;
+        let db, auth, map, userMarker, watchId = null, fields = [];
         let currentProjectName = null, isLocalMode = false, mapReady = false, isSaving = false, isInitialized = false, mapRotationEnabled = false;
         let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null, isAdmin = false;
         let isTracking = false, isFollowing = true;
@@ -184,18 +177,16 @@
         db = getFirestore(firebaseApp);
 
         window.handleLogin = async function() {
-            const name = document.getElementById('projectInput').value.trim().toLowerCase();
+            const name = document.getElementById('projectInput').value.trim();
             const pass = document.getElementById('passwordInput').value.trim();
             if (!name || !pass) return alert("Inserisci ID Team e Password");
             
             try { 
                 await signInAnonymously(auth); 
-                if (name === 'admin' && pass === 'master25') { 
-                    isAdmin = true; 
-                    currentProjectName = 'admin'; 
+                if (name.toLowerCase() === 'admin' && pass === 'master25') { 
+                    isAdmin = true; currentProjectName = 'admin'; 
                 } else { 
-                    // FIX: Rimosso il filtro che cancellava spazi e trattini. Ora legge il nome esatto.
-                    currentProjectName = name; 
+                    currentProjectName = name; // Rispetta gli spazi per evitare mappe vuote
                     window.registerTeamInRegistry(pass); 
                 }
                 localStorage.setItem('isolamenti_last_session', JSON.stringify({ name: currentProjectName, pass })); 
@@ -207,7 +198,7 @@
             }
         };
 
-        window.handleLocalMode = () => { currentProjectName = document.getElementById('projectInput').value.trim().toLowerCase() || 'locale'; isLocalMode = true; isInitialized = true; window.enterApp(); };
+        window.handleLocalMode = () => { currentProjectName = document.getElementById('projectInput').value.trim() || 'locale'; isLocalMode = true; isInitialized = true; window.enterApp(); };
 
         window.enterApp = () => {
             document.getElementById('displayProjName').innerText = currentProjectName.toUpperCase();
@@ -218,6 +209,7 @@
         }
 
         window.registerTeamInRegistry = async (pass) => { if (isAdmin || isLocalMode) return; try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'team_registry', currentProjectName), { teamId: currentProjectName, password: pass, lastSeen: Date.now() }); } catch(e) {} }
+        
         window.openAdminConsole = () => {
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'team_registry'), (snap) => {
                 const list = document.getElementById('adminTeamList'); list.innerHTML = "";
@@ -250,50 +242,27 @@
         }
 
         window.clearMapField = (f) => { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); }
+        
         window.saveToLocalStorage = () => { localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { const c = {...f}; delete c.marker; delete c.circle; delete c.polyline; if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); return c; }))); }
         
+        // Salvataggio sicuro in background (non aspetta Firebase)
         window.saveFieldToCloud = async (f) => { 
             if (isLocalMode || !isInitialized) return; 
-            if (isSaving) return; // Se un salvataggio è in corso, ignora i tocchi doppi in silenzio
-            
-            isSaving = true; 
             
             try { 
-                // Salva PRIMA di tutto in modo blindato nella memoria locale
                 f.lastUpdated = Date.now(); 
                 window.saveToLocalStorage(); 
                 
-                const cleanCheckpoints = (f.checkpoints || []).map(cp => ({
-                    id: cp.id,
-                    latlng: cp.latlng,
-                    note: cp.note || "",
-                    checked: !!cp.checked,
-                    customNumber: cp.customNumber || ""
-                }));
-
-                const cleanField = {
-                    id: f.id.toString(),
-                    name: f.name || "",
-                    code: f.code || "---",
-                    category: f.category || "altro",
-                    latlng: f.latlng || [0,0],
-                    radius: f.radius || 300,
-                    pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []),
-                    checkpoints: cleanCheckpoints,
-                    lastUpdated: f.lastUpdated
-                };
-
-                // Invia a Firebase senza bloccare lo schermo
+                const cleanCheckpoints = (f.checkpoints || []).map(cp => ({ id: cp.id, latlng: cp.latlng, note: cp.note || "", checked: !!cp.checked, customNumber: cp.customNumber || "" }));
+                const cleanField = { id: f.id.toString(), name: f.name || "", code: f.code || "---", category: f.category || "altro", latlng: f.latlng || [0,0], radius: f.radius || 300, pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), checkpoints: cleanCheckpoints, lastUpdated: f.lastUpdated };
+                
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
-            } catch(e) {
-                console.error("Firebase in attesa di connessione...", e);
-            } finally { 
-                isSaving = false; 
-            } 
-        };
+            } catch(e) { console.error("Errore di sincronizzazione:", e); } 
+        }
 
         window.updateFieldUI = () => {
             const container = document.getElementById('fieldsSection'); if (!container) return; container.innerHTML = "";
+            document.getElementById('fieldCount').innerText = `${fields.filter(f => f.id !== 'field_gen').length} Aree`;
             fields.filter(f => f.id && f.id !== 'field_gen').forEach(f => {
                 const div = document.createElement('div'); div.className = "p-4 bg-slate-50 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100";
                 div.innerHTML = `<div class="flex items-center gap-3 cursor-pointer flex-1 py-1" onclick="window.zoomToField('${f.id}')"><div class="w-3 h-3 rounded-full" style="background:${categoryColors[f.category] || '#64748b'}"></div><span class="text-xs font-black uppercase text-slate-700">${f.name}</span></div><div class="flex gap-2"><button onclick="window.editField('${f.id}')" class="p-2 text-blue-600 bg-white rounded-lg shadow-sm"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="window.deleteField('${f.id}')" class="p-2 text-red-500 bg-white rounded-lg shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
@@ -313,7 +282,6 @@
             f.marker.bindTooltip(`<span style="font-weight:900; font-size:10px; text-transform:uppercase; color:#1e293b;">${f.name}</span>`, { permanent: true, direction: 'top', offset: [0, -10], opacity: 0.9 });
             f.marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); f.marker.bindPopup(`<div class="p-2 text-center text-xs font-black uppercase">${f.name}</div>`).openPopup(); });
             f.circle = L.circle(f.latlng, { radius: f.radius || 300, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
-            if (f.pathCoords?.length) f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
         }
 
         window.renderCheckpointOnMap = (cp, index, fieldId) => {
@@ -321,7 +289,7 @@
             cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36"><path d="M12 2 L22 21 L2 21 Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/><text x="12" y="17" font-size="8" font-weight="900" fill="white" text-anchor="middle">${cp.customNumber || index+1}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
             cp.marker.on('click', (ev) => { 
                 L.DomEvent.stopPropagation(ev); 
-                tempCheckpointCoords = { checkpointId: cp.id, fieldId, cpRef: cp, lat: cp.latlng[0], lng: cp.latlng[1] }; 
+                tempCheckpointCoords = { checkpointId: cp.id, fieldId, lat: cp.latlng[0], lng: cp.latlng[1] }; 
                 document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; 
                 document.getElementById('checkpointNoteInput').value = cp.note || ""; 
                 document.getElementById('checkpointCheckedInput').checked = !!cp.checked; 
@@ -335,98 +303,41 @@
         
         window.confirmAddField = async () => { 
             const n = document.getElementById('fieldNameInput').value, c = document.getElementById('fieldCodeInput').value, cat = document.getElementById('fieldCategoryInput').value, rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300;
-            if (tempFieldId) { const f = fields.find(x => x.id == tempFieldId); if(f) { f.name = n; f.code = c; f.category = cat; f.radius = rad; window.clearMapField(f); window.renderFieldOnMap(f); await window.saveFieldToCloud(f); } } 
-            else { const f = { id: Date.now(), name: n, code: c, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); window.renderFieldOnMap(f); await window.saveFieldToCloud(f); }
+            if (tempFieldId) { const f = fields.find(x => x.id == tempFieldId); if(f) { f.name = n; f.code = c; f.category = cat; f.radius = rad; window.clearMapField(f); window.renderFieldOnMap(f); window.saveFieldToCloud(f); } } 
+            else { const f = { id: Date.now(), name: n, code: c, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); window.renderFieldOnMap(f); window.saveFieldToCloud(f); }
             window.closeModal('fieldModal'); window.updateFieldUI(); tempFieldId = null;
         };
 
         window.confirmAddCheckpoint = async () => {
-            const note = document.getElementById('checkpointNoteInput').value;
-            const isChecked = document.getElementById('checkpointCheckedInput').checked;
-            const num = document.getElementById('checkpointNumberInput').value;
-
-            let tid = tempCheckpointCoords?.fieldId || 'field_gen';
-            let f = fields.find(x => x.id === tid);
+            const note = document.getElementById('checkpointNoteInput').value, isChecked = document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value;
+            let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid);
             if(!f) { f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; fields.push(f); }
             f.checkpoints = f.checkpoints || [];
-
             let cp = f.checkpoints.find(c => c.id === tempCheckpointCoords?.checkpointId);
-            if(cp) { cp.note = note; cp.checked = isChecked; cp.customNumber = num; } 
-            else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); }
-
-            // 1. AGGIORNAMENTO VISIVO IMMEDIATO (Non aspetta Firebase)
-            f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
-            f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
-
-            // 2. CHIUDE SUBITO LA FINESTRA
+            if(cp) { cp.note = note; cp.checked = isChecked; cp.customNumber = num; } else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); }
+            f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
             window.closeModal('checkpointModal');
-
-            // 3. LANCIA IL SALVATAGGIO IN BACKGROUND (Se internet cade, riproverà dopo)
-            window.saveFieldToCloud(f);
+            window.saveFieldToCloud(f); 
         };
 
         window.editField = (id) => { const f = fields.find(x => x.id == id); if(!f) return; tempFieldId = id; document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento"; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldRadiusInput').value = f.radius || 300; window.openModal('fieldModal'); };
         window.deleteField = async (id) => { if (confirm("Eliminare?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
-        window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords?.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); await window.saveFieldToCloud(f); window.closeModal('checkpointModal'); } } };
+        window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords?.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); window.closeModal('checkpointModal'); window.saveFieldToCloud(f); } } };
 
         window.toggleTracking = () => { if (isTracking) { navigator.geolocation.clearWatch(watchId); isTracking = false; document.getElementById('trackLabel').innerText = 'AVVIA GPS'; return; } isTracking = true; document.getElementById('trackLabel').innerText = 'STOP GPS'; watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); if (!userMarker) userMarker = L.marker(ll).addTo(map); else userMarker.setLatLng(ll); if (isFollowing) map.panTo(ll); }, null, { enableHighAccuracy: true }); };
-        window.handleOrientation = (event) => {
-            if (!mapRotationEnabled) return;
-            // Calcola l'angolo in base al dispositivo (iOS usa webkitCompassHeading, Android usa alpha)
-            let heading = event.webkitCompassHeading || (360 - event.alpha);
-            if (heading) {
-                // Ruota il contenitore della mappa nel verso opposto per mantenere la direzione davanti a te
-                document.getElementById('map').style.transform = `rotate(${-heading}deg)`;
-            }
-        };
-
+        
+        window.handleOrientation = (event) => { if (!mapRotationEnabled) return; let heading = event.webkitCompassHeading || (360 - event.alpha); if (heading) { document.getElementById('map').style.transform = `rotate(${-heading}deg)`; } };
         window.toggleMapRotation = () => { 
-            mapRotationEnabled = !mapRotationEnabled; 
-            const btn = document.getElementById('rotationToggle');
-            
-            if (mapRotationEnabled) {
-                // Accende visivamente il pulsante (diventa blu)
-                btn.classList.add('text-blue-600');
-                btn.classList.remove('text-slate-700');
-                
-                // Richiesta permessi speciali (obbligatoria per iPhone/iOS 13+)
-                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission().then(res => {
-                        if (res === 'granted') window.addEventListener('deviceorientation', window.handleOrientation);
-                    }).catch(e => console.log("Permesso bussola negato"));
-                } else {
-                    // Per Android e browser standard
-                    window.addEventListener('deviceorientation', window.handleOrientation);
-                }
-            } else {
-                // Spegne il pulsante e raddrizza la mappa a Nord
-                btn.classList.remove('text-blue-600');
-                btn.classList.add('text-slate-700');
-                window.removeEventListener('deviceorientation', window.handleOrientation);
-                document.getElementById('map').style.transform = 'rotate(0deg)'; 
-            }
+            mapRotationEnabled = !mapRotationEnabled; const btn = document.getElementById('rotationToggle');
+            if (mapRotationEnabled) { btn.classList.add('text-blue-600'); btn.classList.remove('text-slate-700'); if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') { DeviceOrientationEvent.requestPermission().then(res => { if (res === 'granted') window.addEventListener('deviceorientation', window.handleOrientation); }).catch(e => {}); } else { window.addEventListener('deviceorientation', window.handleOrientation); } } 
+            else { btn.classList.remove('text-blue-600'); btn.classList.add('text-slate-700'); window.removeEventListener('deviceorientation', window.handleOrientation); document.getElementById('map').style.transform = 'rotate(0deg)'; }
         };
+        
         window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
         window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
         window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
-        window.parsePath = (p) => { try { return JSON.parse(p); } catch(e) { return []; } }
         window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) window.mergeData(JSON.parse(raw), true); }
-        window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { if (!isSaving) window.mergeData(snap.docs.map(d => d.data()), false); }); }
+        window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
         window.onload = () => { 
-            map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
-            
-            const mapClickHandler = (e) => { tempFieldCoords = e.latlng; isFollowing = false; window.openModal('actionChoiceModal'); try { lucide.createIcons(); } catch(err){} };
-            map.on('click', mapClickHandler);
-            map.on('contextmenu', mapClickHandler);
-            map.on('dragstart', () => { isFollowing = false; });
-            map.on('zoomstart', () => { isFollowing = false; });
-            
-            mapReady = true; const s = localStorage.getItem('isolamenti_last_session'); 
-            if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
-            try { lucide.createIcons(); } catch(e){} 
-        };
-</script>
-</body>
-</html>
+            map
