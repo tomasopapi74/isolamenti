@@ -390,23 +390,6 @@
     <div id="memoryDumpArea" class="bg-white p-2 border rounded whitespace-pre-wrap">Clicca il pulsante per cercare i dati salvati nel telefono...</div>
 </div>
 
-<script>
-    window.dumpAllMemory = function() {
-        let trovato = false;
-        let report = "";
-        for (let i = 0; i < localStorage.length; i++) {
-            let key = localStorage.key(i);
-            if (key.includes("isolamenti_db_")) {
-                trovato = true;
-                report += "CHIAVE TROVATA: " + key + "\n";
-                report += "DATI: " + localStorage.getItem(key).substring(0, 300) + "...\n\n";
-            }
-        }
-        if (!trovato) {
-            report = "Nessun dato trovato con prefisso 'isolamenti_db_'. Chiavi totali in memoria: " + localStorage.length;
-        }
-        document.getElementById('memoryDumpArea').innerText = report;
-    }
 </script>
 </body>
 </html>
