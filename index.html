@@ -339,5 +339,29 @@
         window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) window.mergeData(JSON.parse(raw), true); }
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { window.mergeData(snap.docs.map(d => d.data()), false); }); }
 
-        window.onload = () => { 
-            map
+       window.onload = () => { 
+            map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
+            
+            const mapClickHandler = (e) => { tempFieldCoords = e.latlng; isFollowing = false; window.openModal('actionChoiceModal'); try { lucide.createIcons(); } catch(err){} };
+            map.on('click', mapClickHandler); map.on('contextmenu', mapClickHandler);
+            map.on('dragstart', () => { isFollowing = false; }); map.on('zoomstart', () => { isFollowing = false; });
+            
+            mapReady = true; 
+            
+            // SPAZZANEVE: Prova a leggere l'ultimo accesso, se è corrotto lo disintegra
+            try {
+                const s = localStorage.getItem('isolamenti_last_session'); 
+                if(s) { 
+                    const d = JSON.parse(s); 
+                    document.getElementById('projectInput').value = d.name; 
+                    document.getElementById('passwordInput').value = d.pass; 
+                    window.handleLogin(); 
+                }
+            } catch (errore) {
+                localStorage.removeItem('isolamenti_last_session');
+                console.log("Memoria di login corrotta eliminata.");
+            }
+            
+            try { lucide.createIcons(); } catch(e){} 
+        };
