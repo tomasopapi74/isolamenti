@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.10 - PRO EDITION</title>
+    <title>IsolamenTom v3.5.11 - PRO EDITION</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,7 +28,7 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.10 Pro Edition</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.11 Pro Edition</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
@@ -129,11 +129,16 @@
             <h2 class="text-xl font-black text-blue-800 mb-5 text-center">Nota Tecnica</h2>
             <input type="number" id="checkpointNumberInput" placeholder="Numero Nota" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 font-bold text-base mb-3 outline-none">
             <textarea id="checkpointNoteInput" rows="3" class="w-full border border-slate-100 rounded-xl p-4 bg-slate-50 text-sm outline-none mb-4" placeholder="Dettagli..."></textarea>
-            <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl mb-6 border border-slate-100">
+            <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-xl mb-4 border border-slate-100">
                 <input type="checkbox" id="checkpointCheckedInput" class="w-6 h-6 rounded-lg text-blue-600">
                 <label class="text-xs font-black text-slate-700 uppercase">Isolamento OK</label>
             </div>
+            
             <div class="flex flex-col gap-2">
+                <button onclick="window.navigateToCheckpoint()" class="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-black text-xs uppercase shadow-md flex items-center justify-center gap-2 tracking-wider active:scale-95 transition-all">
+                    <i data-lucide="navigation-2" class="w-4 h-4 fill-white"></i> Vai (Naviga)
+                </button>
+                
                 <div class="flex gap-3">
                     <button onclick="window.closeModal('checkpointModal')" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Chiudi</button>
                     <button onclick="window.confirmAddCheckpoint()" class="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black text-xs shadow-md">Salva</button>
@@ -164,7 +169,7 @@
         const categoryColors = { cipolle: '#f97316', bunching: '#22c55e', brassiche: '#a855f7', altro: '#64748b' };
         
         let db, auth, map, userMarker, watchId = null, fields = [];
-        let currentProjectName = null, isLocalMode = false, mapReady = false, isInitialized = false, mapRotationEnabled = false;
+        let currentProjectName = null, isLocalMode = false, mapReady = false, isSaving = false, isInitialized = false, mapRotationEnabled = false;
         let tempFieldCoords = null, tempCheckpointCoords = null, isExpanded = false, tempFieldId = null, isAdmin = false;
         let isTracking = false, isFollowing = true;
 
@@ -249,42 +254,34 @@
 
         window.clearMapField = (f) => { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); }
         
-        // FIX 3.5.10: Salvataggio locale intelligente e a prova di bomba
         window.saveToLocalStorage = () => { 
             try {
                 localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { 
                     const c = {...f}; 
                     delete c.marker; delete c.circle; delete c.polyline; 
-                    // Non salviamo i percorsi stradali pesanti nella cache locale per non far esplodere la quota di 5MB
                     delete c.pathCoords; 
                     if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); 
                     return c; 
                 }))); 
             } catch(e) {
-                console.warn("Memoria locale piena, ma non fermo l'app.");
+                console.warn("Memoria locale piena.");
             }
         }
         
         window.saveFieldToCloud = async (f) => { 
             if (isLocalMode || !isInitialized) return; 
-            
             f.lastUpdated = Date.now(); 
-            // Ora questo comando NON interrompe l'esecuzione se fallisce
             window.saveToLocalStorage(); 
-            
             try { 
                 const cleanCheckpoints = (f.checkpoints || []).map(cp => ({ 
                     id: cp.id, latlng: cp.latlng, note: cp.note || "", checked: !!cp.checked, customNumber: cp.customNumber || "" 
                 }));
-                
                 const cleanField = { 
                     id: f.id.toString(), name: f.name || "", code: f.code || "---", category: f.category || "altro", 
                     latlng: f.latlng || [0,0], radius: f.radius || 300, 
                     pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
                     checkpoints: cleanCheckpoints, lastUpdated: f.lastUpdated 
                 };
-                
-                // Manda tutto al cloud (Firebase accetterà anche percorsi infiniti senza bloccarsi)
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
             } catch(e) { 
                 alert("❌ ERRORE FIREBASE IMPREVISTO: " + e.message); 
@@ -331,11 +328,22 @@
                 document.getElementById('checkpointCheckedInput').checked = !!cp.checked; 
                 document.getElementById('deleteCPBtn').classList.remove('hidden'); 
                 window.openModal('checkpointModal'); 
+                try { lucide.createIcons(); } catch(e){}
             });
         }
 
+        // FUNZIONE "VAI" DI NAVIGAZIONE DIRETTA SU GOOGLE MAPS
+        window.navigateToCheckpoint = () => {
+            if (!tempCheckpointCoords || !tempCheckpointCoords.lat || !tempCheckpointCoords.lng) {
+                alert("⚠️ Coordinate non disponibili per la navigazione.");
+                return;
+            }
+            const url = `https://www.google.com/maps/search/?api=1&query=${tempCheckpointCoords.lat},${tempCheckpointCoords.lng}`;
+            window.open(url, '_blank');
+        };
+
         window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Crea Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldRadiusInput').value = "300"; window.closeModal('actionChoiceModal'); window.openModal('fieldModal'); };
-        window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); };
+        window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); try { lucide.createIcons(); } catch(e){} };
         
         window.confirmAddField = async () => { 
             try {
@@ -350,30 +358,14 @@
             try {
                 const note = document.getElementById('checkpointNoteInput').value, isChecked = document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value;
                 let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid);
-                
-                if(!f) { 
-                    f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; 
-                    fields.push(f); 
-                }
-                
+                if(!f) { f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; fields.push(f); }
                 f.checkpoints = f.checkpoints || [];
                 let cp = f.checkpoints.find(c => c.id === tempCheckpointCoords?.checkpointId);
-                
-                if(cp) { 
-                    cp.note = note; cp.checked = isChecked; cp.customNumber = num; 
-                } else { 
-                    f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); 
-                }
-                
-                f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); 
-                f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
+                if(cp) { cp.note = note; cp.checked = isChecked; cp.customNumber = num; } else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); }
+                f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
                 window.closeModal('checkpointModal');
-                
                 window.saveFieldToCloud(f); 
-                
-            } catch (err) { 
-                alert("❌ ERRORE IMPREVISTO: " + err.message); 
-            }
+            } catch (err) { alert("❌ ERRORE IMPREVISTO: " + err.message); }
         };
 
         window.editField = (id) => { const f = fields.find(x => x.id == id); if(!f) return; tempFieldId = id; document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento"; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldRadiusInput').value = f.radius || 300; window.openModal('fieldModal'); };
@@ -394,7 +386,6 @@
         window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
         
         window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) window.mergeData(JSON.parse(raw)); }
-        
         window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { window.mergeData(snap.docs.map(d => d.data())); }); }
 
         window.onload = () => { 
@@ -406,14 +397,10 @@
             map.on('dragstart', () => { isFollowing = false; }); map.on('zoomstart', () => { isFollowing = false; });
             
             mapReady = true; 
-            
             try {
                 const s = localStorage.getItem('isolamenti_last_session'); 
                 if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
-            } catch (e) {
-                localStorage.removeItem('isolamenti_last_session');
-            }
-            
+            } catch (e) { localStorage.removeItem('isolamenti_last_session'); }
             try { lucide.createIcons(); } catch(e){} 
         };
     </script>
