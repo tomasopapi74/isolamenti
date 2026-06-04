@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.11 - PRO EDITION</title>
+    <title>IsolamenTom v3.5.12 - PRO EDITION</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -28,7 +28,7 @@
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.11 Pro Edition</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.12 Pro Edition</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
@@ -116,9 +116,15 @@
                     <input type="number" id="fieldRadiusInput" value="300" class="w-2/3 border border-slate-100 rounded-xl p-4 bg-slate-50 font-bold text-sm outline-none">
                 </div>
 
-                <div class="flex gap-3 pt-3">
-                    <button onclick="window.closeModal('fieldModal')" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Annulla</button>
-                    <button onclick="window.confirmAddField()" class="flex-1 py-4 bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md">Salva</button>
+                <div class="flex flex-col gap-2 pt-2">
+                    <button id="fieldNavigateBtn" onclick="window.navigateToField()" class="hidden w-full bg-emerald-600 text-white py-3.5 rounded-xl font-black text-xs uppercase shadow-md flex items-center justify-center gap-2 tracking-wider active:scale-95 transition-all">
+                        <i data-lucide="navigation-2" class="w-4 h-4 fill-white"></i> Vai (Naviga)
+                    </button>
+
+                    <div class="flex gap-3">
+                        <button onclick="window.closeModal('fieldModal')" class="flex-1 py-4 text-slate-400 font-bold text-xs uppercase">Annulla</button>
+                        <button onclick="window.confirmAddField()" class="flex-1 py-4 bg-green-600 text-white rounded-xl font-black text-xs uppercase shadow-md">Salva</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -309,7 +315,10 @@
             const color = categoryColors[f.category] || '#64748b';
             f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
             f.marker.bindTooltip(`<span style="font-weight:900; font-size:10px; text-transform:uppercase; color:#1e293b;">${f.name}</span>`, { permanent: true, direction: 'top', offset: [0, -10], opacity: 0.9 });
-            f.marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); f.marker.bindPopup(`<div class="p-2 text-center text-xs font-black uppercase">${f.name}</div>`).openPopup(); });
+            
+            // Facendo click sul germoglio si apre direttamente la modale con i dati e il tasto navigatore
+            f.marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); window.editField(f.id); });
+            
             f.circle = L.circle(f.latlng, { radius: f.radius || 300, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
             
             if (f.pathCoords && Array.isArray(f.pathCoords) && f.pathCoords.length > 0) {
@@ -332,7 +341,7 @@
             });
         }
 
-        // FUNZIONE "VAI" DI NAVIGAZIONE DIRETTA SU GOOGLE MAPS
+        // NAVIGAZIONE FINO ALLA NOTA TECNICA (TRIANGOLO)
         window.navigateToCheckpoint = () => {
             if (!tempCheckpointCoords || !tempCheckpointCoords.lat || !tempCheckpointCoords.lng) {
                 alert("⚠️ Coordinate non disponibili per la navigazione.");
@@ -342,8 +351,20 @@
             window.open(url, '_blank');
         };
 
-        window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Crea Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldRadiusInput').value = "300"; window.closeModal('actionChoiceModal'); window.openModal('fieldModal'); };
-        window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); try { lucide.createIcons(); } catch(e){} };
+        // NAVIGAZIONE FINO AL CENTRO DELL'ISOLAMENTO (PUNTO TONDO)
+        window.navigateToField = () => {
+            if (!tempFieldId) return;
+            const f = fields.find(x => x.id == tempFieldId);
+            if (!f || !f.latlng) {
+                alert("⚠️ Coordinate non disponibili per la navigazione.");
+                return;
+            }
+            const url = `https://www.google.com/maps/search/?api=1&query=${f.latlng[0]},${f.latlng[1]}`;
+            window.open(url, '_blank');
+        };
+
+        window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Crea Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldRadiusInput').value = "300"; document.getElementById('fieldNavigateBtn').classList.add('hidden'); window.closeModal('actionChoiceActionChoiceModal'); window.closeModal('actionChoiceModal'); window.openModal('fieldModal'); };
+        window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); try { lucide.createIcons(); } catch(e){} };
         
         window.confirmAddField = async () => { 
             try {
@@ -368,7 +389,20 @@
             } catch (err) { alert("❌ ERRORE IMPREVISTO: " + err.message); }
         };
 
-        window.editField = (id) => { const f = fields.find(x => x.id == id); if(!f) return; tempFieldId = id; document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento"; document.getElementById('fieldNameInput').value = f.name; document.getElementById('fieldCodeInput').value = f.code; document.getElementById('fieldRadiusInput').value = f.radius || 300; window.openModal('fieldModal'); };
+        window.editField = (id) => { 
+            const f = fields.find(x => x.id == id); 
+            if(!f) return; 
+            tempFieldId = id; 
+            document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento"; 
+            document.getElementById('fieldNameInput').value = f.name; 
+            document.getElementById('fieldCodeInput').value = f.code; 
+            document.getElementById('fieldCategoryInput').value = f.category || "altro";
+            document.getElementById('fieldRadiusInput').value = f.radius || 300; 
+            document.getElementById('fieldNavigateBtn').classList.remove('hidden'); // Mostra il tasto Vai in modifica
+            window.openModal('fieldModal'); 
+            try { lucide.createIcons(); } catch(e){}
+        };
+        
         window.deleteField = async (id) => { if (confirm("Eliminare?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
         window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords?.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); window.closeModal('checkpointModal'); window.saveFieldToCloud(f); } } };
 
