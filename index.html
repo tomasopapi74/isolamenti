@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IsolamenTom v3.5.12 - PRO EDITION</title>
+    <title>IsolamenTom v3.5.13 - PRO EDITION</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -23,12 +23,13 @@
 </head>
 <body class="bg-slate-50 font-sans overflow-hidden">
 
+    <!-- Login -->
     <div id="loginOverlay">
         <div class="bg-white p-8 rounded-[32px] shadow-2xl w-full max-w-md space-y-6 border border-slate-100">
             <div class="text-center">
                 <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"><i data-lucide="shield-check" class="text-white w-8 h-8"></i></div>
                 <h1 class="text-2xl font-black text-slate-800 tracking-tight">IsolamenTom</h1>
-                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.12 Pro Edition</p>
+                <p class="text-blue-600 text-[9px] font-black uppercase tracking-widest mt-2">v3.5.13 Pro Edition</p>
             </div>
             <div class="space-y-3">
                 <input type="text" id="projectInput" placeholder="ID TEAM" class="w-full border-2 border-slate-100 rounded-xl p-4 text-base outline-none focus:border-blue-600 font-bold uppercase transition-all">
@@ -38,6 +39,7 @@
         </div>
     </div>
 
+    <!-- Admin Console -->
     <div id="adminConsole" class="hidden">
         <div class="w-full max-w-4xl mx-auto space-y-6 pb-12 p-6 bg-slate-50 min-h-screen">
             <div class="flex items-center justify-between pt-4">
@@ -48,6 +50,7 @@
         </div>
     </div>
 
+    <!-- Header UI -->
     <header class="bg-white shadow-md px-3 sticky top-0 z-50 border-b h-[60px] flex items-center gap-3">
         <div class="flex items-center gap-2">
             <div class="bg-green-600 p-1.5 rounded-lg shadow-md"><i data-lucide="sprout" class="text-white w-5 h-5"></i></div>
@@ -72,6 +75,7 @@
             </div>
         </div>
 
+        <!-- Dashboard Panel -->
         <div id="statusPanel" class="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-[32px] flex flex-col border-t border-slate-100">
             <div id="dragArea" class="cursor-pointer p-4 pb-2" onclick="window.togglePanel()">
                 <div class="drag-handle"></div>
@@ -92,6 +96,7 @@
         </div>
     </main>
 
+    <!-- Modali Creazione -->
     <div id="actionChoiceModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[40px] w-full max-w-xs p-8 text-center shadow-2xl">
             <h2 class="text-xl font-black mb-6 text-slate-900">Azione Mappa</h2>
@@ -103,6 +108,7 @@
         </div>
     </div>
 
+    <!-- Modale Area -->
     <div id="fieldModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h2 id="fieldModalTitle" class="text-xl font-black text-green-700 mb-5 text-center">Dati Area</h2>
@@ -130,6 +136,7 @@
         </div>
     </div>
 
+    <!-- Modale Nota -->
     <div id="checkpointModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-sm p-8 shadow-2xl">
             <h2 class="text-xl font-black text-blue-800 mb-5 text-center">Nota Tecnica</h2>
@@ -154,6 +161,7 @@
         </div>
     </div>
 
+    <!-- Modale Ricerca -->
     <div id="searchModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md hidden items-center justify-center modal-super p-6">
         <div class="bg-white rounded-[32px] w-full max-w-xs p-8 shadow-2xl text-center">
             <h2 class="text-xl font-black text-slate-900 mb-5 uppercase tracking-tight">Cerca Luogo</h2>
@@ -212,6 +220,263 @@
         window.handleLocalMode = () => { currentProjectName = document.getElementById('projectInput').value.trim() || 'locale'; isLocalMode = true; isInitialized = true; window.enterApp(); };
 
         window.enterApp = () => {
+            document.getElementById('displayProjName').innerText = currentProjectName.toUpperCase();
+            if (isAdmin) document.getElementById('adminTools').classList.remove('hidden');
+            document.getElementById('loginOverlay').style.display = 'none';
+            if (mapReady) { window.loadLocalCache(); if (!isLocalMode) window.startSync(); }
+            try { lucide.createIcons(); } catch(e){}
+        }
+
+        window.registerTeamInRegistry = async (pass) => { if (isAdmin || isLocalMode) return; try { await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'team_registry', currentProjectName), { teamId: currentProjectName, password: pass, lastSeen: Date.now() }); } catch(e) {} }
+        
+        window.openAdminConsole = () => {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'team_registry'), (snap) => {
+                const list = document.getElementById('adminTeamList'); list.innerHTML = "";
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    const card = document.createElement('div');
+                    card.className = "p-4 bg-white rounded-2xl border shadow-sm flex justify-between items-center";
+                    card.innerHTML = `<div class="flex flex-col"><span class="font-black uppercase text-xs">${data.teamId}</span><span class="text-[10px] text-blue-600 font-bold">${data.password}</span></div>`;
+                    list.appendChild(card);
+                });
+            });
+            window.openModal('adminConsole');
+        };
+
+        window.mergeData = (newData) => {
+            if (!mapReady || !Array.isArray(newData)) return;
+            const localMap = new Map(fields.map(f => [f.id.toString(), f]));
+            
+            newData.forEach(cloudField => {
+                if (!cloudField.id) return;
+                const id = cloudField.id.toString();
+                const merged = { ...cloudField };
+                merged.checkpoints = cloudField.checkpoints || []; 
+                
+                if (typeof merged.pathCoords === 'string') {
+                    try { merged.pathCoords = JSON.parse(merged.pathCoords); } catch(e) { merged.pathCoords = []; }
+                }
+                
+                localMap.set(id, merged);
+            });
+            
+            fields.forEach(f => window.clearMapField(f));
+            fields = Array.from(localMap.values()).map(f => { window.renderFieldOnMap(f); return f; });
+            window.updateFieldUI(); 
+            window.saveToLocalStorage();
+        }
+
+        window.clearMapField = (f) => { if(f.marker) map.removeLayer(f.marker); if(f.circle) map.removeLayer(f.circle); if(f.polyline) map.removeLayer(f.polyline); if(f.checkpoints) f.checkpoints.forEach(cp => { if(cp.marker) map.removeLayer(cp.marker); }); }
+        
+        window.saveToLocalStorage = () => { 
+            try {
+                localStorage.setItem('isolamenti_db_' + currentProjectName, JSON.stringify(fields.map(f => { 
+                    const c = {...f}; 
+                    delete c.marker; delete c.circle; delete c.polyline; 
+                    delete c.pathCoords; 
+                    if(c.checkpoints) c.checkpoints = c.checkpoints.map(cp => { const x = {...cp}; delete x.marker; return x; }); 
+                    return c; 
+                }))); 
+            } catch(e) {
+                console.warn("Memoria locale piena.");
+            }
+        }
+        
+        window.saveFieldToCloud = async (f) => { 
+            if (isLocalMode || !isInitialized) return; 
+            f.lastUpdated = Date.now(); 
+            window.saveToLocalStorage(); 
+            try { 
+                const cleanCheckpoints = (f.checkpoints || []).map(cp => ({ 
+                    id: cp.id, latlng: cp.latlng, note: cp.note || "", checked: !!cp.checked, customNumber: cp.customNumber || "" 
+                }));
+                const cleanField = { 
+                    id: f.id.toString(), name: f.name || "", code: f.code || "---", category: f.category || "altro", 
+                    latlng: f.latlng || [0,0], radius: f.radius || 300, 
+                    pathCoords: typeof f.pathCoords === 'string' ? f.pathCoords : JSON.stringify(f.pathCoords || []), 
+                    checkpoints: cleanCheckpoints, lastUpdated: f.lastUpdated 
+                };
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, f.id.toString()), cleanField); 
+            } catch(e) { 
+                alert("❌ ERRORE FIREBASE IMPREVISTO: " + e.message); 
+            } 
+        }
+
+        window.updateFieldUI = () => {
+            const container = document.getElementById('fieldsSection'); if (!container) return; container.innerHTML = "";
+            document.getElementById('fieldCount').innerText = `${fields.filter(f => f.id !== 'field_gen').length} Aree`;
+            fields.filter(f => f.id && f.id !== 'field_gen').forEach(f => {
+                const div = document.createElement('div'); div.className = "p-4 bg-slate-50 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100";
+                div.innerHTML = `<div class="flex items-center gap-3 cursor-pointer flex-1 py-1" onclick="window.zoomToField('${f.id}')"><div class="w-3 h-3 rounded-full" style="background:${categoryColors[f.category] || '#64748b'}"></div><span class="text-xs font-black uppercase text-slate-700">${f.name}</span></div><div class="flex gap-2"><button onclick="window.editField('${f.id}')" class="p-2 text-blue-600 bg-white rounded-lg shadow-sm"><i data-lucide="pencil" class="w-4 h-4"></i></button><button onclick="window.deleteField('${f.id}')" class="p-2 text-red-500 bg-white rounded-lg shadow-sm"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>`;
+                container.appendChild(div);
+            });
+            try { lucide.createIcons(); } catch(e){}
+        };
+
+        window.zoomToField = (id) => { const f = fields.find(x => x.id == id); if(f && f.latlng) { isFollowing = false; map.flyTo(f.latlng, 17); window.togglePanel(); } };
+
+        window.renderFieldOnMap = (f) => {
+            if (!f) return;
+            if (f.checkpoints && Array.isArray(f.checkpoints)) f.checkpoints.forEach((cp, i) => window.renderCheckpointOnMap(cp, i, f.id));
+            if (f.id === 'field_gen' || !f.latlng || f.latlng[0] === 0) return;
+            
+            const color = categoryColors[f.category] || '#64748b';
+            f.marker = L.marker(f.latlng, { icon: L.divIcon({ html: `<div style="background:${color};border-radius:30px;width:30px;height:30px;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.2);"><i data-lucide="sprout" style="width:16px;height:16px;"></i></div>`, className: 'f-icon', iconSize:[30,30] }) }).addTo(map);
+            f.marker.bindTooltip(`<span style="font-weight:900; font-size:10px; text-transform:uppercase; color:#1e293b;">${f.name}</span>`, { permanent: true, direction: 'top', offset: [0, -10], opacity: 0.9 });
+            
+            f.marker.on('click', (ev) => { L.DomEvent.stopPropagation(ev); window.editField(f.id); });
+            
+            f.circle = L.circle(f.latlng, { radius: f.radius || 300, color: color, fillOpacity: 0.05, weight: 1.5, dashArray: '5,8' }).addTo(map);
+            
+            if (f.pathCoords && Array.isArray(f.pathCoords) && f.pathCoords.length > 0) {
+                f.polyline = L.polyline(f.pathCoords, { color: '#334155', weight: 4, opacity: 0.7, dashArray: '8, 8' }).addTo(map);
+            }
+        }
+
+        window.renderCheckpointOnMap = (cp, index, fieldId) => {
+            const pinColor = cp.checked ? '#10b981' : '#ef4444';
+            cp.marker = L.marker(cp.latlng, { icon: L.divIcon({ html: `<div class="cp-icon-wrapper"><svg viewBox="0 0 24 24" width="36" height="36"><path d="M12 2 L22 21 L2 21 Z" fill="${pinColor}" stroke="#fff" stroke-width="2"/><text x="12" y="17" font-size="8" font-weight="900" fill="white" text-anchor="middle">${cp.customNumber || index+1}</text></svg></div>`, className: 'cp-marker', iconSize:[40,40], iconAnchor:[20,34] }) }).addTo(map);
+            cp.marker.on('click', (ev) => { 
+                L.DomEvent.stopPropagation(ev); 
+                tempCheckpointCoords = { checkpointId: cp.id, fieldId, lat: cp.latlng[0], lng: cp.latlng[1] }; 
+                document.getElementById('checkpointNumberInput').value = cp.customNumber || ""; 
+                document.getElementById('checkpointNoteInput').value = cp.note || ""; 
+                document.getElementById('checkpointCheckedInput').checked = !!cp.checked; 
+                document.getElementById('deleteCPBtn').classList.remove('hidden'); 
+                window.openModal('checkpointModal'); 
+                try { lucide.createIcons(); } catch(e){}
+            });
+        }
+
+        window.navigateToCheckpoint = () => {
+            if (!tempCheckpointCoords || !tempCheckpointCoords.lat || !tempCheckpointCoords.lng) {
+                return alert("⚠️ Coordinate non disponibili per la navigazione.");
+            }
+            window.open(`https://www.google.com/maps/search/?api=1&query=${tempCheckpointCoords.lat},${tempCheckpointCoords.lng}`, '_blank');
+        };
+
+        window.navigateToField = () => {
+            if (!tempFieldId) return;
+            const f = fields.find(x => x.id == tempFieldId);
+            if (!f || !f.latlng) {
+                return alert("⚠️ Coordinate non disponibili per la navigazione.");
+            }
+            window.open(`https://www.google.com/maps/search/?api=1&query=${f.latlng[0]},${f.latlng[1]}`, '_blank');
+        };
+
+        // NUOVA FUNZIONE DI RICERCA MANUALE (COORDINATE O INDIRIZZO VIA NOMINATIM)
+        window.executeManualSearch = async () => {
+            const query = document.getElementById('manualSearchInput').value.trim();
+            if (!query) return alert("Inserisci un indirizzo o delle coordinate.");
+            
+            // Verifica se l'utente ha inserito coordinate dirette (es: 44.123, 12.456)
+            const parts = query.split(',');
+            if (parts.length === 2) {
+                const lat = parseFloat(parts[0].trim());
+                const lng = parseFloat(parts[1].trim());
+                if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                    isFollowing = false;
+                    map.flyTo([lat, lng], 16);
+                    window.closeModal('searchModal');
+                    return;
+                }
+            }
+            
+            // Altrimenti procede alla ricerca testuale tramite OpenStreetMap
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    const lat = parseFloat(data[0].lat);
+                    const lon = parseFloat(data[0].lon);
+                    isFollowing = false;
+                    map.flyTo([lat, lon], 16);
+                    window.closeModal('searchModal');
+                } else {
+                    alert("Luogo non trovato. Specifica meglio o inserisci le coordinate (es: 44.5, 11.5)");
+                }
+            } catch (err) {
+                alert("Errore di connessione durante la ricerca.");
+            }
+        };
+
+        window.selectNewFieldAction = () => { tempFieldId = null; document.getElementById('fieldModalTitle').innerText = "Crea Isolamento"; document.getElementById('fieldNameInput').value = ""; document.getElementById('fieldCodeInput').value = ""; document.getElementById('fieldRadiusInput').value = "300"; document.getElementById('fieldNavigateBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('fieldModal'); };
+        window.selectNewCheckpoint = () => { tempCheckpointCoords = { lat: tempFieldCoords.lat, lng: tempFieldCoords.lng, fieldId: 'field_gen' }; document.getElementById('checkpointNumberInput').value = ""; document.getElementById('checkpointNoteInput').value = ""; document.getElementById('checkpointCheckedInput').checked = false; document.getElementById('deleteCPBtn').classList.add('hidden'); window.closeModal('actionChoiceModal'); window.openModal('checkpointModal'); try { lucide.createIcons(); } catch(e){} };
+        
+        window.confirmAddField = async () => { 
+            try {
+                const n = document.getElementById('fieldNameInput').value, c = document.getElementById('fieldCodeInput').value, cat = document.getElementById('fieldCategoryInput').value, rad = parseInt(document.getElementById('fieldRadiusInput').value) || 300;
+                if (tempFieldId) { const f = fields.find(x => x.id == tempFieldId); if(f) { f.name = n; f.code = c; f.category = cat; f.radius = rad; window.clearMapField(f); window.renderFieldOnMap(f); window.saveFieldToCloud(f); } } 
+                else { const f = { id: Date.now(), name: n, code: c, category: cat, latlng: [tempFieldCoords.lat, tempFieldCoords.lng], radius: rad, pathCoords: [], checkpoints: [], lastUpdated: Date.now() }; fields.push(f); window.renderFieldOnMap(f); window.saveFieldToCloud(f); }
+                window.closeModal('fieldModal'); window.updateFieldUI(); tempFieldId = null;
+            } catch (err) { alert("Attenzione: " + err.message); }
+        };
+
+        window.confirmAddCheckpoint = async () => {
+            try {
+                const note = document.getElementById('checkpointNoteInput').value, isChecked = document.getElementById('checkpointCheckedInput').checked, num = document.getElementById('checkpointNumberInput').value;
+                let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid);
+                if(!f) { f = { id: 'field_gen', name: 'NOTE GENERALI', latlng: [0,0], radius: 0, checkpoints: [] }; fields.push(f); }
+                f.checkpoints = f.checkpoints || [];
+                let cp = f.checkpoints.find(c => c.id === tempCheckpointCoords?.checkpointId);
+                if(cp) { cp.note = note; cp.checked = isChecked; cp.customNumber = num; } else { f.checkpoints.push({ id: Date.now(), latlng: [tempCheckpointCoords.lat, tempCheckpointCoords.lng], note, checked: isChecked, customNumber: num }); }
+                f.checkpoints.forEach(c => { if(c.marker) map.removeLayer(c.marker); }); f.checkpoints.forEach((c, i) => window.renderCheckpointOnMap(c, i, f.id));
+                window.closeModal('checkpointModal');
+                window.saveFieldToCloud(f); 
+            } catch (err) { alert("❌ ERRORE IMPREVISTO: " + err.message); }
+        };
+
+        window.editField = (id) => { 
+            const f = fields.find(x => x.id == id); 
+            if(!f) return; 
+            tempFieldId = id; 
+            document.getElementById('fieldModalTitle').innerText = "Modifica Isolamento"; 
+            document.getElementById('fieldNameInput').value = f.name; 
+            document.getElementById('fieldCodeInput').value = f.code; 
+            document.getElementById('fieldCategoryInput').value = f.category || "altro";
+            document.getElementById('fieldRadiusInput').value = f.radius || 300; 
+            document.getElementById('fieldNavigateBtn').classList.remove('hidden'); 
+            window.openModal('fieldModal'); 
+            try { lucide.createIcons(); } catch(e){}
+        };
+        
+        window.deleteField = async (id) => { if (confirm("Eliminare?")) { const idx = fields.findIndex(f => f.id == id); if (idx !== -1) { window.clearMapField(fields[idx]); if (!isLocalMode) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName, id.toString())); fields.splice(idx, 1); window.saveToLocalStorage(); window.updateFieldUI(); } } };
+        window.deleteCheckpoint = async () => { if(confirm("Eliminare nota?")) { let tid = tempCheckpointCoords?.fieldId || 'field_gen', f = fields.find(x => x.id === tid); const idx = f.checkpoints.findIndex(c => c.id === tempCheckpointCoords?.checkpointId); if(idx !== -1) { map.removeLayer(f.checkpoints[idx].marker); f.checkpoints.splice(idx, 1); window.closeModal('checkpointModal'); window.saveFieldToCloud(f); } } };
+
+        window.toggleTracking = () => { if (isTracking) { navigator.geolocation.clearWatch(watchId); isTracking = false; document.getElementById('trackLabel').innerText = 'AVVIA GPS'; return; } isTracking = true; document.getElementById('trackLabel').innerText = 'STOP GPS'; watchId = navigator.geolocation.watchPosition((pos) => { const ll = L.latLng(pos.coords.latitude, pos.coords.longitude); if (!userMarker) userMarker = L.marker(ll).addTo(map); else userMarker.setLatLng(ll); if (isFollowing) map.panTo(ll); }, null, { enableHighAccuracy: true }); };
+        
+        window.handleOrientation = (event) => { if (!mapRotationEnabled) return; let heading = event.webkitCompassHeading || (360 - event.alpha); if (heading) { document.getElementById('map').style.transform = `rotate(${-heading}deg)`; } };
+        window.toggleMapRotation = () => { 
+            mapRotationEnabled = !mapRotationEnabled; const btn = document.getElementById('rotationToggle');
+            if (mapRotationEnabled) { btn.classList.add('text-blue-600'); btn.classList.remove('text-slate-700'); if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') { DeviceOrientationEvent.requestPermission().then(res => { if (res === 'granted') window.addEventListener('deviceorientation', window.handleOrientation); }).catch(e => {}); } else { window.addEventListener('deviceorientation', window.handleOrientation); } } 
+            else { btn.classList.remove('text-blue-600'); btn.classList.add('text-slate-700'); window.removeEventListener('deviceorientation', window.handleOrientation); document.getElementById('map').style.transform = 'rotate(0deg)'; }
+        };
+        
+        window.togglePanel = () => { isExpanded = !isExpanded; document.getElementById('statusPanel').classList.toggle('expanded', isExpanded); document.getElementById('panelChevron').style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0)'; };
+        window.recenterOnUser = () => { isFollowing = true; if(userMarker) map.flyTo(userMarker.getLatLng(), 17); };
+        window.logoutProject = () => { if(confirm("Esci?")) { localStorage.removeItem('isolamenti_last_session'); location.reload(); } };
+        
+        window.loadLocalCache = () => { const raw = localStorage.getItem('isolamenti_db_' + currentProjectName); if (raw) window.mergeData(JSON.parse(raw)); }
+        window.startSync = () => { onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'fields_' + currentProjectName), (snap) => { window.mergeData(snap.docs.map(d => d.data())); }); }
+
+        window.onload = () => { 
+            map = L.map('map', { zoomControl: false }).setView([44.5, 11.5], 6); 
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map); 
+            
+            const mapClickHandler = (e) => { tempFieldCoords = e.latlng; isFollowing = false; window.openModal('actionChoiceModal'); try { lucide.createIcons(); } catch(err){} };
+            map.on('click', mapClickHandler); map.on('contextmenu', mapClickHandler);
+            map.on('dragstart', () => { isFollowing = false; }); map.on('zoomstart', () => { isFollowing = false; });
+            
+            mapReady = true; 
+            try {
+                const s = localStorage.getItem('isolamenti_last_session'); 
+                if(s) { const d = JSON.parse(s); document.getElementById('projectInput').value = d.name; document.getElementById('passwordInput').value = d.pass; window.handleLogin(); }
+            } catch (e) { localStorage.removeItem('isolamenti_last_session'); }
+            try { lucide.createIcons(); } catch(e){} 
+        };
+    </script>
+</body>
+</html>
             document.getElementById('displayProjName').innerText = currentProjectName.toUpperCase();
             if (isAdmin) document.getElementById('adminTools').classList.remove('hidden');
             document.getElementById('loginOverlay').style.display = 'none';
